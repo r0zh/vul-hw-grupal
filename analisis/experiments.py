@@ -42,7 +42,11 @@ def _jsonable(value):
 def analyse_campaign(campaign: simulate.SyntheticTraces,
                      config: SimulationConfig | None = None,
                      prefix: str = "") -> dict[str, object]:
-    """Ejecuta CPA y DPA sobre una campaña y resume los resultados.
+    """Ejecuta el CPA sobre la primera y la última ronda y resume el resultado.
+
+    La primera ronda recupera la clave maestra directamente. La última
+    recupera la subclave 10, y de ella se obtiene la clave maestra invirtiendo
+    la expansión de clave.
 
     Parámetros
     ----------
@@ -55,35 +59,46 @@ def analyse_campaign(campaign: simulate.SyntheticTraces,
         campañas en un mismo resultado.
     """
     started = time.perf_counter()
-    key = campaign.key.astype(np.intp)
+    round_key_10 = aes.key_expansion_batch(campaign.key)[10]
     results: dict[str, object] = {}
 
-    for target, texts in (("first", campaign.plaintexts),
-                          ("last", campaign.ciphertexts)):
+    for target, texts, correct_key in (
+        ("first", campaign.plaintexts, campaign.key),
+        ("last", campaign.ciphertexts, round_key_10),
+    ):
+        key = correct_key.astype(np.intp)
         scores = attacks.cpa_scores(campaign.traces, texts, target=target)
         recovered = attacks.winning_key(scores)
-        peaks = np.abs(scores).max(axis=2)
+        peaks = np.abs(scores).max(axis=2)                    # (16, 256)
         correct_peaks = peaks[np.arange(16), key]
+        wrong_peaks = np.where(np.arange(256) == key[:, None], 0.0, peaks)
+        best_wrong = wrong_peaks.max(axis=1)
         ranks = statistics.ranks_of(scores, key)
-        margins = [
-            statistics.detection_margin(scores[byte], int(key[byte]))
-            for byte in range(16)
-        ]
+        margins = correct_peaks - best_wrong
         elapsed = time.perf_counter() - started
-        results[f"{prefix}cpa_{target}"] = {
+        summary = {
             "recovered_key_hex": recovered.tobytes().hex(),
-            "correct_key_hex": campaign.key.tobytes().hex(),
-            "bits_recovered": int((recovered == campaign.key).sum() * 8),
-            "bytes_recovered": int((recovered == campaign.key).sum()),
+            "correct_key_hex": correct_key.tobytes().hex(),
+            "bits_recovered": int((recovered == correct_key).sum() * 8),
+            "bytes_recovered": int((recovered == correct_key).sum()),
             "mean_rank": float(ranks.mean()),
             "median_rank": float(np.median(ranks)),
             "worst_rank": int(ranks.max()),
             "mean_correct_peak": float(correct_peaks.mean()),
             "min_correct_peak": float(correct_peaks.min()),
-            "mean_margin": float(np.mean(margins)),
+            "mean_best_wrong_peak": float(best_wrong.mean()),
+            "max_wrong_peak": float(best_wrong.max()),
+            "mean_margin": float(margins.mean()),
             "rms_correlation": float(np.sqrt(np.mean(scores**2))),
             "seconds": float(elapsed),
         }
+        if target == "last":
+            # Lo recuperado es la subclave 10: la clave maestra sale de
+            # invertir la expansión de clave.
+            master = aes.invert_key_schedule(recovered.tobytes())
+            summary["master_key_from_round_key_hex"] = master.hex()
+            summary["master_key_recovered"] = master == campaign.key.tobytes()
+        results[f"{prefix}cpa_{target}"] = summary
         results[f"{prefix}ranks_{target}"] = ranks.astype(int).tolist()
         results[f"{prefix}correct_peaks_{target}"] = correct_peaks.tolist()
     return results
@@ -93,18 +108,15 @@ def run_baseline(config: ExperimentConfig) -> dict[str, object]:
     """Campaña de referencia: recuperación de la clave y detalle del CPA.
 
     Genera `n_traces` trazas a la SNR de referencia, ataca con CPA la primera y
-    la última ronda y guarda además la curva de escalado del candidato correcto
-    frente al número de trazas.
+    la última ronda y guarda además cómo evolucionan, al crecer el número de
+    trazas, el pico del candidato correcto y el del mejor candidato falso.
     """
     simulation = config.simulation
     campaign = simulate.simulate_traces(simulation)
     results = analyse_campaign(campaign, simulation)
 
-    # Escalado de la correlación del candidato correcto al crecer el número de
-    # trazas. Se calcula sobre los mismos instantes de control del barrido.
     checkpoints = trace_checkpoints(simulation.n_traces)
-    growth = _correlation_growth(campaign, checkpoints)
-    results["growth"] = growth
+    results["growth"] = _peak_growth(campaign, checkpoints)
     results["checkpoints"] = checkpoints
     results["baseline"] = {
         "simulation": simulation.as_dict(),
@@ -113,16 +125,8 @@ def run_baseline(config: ExperimentConfig) -> dict[str, object]:
         "snr": float(simulation.snr),
         "noise_sigma": float(campaign.noise_sigma),
         "signal_hw_std": float(campaign.signal_hw_std),
-        "theoretical_ceiling": float(
-            simulate.theoretical_correlation_ceiling(
-                campaign.signal_hw_std, simulation.snr
-            )
-        ),
-        "ceiling_with_offset": float(
-            simulate.theoretical_correlation_ceiling(
-                campaign.signal_hw_std, simulation.snr,
-                trace_offset_std=simulation.trace_offset_std,
-            )
+        "theoretical_ceiling": simulate.theoretical_correlation_ceiling(
+            simulation.snr
         ),
         "first_round_centers": simulation.first_round_centers,
         "last_round_centers": simulation.last_round_centers,
@@ -130,21 +134,28 @@ def run_baseline(config: ExperimentConfig) -> dict[str, object]:
     return results
 
 
-def _correlation_growth(campaign: simulate.SyntheticTraces,
-                        checkpoints: list[int]) -> dict[str, object]:
-    """Correlación del candidato correcto frente al número de trazas."""
-    rms_values: list[float] = []
-    peak_values: list[float] = []
+def _peak_growth(campaign: simulate.SyntheticTraces,
+                 checkpoints: list[int]) -> dict[str, object]:
+    """Pico del candidato correcto y del mejor falso frente al número de trazas.
+
+    Es la curva que explica el CPA: el pico del correcto se queda en torno a
+    su valor teórico, mientras que el del mejor falso baja como 1/√N. La clave
+    sale cuando el segundo cae por debajo del primero.
+    """
+    key = campaign.key.astype(np.intp)
+    correct_values: list[float] = []
+    wrong_values: list[float] = []
     for count in checkpoints:
-        scores = attacks.correct_hypothesis_correlation(
-            campaign.traces[:count], campaign.plaintexts[:count], campaign.key
-        )
-        rms_values.append(float(statistics.rms(scores, axis=None)))
-        peak_values.append(float(np.abs(scores).max()))
+        scores = attacks.cpa_scores(campaign.traces[:count],
+                                    campaign.plaintexts[:count])
+        peaks = np.abs(scores).max(axis=2)
+        correct_values.append(float(peaks[np.arange(16), key].mean()))
+        wrong = np.where(np.arange(256) == key[:, None], 0.0, peaks)
+        wrong_values.append(float(wrong.max(axis=1).mean()))
     return {
         "traces": [int(count) for count in checkpoints],
-        "rms_first_round": rms_values,
-        "peak_first_round": peak_values,
+        "mean_correct_peak": correct_values,
+        "mean_best_wrong_peak": wrong_values,
     }
 
 
@@ -155,7 +166,7 @@ def run_noise_sweep(config: ExperimentConfig) -> dict[str, object]:
     textos claros nuevos, se simulan `sweep_traces` trazas y se ejecuta el CPA
     completo en los instantes de control. Se guarda el rango del byte correcto
     de cada posición (lo que permite calcular el rango medio, la probabilidad
-    de recuperar los 256 bits y el número de trazas que hacen falta), el pico
+    de recuperar los 128 bits y el número de trazas que hacen falta), el pico
     del candidato correcto y la correlación eficaz (RMS).
 
     Es la parte cara del análisis: alrededor de un minuto por nivel de SNR en
@@ -242,17 +253,20 @@ def summarise_sweep(sweep: dict[str, object]) -> dict[str, object]:
         for row in success
     ]
 
-    # Trazas necesarias para que la media de los ensayos recupere los 16 bytes,
-    # y mediana del primer instante de control con la clave completa.
+    # Primer instante de control en el que al menos el 90 % de los ensayos
+    # tiene la clave completa, y mediana del primer instante con la clave
+    # completa de cada ensayo. Los ensayos que no la recuperan cuentan como
+    # «más que el tope»: si son la mitad o más, la mediana queda indefinida.
     traces_needed = np.full(len(levels), np.nan)
     intersection = np.full(len(levels), np.nan)
     for index in range(len(snr_values)):
         mask = success[index] >= 0.9
         if mask.any():
             traces_needed[index] = checkpoints[int(np.argmax(mask))]
-        valid = recovered[index][~np.isnan(recovered[index])]
-        if valid.size:
-            intersection[index] = float(np.median(valid))
+        first = np.where(np.isnan(recovered[index]), np.inf, recovered[index])
+        median = float(np.median(first))
+        if np.isfinite(median):
+            intersection[index] = median
     summary["traces_for_90_percent"] = traces_needed
     summary["median_recovered_traces"] = intersection
     summary["mean_correct_peak"] = np.asarray(
@@ -264,10 +278,12 @@ def summarise_sweep(sweep: dict[str, object]) -> dict[str, object]:
 def run_dpa_comparison(config: ExperimentConfig) -> dict[str, object]:
     """Compara DPA (partición por un bit) con CPA sobre la misma campaña.
 
-    Prueba los ocho bits del valor intermedio, mide cuántos bytes acierta cada
-    uno y se queda con el mejor para la figura. La comparación es deliberada:
-    el DPA clásico usa una partición de un bit, así que aprovecha mucha menos
-    información de la fuga que el modelo de peso de Hamming del CPA.
+    Prueba los ocho bits del valor intermedio y mide cuántos bytes acierta
+    cada uno y en qué puesto queda el byte correcto. El «mejor bit» se elige
+    conociendo la clave, lo que favorece al DPA: un atacante real no sabría
+    cuál escoger. El margen del DPA se guarda en unidades de la traza
+    (diferencia de medias) y no se puede comparar con el del CPA, que es una
+    correlación.
     """
     simulation = config.simulation.with_overrides(
         n_traces=config.dpa_traces, seed=config.seed_for("dpa")
@@ -285,7 +301,7 @@ def run_dpa_comparison(config: ExperimentConfig) -> dict[str, object]:
             "bytes_recovered": int((attacks.winning_key(scores) == key).sum()),
             "bits_recovered": int((attacks.winning_key(scores) == key).sum() * 8),
             "mean_rank": float(statistics.ranks_of(scores, correct).mean()),
-            "mean_margin": float(np.mean([
+            "mean_margin_trace_units": float(np.mean([
                 statistics.detection_margin(scores[byte], int(correct[byte]))
                 for byte in range(16)
             ])),
@@ -301,13 +317,8 @@ def run_dpa_comparison(config: ExperimentConfig) -> dict[str, object]:
         "bytes_recovered_dpa": int(best["bytes_recovered"]),
         "best_bit": int(best["bit"]),
         "per_bit": per_bit,
-        "cpa_correct_peak": float(np.abs(cpa).max()),
-        "dpa_correct_peak": float(np.abs(dpa).max()),
-        "cpa_mean_margin": float(np.mean([
-            statistics.detection_margin(cpa[byte], int(correct[byte]))
-            for byte in range(16)
-        ])),
-        "dpa_mean_margin": float(best["mean_margin"]),
+        "cpa_mean_rank": float(statistics.ranks_of(cpa, correct).mean()),
+        "dpa_mean_rank": float(best["mean_rank"]),
         "correct_key_hex": key.tobytes().hex(),
         "recovered_key_cpa_hex": attacks.winning_key(cpa).tobytes().hex(),
         "recovered_key_dpa_hex": attacks.winning_key(dpa).tobytes().hex(),
@@ -325,7 +336,7 @@ def run_all(config: ExperimentConfig | None = None) -> dict[str, object]:
     started = time.perf_counter()
 
     fips = []
-    for index, (key, plaintext, expected) in enumerate(aes.fips197_vectors(), start=1):
+    for index, (key, plaintext, expected) in enumerate(aes.aes_test_vectors(), start=1):
         ciphertext = aes.encrypt_block_with_key(plaintext, key)
         fips.append({
             "vector": index,
@@ -348,7 +359,7 @@ def run_all(config: ExperimentConfig | None = None) -> dict[str, object]:
             "Hamming y ruido gaussiano. No son medidas de ningún montaje real."
         ),
         "config": config.as_dict(),
-        "fips197": fips,
+        "aes_vectors": fips,
         "baseline": baseline,
         "sweep": {
             "snr_levels": sweep["snr_levels"],

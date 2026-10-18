@@ -150,7 +150,10 @@ def cpa_scores(
 
     Devuelve
     --------
-    `(16, 256, n_samples)` con la correlación de cada hipótesis.
+    `(16, 256, n_samples)` con la correlación de cada hipótesis. Con
+    `target="last"` los candidatos son bytes de la subclave 10, en el orden
+    del criptograma; la clave maestra se obtiene con
+    `aes.invert_key_schedule`.
     """
     traces = np.asarray(traces, dtype=np.float64)
     if target == "first":
@@ -220,7 +223,8 @@ def correct_hypothesis_correlation(
     trazas y no qué candidato gana (eso ya lo mide el CPA completo).
 
     La clave se recibe como argumento, así que esta función **sí conoce la
-    clave**: es una herramienta de medida, no un ataque.
+    clave**: es una herramienta de medida, no un ataque. Con `target="last"`,
+    `key` es la subclave 10, que es lo que ataca la última ronda.
     """
     traces = np.asarray(traces, dtype=np.float64)
     key = aes._as_bytes_array(key)
