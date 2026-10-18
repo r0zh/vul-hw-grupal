@@ -102,7 +102,7 @@ uv run python -m analisis.run_all            # fase 1 completa y figuras (~4 min
 uv run python -m analisis.run_all --fast     # versión de humo
 ```
 
-Detalles en [`analisis/README.md`](analisis/README.md). El workflow `Análisis` ejecuta las comprobaciones y un análisis reducido en cada push que toque `analisis/`.
+Detalles en [`analisis/README.md`](analisis/README.md). El workflow `Análisis` ejecuta las comprobaciones y el análisis reducido **dos veces** en cada push que toque `analisis/`, para comprobar que los resultados y las figuras son deterministas.
 
 ### Git
 
