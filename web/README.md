@@ -20,7 +20,7 @@ porque Pages sirve el sitio bajo `/vul-hw-grupal/` y no en la raíz.
 | `js/model/aes.js` | AES-128 (FIPS-197): S-box, expansión de clave, cifrado e inversión de la expansión |
 | `js/model/sim.js` | Generador de trazas sintéticas, el mismo modelo y parámetros que `analisis/` |
 | `js/model/cpa.js` | CPA por estadísticos suficientes y carga de campañas reales en JSON |
-| `js/components/` | `<cpa-live>` (el CPA en directo) y `<cpa-leak>` (de dónde sale la fuga) |
+| `js/components/` | `<cpa-live>` (el CPA en directo), `<cpa-leak>` (de dónde sale la fuga) y `<cpa-sbox>` (AddRoundKey, SubBytes y por qué se ataca la salida de la S-box) |
 | `tests/` | `node --test` sobre los modelos puros |
 | `spec/` | Claims de aprendizaje, comprobados en Chromium real |
 | `scripts/` | Harness: `cdp`, `smoke`, `learn` y `visual` (Node ≥ 22 y Chromium) |
@@ -30,7 +30,7 @@ porque Pages sirve el sitio bajo `/vul-hw-grupal/` y no en la raíz.
 ```sh
 cd web
 npm run serve      # sirve la raíz del repo: http://localhost:8000/web/
-npm test           # modelos: AES, CPA exacto, contraste estadístico con Python (~2 s)
+npm test           # modelos: AES, CPA exacto, S-box frente a XOR, contraste con Python (~2 s)
 npm run smoke      # la página carga en /web/ y las figuras se pintan
 npm run learn      # claims de spec/; capturas en web/review/
 npm run visual     # recortes, solapes y contraste; informe en web/review/visual/

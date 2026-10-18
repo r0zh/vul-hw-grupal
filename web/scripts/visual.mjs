@@ -30,7 +30,7 @@ const PNG = join(OUT, 'png'); // una captura por figura/estado/checkpoint, para 
 
 // strict: true = el contraste bajo falla el gate.
 const PAGES = [
-  { path: '/web/index.html', strict: true, widgets: ['cpa-leak', 'cpa-live', 'figure.diag'] },
+  { path: '/web/index.html', strict: true, widgets: ['cpa-leak', 'cpa-sbox', 'cpa-live', 'figure.diag'] },
 ];
 
 if (!findChrome()) { console.error('visual: no chromium; set CHROME=/path/to/chrome'); process.exit(1); }
