@@ -15,59 +15,70 @@
 
 Antes de medir nada conviene comprobar que el ataque está bien implementado y
 saber qué cabe esperar de él. Para eso se generan \emph{trazas sintéticas} con
-el modelo de fuga de la \cref{sec:cpa} ---peso de Hamming del valor intermedio
-más ruido gaussiano--- y se atacan con el mismo código que después se aplicará
-a las trazas medidas. \textbf{Todo lo que aparece en esta sección es
-simulación}: no son medidas de ningún montaje y no dicen nada sobre el
-microcontrolador, que todavía no se ha instrumentado.
+un modelo de fuga de peso de Hamming más ruido gaussiano y se atacan con el
+mismo código que después se aplicará a las trazas medidas. \textbf{Todo lo que
+aparece en esta sección es simulación}: no son medidas de ningún montaje y no
+dicen nada sobre el microcontrolador, que todavía no se ha instrumentado.
 
 \subsection{Modelo de las trazas simuladas}
 
-Cada traza sintética se construye sumando a la fuga buscada cuatro
-perturbaciones que también aparecen en una medida real:
+La traza $i$ es un vector de 96 muestras. En la muestra $t$ vale
 
 \begin{equation}
-  T_i[t] = \underbrace{b_i}_{\text{offset}}
-         + \underbrace{d_i[t]}_{\text{deriva}}
-         + \underbrace{n_i[t]}_{\text{ruido}}
-         + \sum_{r} g_r \cdot \operatorname{HW}\!\left(V_i^{(r)}\right) \cdot k[t - t_r],
+  T_i[t] = \underbrace{b_i + d_i\,s[t] + w_i[t]}_{\text{ruido}}
+         + \sum_{j=0}^{15} g_1 \operatorname{HW}\!\left(\mathrm{SBox}(p_{i,j} \oplus k_j)\right) h[t - t^{(1)}_j]
+         + \sum_{j=0}^{15} g_{10} \operatorname{HW}\!\left(x_{i,j}\right) h[t - t^{(10)}_j],
   \label{eq:modelo-traza}
 \end{equation}
 
-donde $V^{(1)}_i = \mathrm{SBox}(p_i \oplus k)$ es la salida de la S-box de la
-primera ronda, $V^{(10)}_i = \mathrm{InvSBox}(c_i \oplus k)$ la entrada de la
-S-box de la última, $k[\cdot]$ un núcleo $(0{,}5,\,1{,}0,\,0{,}5)$ que reparte
-cada operación en tres muestras consecutivas y $t_r$ el instante central de la
-operación del byte $r$. La separación entre ventanas es de dos muestras, como
-correspondería a un recorrido byte a byte del estado en el microcontrolador.
-La relación señal-ruido se define sobre la potencia de la fuga de la primera
-ronda,
-$\mathrm{SNR} = \operatorname{Var}\!\left(g_1 \operatorname{HW}(V^{(1)})\right) / \sigma_n^2$,
-que es lo que permite comparar campañas con distinto ruido. La varianza se
-calcula \emph{dentro} de cada byte del estado y se promedia entre los 16,
-porque el CPA ataca un byte cada vez: la dispersión entre bytes no es ruido
-para el ataque, es señal. Como la última ronda tiene menos amplitud
-($g_{10} < g_1$), su SNR efectiva es proporcionalmente menor y por eso su pico
-de correlación también lo es. El desplazamiento
-$b_i$ es constante dentro de una traza: infla la varianza de la traza y por
-tanto rebaja algo la correlación medida, pero no cambia el orden de los
-candidatos, porque la correlación de Pearson lo elimina.
+donde $p_{i,j}$ y $k_j$ son el byte $j$ del texto claro y de la clave,
+$\mathrm{SBox}(p_{i,j} \oplus k_j)$ es la salida de la S-box de la primera
+ronda y $x_{i,j}$ la entrada de la S-box de la última ronda en la posición $j$
+del estado, que depende de la subclave de la ronda 10 y no de la clave
+maestra. El núcleo $h = (0{,}5,\ 1{,}0,\ 0{,}5)$ reparte cada operación en tres
+muestras consecutivas centradas en $t_j$, y las ventanas de dos bytes
+consecutivos están separadas dos muestras, como correspondería a un recorrido
+byte a byte del estado en el microcontrolador. Las amplitudes son $g_1 = 1$ y
+$g_{10} = 0{,}8$.
 
-Los parámetros concretos de la campaña de referencia ---4000 trazas de 96
-muestras, $\mathrm{SNR} = 0{,}1$, semilla \num{20261018}--- están en
-\texttt{analisis/config.py} y se guardan en el JSON de resultados, de modo que
-la ejecución se puede repetir exactamente. La \cref{fig:sim-trazas} muestra
-cómo son.
+El ruido tiene tres componentes: un desplazamiento $b_i$ distinto en cada
+traza, una deriva lenta $d_i\,s[t]$ con forma sinusoidal y ruido blanco
+$w_i[t]$. El desplazamiento es constante dentro de una traza, pero cambia de
+una traza a otra, y la correlación del ataque se calcula entre trazas en cada
+instante: para el CPA es ruido, igual que los otros dos. Por eso la relación
+señal-ruido se define sobre el ruido total de una muestra,
+\begin{equation}
+  \mathrm{SNR} = \frac{\operatorname{Var}\!\left(g_1 \operatorname{HW}(\mathrm{SBox}(p_j \oplus k_j))\right)}{\sigma^2},
+  \qquad
+  \sigma^2 = \operatorname{Var}(b) + \operatorname{Var}(d)\,s[t]^2 + \operatorname{Var}(w[t]),
+\end{equation}
+con el desplazamiento y la deriva fijados al 40~\% y al 5~\% de $\sigma$ y el
+ruido blanco completando el resto en cada muestra. La varianza de la fuga se
+calcula dentro de cada byte y se promedia entre los 16. Con esta definición,
+la correlación esperada del candidato correcto en su instante de fuga es
+\begin{equation}
+  \rho = \sqrt{\frac{\mathrm{SNR}}{1 + \mathrm{SNR}}},
+  \label{eq:rho-teorica}
+\end{equation}
+que vale \num{0,302} con $\mathrm{SNR} = 0{,}1$. Las comprobaciones del código
+verifican que la simulación la reproduce con $\mathrm{SNR} = 2$ y con
+$\mathrm{SNR} = 0{,}1$.
+
+La campaña de referencia tiene 4000 trazas con $\mathrm{SNR} = 0{,}1$ y semilla
+\num{20261018}. Todos los parámetros están en \texttt{analisis/config.py} y se
+guardan en el JSON de resultados, de modo que la ejecución se puede repetir
+exactamente. La \cref{fig:sim-trazas} muestra cómo son las trazas.
 
 \begin{figure}[htbp]
   \centering
   % Generada por analisis/figures.py::figure_synthetic_traces
   \includegraphics[width=\textwidth]{sim-trazas.pdf}
   \caption{Trazas sintéticas de la campaña de referencia (arriba, quince
-    trazas superpuestas con un desplazamiento vertical para distinguirlas) y
-    su media (abajo). Las bandas señalan la ventana temporal de la S-box de la
-    primera ronda (azul) y de la última (verde). En la media se ve el escalón
-    del peso de Hamming de cada byte del estado. \textbf{Datos simulados.}}
+    trazas desplazadas en vertical para distinguirlas) y media de las 4000
+    (abajo). Las bandas señalan las ventanas de la S-box de la primera ronda
+    (azul) y de la última (verde). Como los textos claros son aleatorios, el
+    peso de Hamming medio de cada byte es 4 y la media solo muestra una meseta
+    allí donde hay fuga. \textbf{Datos simulados.}}
   \label{fig:sim-trazas}
 \end{figure}
 
@@ -75,31 +86,29 @@ cómo son.
 
 El valor intermedio que ataca el CPA tiene que ser exactamente el de la norma,
 o el ataque buscaría una clave distinta de la real. La implementación de
-referencia se comprueba contra los vectores de ejemplo del FIPS-197
-\cite{nist2023fips197}: el ejemplo del apéndice~B, el caso trivial del apéndice
-C.1 y dos casos con clave o texto claro todo a uno. En los cuatro se verifica
-el cifrado y el descifrado, y además se comprueba que la versión vectorizada
----la que genera las trazas--- produce byte a byte el mismo resultado que la
-versión directa. Estas comprobaciones forman parte de
-\texttt{uv run python -m analisis.tests} y se ejecutan antes de generar
-cualquier figura.
+referencia se comprueba con los dos ejemplos de AES-128 del FIPS-197
+\cite{nist2023fips197} ---el del apéndice~B, cuya clave es la misma que la de
+la campaña de referencia, y el del apéndice~C.1--- y con tres casos extremos
+(clave y texto claro a cero, y uno de los dos todo a unos) contrastados con
+OpenSSL. En todos se verifican el cifrado y el descifrado. Además se comprueba
+que la versión vectorizada, que es la que genera las trazas, coincide byte a
+byte con la directa; que los valores intermedios de la primera y la última
+ronda reproducen el criptograma, y que la clave maestra se recupera a partir de
+la subclave de la ronda 10, cuyo valor coincide con el del apéndice~A.1. Estas
+comprobaciones están en \texttt{uv run python -m analisis.tests}, y la
+integración continua las ejecuta antes de generar las figuras.
 
 \subsection{Recuperación de la clave}
 
-La \cref{fig:sim-cpa-correlacion} muestra el resultado central del ataque sobre
-la campaña de referencia. Arriba está el coeficiente de correlación del
-candidato correcto de cada uno de los 16 bytes; abajo, el mayor de los 255
-candidatos falsos. La diferencia es nítida: el candidato correcto llega a
-$|\rho| \approx \num{0,27}$ justo en la ventana de su byte, mientras que
-ningún candidato falso pasa de $\num{0,09}$. Los 16 bytes de la clave se
-recuperan con 4000 trazas, tanto atacando la primera ronda
-($\overline{|\rho|} = \num{0,272}$, mínimo $\num{0,263}$) como la última
-($\overline{|\rho|} = \num{0,226}$). La cota teórica para esta campaña,
-$\rho_{\max} = \sqrt{\mathrm{SNR}/(1+\mathrm{SNR})} = \num{0,302}$, baja a
-$\num{0,277}$ al tener en cuenta el desplazamiento por traza de la
-\cref{eq:modelo-traza}, que engorda la varianza de la traza; el valor medido
-queda un 2~\% por debajo de esa cota corregida, que es lo que cabe esperar de
-una estimación con un número finito de trazas.
+El CPA \cite{brier2004cpa} calcula, para cada byte de clave $j$, cada candidato
+$k$ y cada instante $t$, la correlación de Pearson entre la fuga predicha
+$\operatorname{HW}(\mathrm{SBox}(p_{i,j} \oplus k))$ y la muestra $T_i[t]$ sobre
+las $N$ trazas, y elige el candidato con mayor $\max_t |\rho|$. La
+\cref{fig:sim-cpa-correlacion} muestra el resultado sobre la campaña de
+referencia. El candidato correcto alcanza de media $|\rho| = \num{0,296}$
+(mínimo \num{0,287}) justo en la ventana de su byte, muy cerca del valor
+teórico de \num{0,302}. El mejor candidato falso de cada byte se queda de media
+en \num{0,089}, y el mayor de todos en \num{0,114}. Los 16 bytes se recuperan.
 
 \begin{figure}[htbp]
   \centering
@@ -113,111 +122,137 @@ una estimación con un número finito de trazas.
   \label{fig:sim-cpa-correlacion}
 \end{figure}
 
-La \cref{fig:sim-candidatos} ordena los 256 candidatos por su pico de
-correlación y muestra en qué puesto queda el correcto. La separación entre el
-primero y el resto es el margen del ataque: $\overline{\Delta|\rho|} =
-\num{0,188}$ en la primera ronda, y el candidato correcto es el primero en los
-16 bytes. El ataque acierta también en el \emph{tiempo}: el pico del byte $j$
-cae en la muestra $15 + 2j$, que es donde el simulador colocó su operación.
+La \cref{fig:sim-candidatos} ordena los 256 candidatos de cada byte por su
+pico de correlación. El correcto ocupa el primer puesto en los 16 bytes, con
+una ventaja media sobre el mejor falso de \num{0,208}, y su pico cae en la
+muestra $15 + 2j$, que es donde el simulador colocó la operación del byte $j$:
+el ataque acierta también en el tiempo.
 
 \begin{figure}[htbp]
   \centering
   % Generada por analisis/figures.py::figure_peaks_per_candidate
   \includegraphics[width=\textwidth]{sim-candidatos.pdf}
   \caption{Izquierda: pico de $|\rho|$ de los 256 candidatos de cada byte,
-    ordenados de mayor a menor, más la media de los 16 bytes. Derecha: puesto
-    que ocupa la hipótesis correcta en cada byte (1 = ganador).
-    \textbf{Datos simulados.}}
+    ordenados de mayor a menor, y su media. Derecha: puesto que ocupa el
+    candidato correcto en cada byte (1 = ganador). \textbf{Datos simulados.}}
   \label{fig:sim-candidatos}
 \end{figure}
 
+El mismo ataque sobre la última ronda usa los criptogramas y la hipótesis
+$\mathrm{InvSBox}(c_{i,j} \oplus k)$, de modo que recupera la subclave de la
+ronda 10 y no la clave maestra. Sobre la misma campaña acierta los 16 bytes de
+la subclave, con un pico medio de \num{0,249}, menor que el de la primera
+ronda porque su fuga tiene menos amplitud (el valor teórico con
+$g_{10} = 0{,}8$ es \num{0,245}). Como la expansión de clave de AES-128 es
+invertible, de la subclave se obtiene la clave maestra correcta.
+
 \subsection{Cuántas trazas y cuánto ruido}
 
-El número de trazas y el ruido son los dos factores que deciden si el ataque
-funciona. Para medirlo se repite el CPA completo sobre 60 campañas
-independientes de 3000 trazas ---con clave y textos claros nuevos en cada
-una--- en nueve niveles de ruido, y se anota en qué puesto queda el byte
-correcto de cada posición. El resultado está en la
-\cref{fig:sim-rango} para la campaña de referencia y en la
-\cref{tab:sim-ruido} para todos los niveles.
-
-\begin{figure}[htbp]
-  \centering
-  % Generada por analisis/figures.py::figure_rank_curve y figure_noise_scaling
-  \includegraphics[width=\textwidth]{sim-rango.pdf}
-  \caption{Izquierda: rango medio del byte correcto frente al número de trazas
-    ($\mathrm{SNR} = 0{,}1$, media de 60 ensayos). Derecha: proporción de
-    ensayos en los que se recuperan los 256 bits. \textbf{Datos simulados.}}
-  \label{fig:sim-rango}
-\end{figure}
-
-\begin{table}[htbp]
-  \centering
-  \caption{Trazas necesarias para recuperar los 256 bits en función del ruido.
-    «N para el 90~\%» es el primer número de trazas en el que la media de los
-    60 ensayos lo consigue; «N mediana», la mediana del primer instante en que
-    lo consigue cada ensayo. La última columna es el pico medio de $|\rho|$ del
-    candidato correcto con 3000 trazas. \textbf{Datos simulados.}}
-  \label{tab:sim-ruido}
-  \begin{tabular}{S[table-format=1.3] S[table-format=4.0] S[table-format=4.0] S[table-format=1.3]}
-    \toprule
-    {SNR} & {N para el 90~\%} & {N mediana} & {pico de $|\rho|$} \\
-    \midrule
-    2      & 151  & 151  & 0,538 \\
-    1      & 211  & 151  & 0,503 \\
-    0,5    & 211  & 211  & 0,449 \\
-    0,2    & 413  & 295  & 0,355 \\
-    0,1    & 809  & 578  & 0,277 \\
-    0,05   & 1133 & 1133 & 0,208 \\
-    0,02   & 3000 & 2220 & 0,137 \\
-    0,01   & \multicolumn{1}{c}{$>$3000} & 3000 & 0,099 \\
-    0,005  & \multicolumn{1}{c}{$>$3000} & \multicolumn{1}{c}{$>$3000} & 0,073 \\
-    \bottomrule
-  \end{tabular}
-\end{table}
+La \cref{eq:rho-teorica} no depende del número de trazas: con más trazas no
+crece la correlación del candidato correcto, sino la precisión con que se
+estima. Lo que baja con $N$ es la correlación de los candidatos falsos, que en
+ausencia de fuga es del orden de $1/\sqrt{N}$; el máximo de 255 candidatos y
+96 instantes queda varias veces por encima (unas 5,6 veces en la campaña de
+referencia con 4000 trazas). La clave aparece cuando ese máximo cae por
+debajo del correcto. El panel izquierdo de la \cref{fig:sim-ruido} lo muestra
+en la campaña de referencia: con pocas trazas ambos picos están inflados por
+el azar, el del correcto se estabiliza en torno a su valor teórico y el del
+mejor falso cruza por debajo entre 211 y 295 trazas.
 
 \begin{figure}[htbp]
   \centering
   % Generada por analisis/figures.py::figure_noise_scaling
   \includegraphics[width=\textwidth]{sim-ruido.pdf}
-  \caption{Izquierda: cota teórica de $|\rho|$ en función del número de trazas
-    para varios niveles de ruido, con el valor medido en la campaña de
-    referencia. Derecha: trazas necesarias para recuperar los 256 bits en el
-    90~\% de los ensayos. \textbf{Datos simulados.}}
+  \caption{Izquierda: pico medio de $|\rho|$ del candidato correcto y del
+    mejor candidato falso frente al número de trazas, en la campaña de
+    referencia, con el valor teórico de la \cref{eq:rho-teorica}. Derecha:
+    trazas necesarias para que el 90~\% de los ensayos recupere los 128 bits,
+    según el ruido. \textbf{Datos simulados.}}
   \label{fig:sim-ruido}
 \end{figure}
 
-Los resultados siguen la ley esperada: la correlación crece como
-$\sqrt{N\,\mathrm{SNR}/(1 + N\,\mathrm{SNR})}$, de modo que hacer el ataque
-viable con diez veces menos trazas exige, aproximadamente, diez veces menos
-ruido. Con $\mathrm{SNR} = 0{,}1$ hacen falta unas 800 trazas para recuperar
-la clave completa en la mitad de los ensayos, y por debajo de
-$\mathrm{SNR} = 0{,}01$ la campaña de 3000 trazas ya no basta. Hay que
-insistir en que estos números son propiedad del \emph{modelo}, no del montaje:
-fijan el orden de magnitud que habrá que comparar con las medidas reales, y
-solo entonces se podrá decir si el montaje se parece a la simulación.
+Para medirlo en general se repite el CPA completo sobre 60 campañas
+independientes de 3000 trazas ---con clave y textos claros nuevos en cada
+una--- en nueve niveles de ruido, y se anota en qué puesto queda el byte
+correcto de cada posición en una serie de puntos de control de $N$. La
+\cref{fig:sim-rango} muestra el resultado con $\mathrm{SNR} = 0{,}1$ y la
+\cref{tab:sim-ruido}, el de todos los niveles.
+
+\begin{figure}[htbp]
+  \centering
+  % Generada por analisis/figures.py::figure_rank_curve
+  \includegraphics[width=\textwidth]{sim-rango.pdf}
+  \caption{Izquierda: puesto medio del byte correcto frente al número de
+    trazas. Derecha: proporción de ensayos en los que se recuperan los 128
+    bits. $\mathrm{SNR} = 0{,}1$, 60 ensayos. \textbf{Datos simulados.}}
+  \label{fig:sim-rango}
+\end{figure}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Trazas necesarias para recuperar los 128 bits en función del ruido,
+    en 60 ensayos de 3000 trazas. «N para el 90~\%» es el primer punto de
+    control en el que al menos el 90~\% de los ensayos tiene la clave
+    completa; «N mediana», la mediana del primer punto de control con la
+    clave completa de cada ensayo (los que no la recuperan cuentan como más
+    de 3000). Los puntos de control son 20, 28, 39, 55, 77, 108, 151, 211,
+    295, 413, 578, 809, 1133, 1586, 2220 y 3000 trazas, así que, por ejemplo,
+    578 significa «entre 414 y 578». Las dos últimas columnas comparan el pico
+    medio de $|\rho|$ del candidato correcto con 3000 trazas y el valor de la
+    \cref{eq:rho-teorica}. \textbf{Datos simulados.}}
+  \label{tab:sim-ruido}
+  \begin{tabular}{S[table-format=1.3] S[table-format=4.0] S[table-format=4.0] S[table-format=1.3] S[table-format=1.3]}
+    \toprule
+    {SNR} & {N para el 90~\%} & {N mediana} & {$|\rho|$ medido} & {$|\rho|$ teórico} \\
+    \midrule
+    2      & 55 & 39 & 0,816 & 0,816 \\
+    1      & 77 & 55 & 0,707 & 0,707 \\
+    0,5    & 151 & 108 & 0,577 & 0,577 \\
+    0,2    & 295 & 211 & 0,409 & 0,408 \\
+    0,1    & 578 & 413 & 0,301 & 0,302 \\
+    0,05   & 1133 & 809 & 0,218 & 0,218 \\
+    0,02   & 2220 & 2220 & 0,140 & 0,140 \\
+    0,01   & \multicolumn{1}{c}{$>$3000} & \multicolumn{1}{c}{$>$3000} & 0,100 & 0,100 \\
+    0,005  & \multicolumn{1}{c}{$>$3000} & \multicolumn{1}{c}{$>$3000} & 0,073 & 0,071 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Por debajo de $\mathrm{SNR} = 0{,}2$, el número de trazas crece
+aproximadamente como $1/\mathrm{SNR}$, dentro de la resolución de los puntos
+de control: con $\mathrm{SNR} = 0{,}1$, 0,05 y
+0,02, el 90~\% de los ensayos recupera la clave con 578, 1133 y 2220 trazas, y
+con $\mathrm{SNR} = 0{,}01$ ya no basta el tope de 3000. Es lo esperable: para
+que el máximo de los falsos, del orden de $1/\sqrt{N}$, quede por debajo de
+$\rho \approx \sqrt{\mathrm{SNR}}$, hace falta $N$ del orden de
+$1/\mathrm{SNR}$. Hay que insistir en que estos números son propiedad del
+\emph{modelo}, no del montaje: fijan el orden de magnitud que habrá que
+comparar con las medidas reales, y solo entonces se podrá decir si el montaje
+se parece a la simulación.
 
 \subsection{Comparación con el DPA}
 
-El DPA clásico separa las trazas según un único bit del valor intermedio
-\cite{kocher1999dpa}, así que aprovecha mucha menos información que el modelo
-de peso de Hamming del CPA \cite{brier2004cpa}. La \cref{fig:sim-dpa-cpa} lo
-cuantifica sobre la misma campaña de 2000 trazas con $\mathrm{SNR} = 0{,}1$: el
-CPA recupera los 16 bytes, mientras que el mejor de los ocho bits del DPA
-recupera 11 y el peor, 6. Además de acertar menos bytes, el DPA lo hace con un
-margen medio negativo ($\num{-0,019}$ frente a $\num{0,123}$ del CPA), es
-decir, sin distinguir con claridad la hipótesis correcta. La comparación
-justifica atacar con el peso de Hamming completo ---o con un modelo de fuga más
-rico--- en cuanto el ruido aprieta.
+El DPA clásico separa las trazas en dos grupos según un único bit del valor
+intermedio y resta sus medias \cite{kocher1999dpa}, así que aprovecha solo una
+parte de la fuga que modela el peso de Hamming del CPA \cite{brier2004cpa}. La
+\cref{fig:sim-dpa-cpa} los compara sobre una misma campaña de 2000 trazas con
+$\mathrm{SNR} = 0{,}1$. El CPA recupera los 16 bytes con el candidato correcto
+siempre en primer puesto. El DPA recupera entre 7 y 15 bytes según el bit que
+se use, y el correcto queda de media entre los puestos 1,6 y 9,6. El mejor
+caso (15 bytes, con el bit 6) es además optimista, porque el bit se ha elegido
+conociendo la clave, y un atacante real no sabría cuál escoger. La diferencia
+de medias del DPA se expresa en unidades de la traza y no es comparable con la
+correlación del CPA, por lo que aquí solo se comparan bytes acertados y
+puestos.
 
 \begin{figure}[htbp]
   \centering
   % Generada por analisis/figures.py::figure_dpa_vs_cpa
   \includegraphics[width=\textwidth]{sim-dpa-cpa.pdf}
-  \caption{Izquierda: bytes de clave recuperados por el DPA de cada bit y por
-    el CPA sobre la misma campaña de 2000 trazas simuladas
-    ($\mathrm{SNR} = 0{,}1$). Derecha: puesto medio de la hipótesis correcta.
-    \textbf{Datos simulados.}}
+  \caption{Izquierda: bytes de clave recuperados por el DPA con cada bit del
+    valor intermedio y por el CPA, sobre la misma campaña de 2000 trazas
+    simuladas ($\mathrm{SNR} = 0{,}1$). Derecha: puesto medio del candidato
+    correcto. \textbf{Datos simulados.}}
   \label{fig:sim-dpa-cpa}
 \end{figure}
 
