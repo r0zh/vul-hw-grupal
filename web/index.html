@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    // Los errores quedan a la vista de las pruebas (scripts/smoke.mjs y learn.mjs).
+    window.__pageErrors = [];
+    const fail = (msg) => { window.__pageErrors.push(String(msg)); document.documentElement.dataset.pageErrors = window.__pageErrors.join(' | '); };
+    addEventListener('error', (e) => fail(e.message));
+    addEventListener('unhandledrejection', (e) => fail(e.reason));
+  </script>
+  <title>Leer una clave AES en el consumo: el ataque CPA, desde cero</title>
+  <meta name="description" content="Explicación interactiva del análisis de consumo por correlación (CPA) sobre AES-128 en un ATmega328P. Trabajo de Vulnerabilidades Hardware, ETSI Informática, Universidad de Málaga.">
+  <link rel="stylesheet" href="./css/notes.css">
+  <script type="module" src="./js/components/cpa-leak.js"></script>
+  <script type="module" src="./js/components/cpa-live.js"></script>
+</head>
+<body>
+<main>
+  <h1>Leer una clave AES en el consumo</h1>
+  <p class="lede">El ataque de análisis de consumo por correlación (CPA) sobre AES-128, explicado desde cero y con
+  figuras que se pueden tocar. Trabajo grupal de Vulnerabilidades Hardware (ETSI Informática, Universidad de Málaga):
+  Juan Diego Bermúdez Ureba, Brian Polo Caballero, Alberto Bartolomé Iruela y Roberto Sánchez Martín.
+  Código y memoria en <a href="https://github.com/r0zh/vul-hw-grupal">github.com/r0zh/vul-hw-grupal</a>.</p>
+
+  <nav class="toc" aria-label="Contenido">
+    <ol>
+      <li><a href="#que">Qué vamos a hacer</a></li>
+      <li><a href="#fuga">Por qué el consumo filtra datos</a></li>
+      <li><a href="#aes">Lo justo de AES</a></li>
+      <li><a href="#divide">Divide y vencerás</a></li>
+      <li><a href="#spa">SPA: mirar una traza</a></li>
+      <li><a href="#dpa">DPA: restar medias</a></li>
+      <li><a href="#cpa">CPA: correlacionar</a></li>
+      <li><a href="#ruido">Ruido y número de trazas</a></li>
+      <li><a href="#montaje">Nuestro montaje</a></li>
+      <li><a href="#resultados">Resultados hasta ahora</a></li>
+      <li><a href="#contramedidas">Contramedidas</a></li>
+      <li><a href="#referencias">Referencias</a></li>
+    </ol>
+  </nav>
+
+  <h2 id="que">1. Qué vamos a hacer</h2>
+  <p>El objetivo es recuperar la clave de un AES-128 que se ejecuta en un microcontrolador ATmega328P, sin tocar
+  su memoria ni su software: solo midiendo cuánta corriente consume mientras cifra. Es uno de los ataques de canal
+  lateral que recoge el artículo base del trabajo <span class="cite">[1]</span>.</p>
+  <p>Conviene dejar claras dos cosas desde el principio. La primera: <b>AES no se rompe</b>. El algoritmo sigue
+  siendo seguro; lo que se explota es una implementación concreta, un AES en software y sin protecciones, que deja
+  escapar información física mientras trabaja. La segunda: el hardware, el firmware y la clave son nuestros. La
+  clave es de laboratorio y no protege nada real.</p>
+  <p>Todas las figuras de esta página usan <b>trazas simuladas</b> con el mismo modelo que el análisis en Python del
+  repositorio, y lo indican con la etiqueta <span class="sim-badge">Datos simulados</span>. Todavía no hay medidas
+  del montaje.</p>
+
+  <h2 id="fuga">2. Por qué el consumo filtra datos</h2>
+  <p>Un microcontrolador está hecho de lógica CMOS. Una puerta CMOS apenas consume mientras su salida está quieta;
+  la mayor parte de la energía se gasta cuando un bit cambia de valor y hay que cargar o descargar la capacidad que
+  cuelga de él. Por eso el consumo instantáneo depende de los <b>datos</b> que se están moviendo, no solo de la
+  instrucción que se ejecuta <span class="cite">[2]</span>, <span class="cite">[3]</span>.</p>
+  <p>Para atacar no hace falta un modelo eléctrico exacto; basta uno que acierte en la tendencia. El más usado es el
+  <b>peso de Hamming</b> (HW): el número de bits a 1 del valor que se procesa. La idea es que cargar en un registro o
+  en el bus un byte con muchos unos cuesta, en media, algo más que uno con pocos <span class="cite">[2]</span>. Es una
+  aproximación: el consumo real depende también del valor anterior (la distancia de Hamming entre ambos) y de cada
+  circuito.</p>
+  <p>La figura lo muestra con un byte. Arriba, el valor que se calcula y su peso de Hamming. Abajo, la traza media de
+  20 000 trazas simuladas agrupadas según el peso de Hamming de ese byte: lejos del instante en que se calcula, las
+  nueve medias coinciden; en ese instante, se ordenan de 0 a 8.</p>
+  <cpa-leak id="leak" p="0x32" k="0x2b"></cpa-leak>
+  <p>Una sola traza no basta para leer el peso de Hamming, porque el ruido es mucho mayor que un escalón de un bit.
+  Pero el ruido no depende de los datos, y al promediar muchas trazas se cancela mientras que la fuga se queda.
+  Todo lo que sigue es una forma cuidadosa de aprovechar eso.</p>
+
+  <h2 id="aes">3. Lo justo de AES</h2>
+  <p>AES-128 cifra bloques de 16 bytes con una clave de 16 bytes en diez rondas <span class="cite">[4]</span>. Para
+  el ataque solo importa el principio de la primera: <b>AddRoundKey</b> hace el XOR de cada byte del texto claro con
+  el byte de clave de su posición, y <b>SubBytes</b> pasa el resultado por la S-box, una tabla fija de 256 entradas.
+  El valor atacado es la salida de la S-box del byte <i>j</i>:</p>
+  <span class="math">v_j = SBox(p_j ⊕ k_j)</span>
+  <figure class="diag" data-diag="aes">
+    <svg viewBox="0 0 720 160" role="img" aria-labelledby="aes-title aes-desc">
+      <title id="aes-title">El valor intermedio atacado en la primera ronda de AES</title>
+      <desc id="aes-desc">El byte j del texto claro se combina por XOR con el byte j de la clave y pasa por la S-box; su salida es el valor que fuga. El resto del cifrado no hace falta para el ataque.</desc>
+      <style>
+        .d-box { fill: var(--bg); stroke: var(--line); stroke-width: 1; }
+        .d-key { fill: var(--bg); stroke: var(--accent); stroke-width: 1.5; }
+        .d-hot { fill: var(--win); stroke: var(--mem); stroke-width: 1.5; }
+        .d-dim { fill: var(--grid); stroke: var(--line); stroke-width: 1; }
+        .d-t { fill: var(--ink); font: 600 13px ui-monospace, Menlo, monospace; text-anchor: middle; }
+        .d-s { fill: var(--muted); font: 11px system-ui, sans-serif; text-anchor: middle; }
+        .d-w { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#aes-arrow); }
+      </style>
+      <defs><marker id="aes-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--muted)"/></marker></defs>
+      <rect class="d-box" x="20" y="24" width="96" height="40" rx="4"/>
+      <text class="d-t" x="68" y="48">p_j</text>
+      <text class="d-s" x="68" y="16">texto claro (conocido)</text>
+      <rect class="d-key" x="20" y="96" width="96" height="40" rx="4"/>
+      <text class="d-t" x="68" y="120">k_j</text>
+      <text class="d-s" x="68" y="152">clave (lo que buscamos)</text>
+      <circle class="d-box" cx="176" cy="80" r="16"/>
+      <text class="d-t" x="176" y="85">⊕</text>
+      <path class="d-w" d="M116,44 L160,72"/>
+      <path class="d-w" d="M116,116 L160,88"/>
+      <path class="d-w" d="M192,80 L236,80"/>
+      <rect class="d-box" x="240" y="60" width="88" height="40" rx="4"/>
+      <text class="d-t" x="284" y="84">S-box</text>
+      <text class="d-s" x="284" y="52">SubBytes</text>
+      <path class="d-w" d="M328,80 L372,80"/>
+      <rect class="d-hot" x="376" y="56" width="136" height="48" rx="4"/>
+      <text class="d-t" x="444" y="84">v_j</text>
+      <text class="d-s" x="444" y="124">valor que fuga</text>
+      <path class="d-w" d="M512,80 L556,80"/>
+      <rect class="d-dim" x="560" y="56" width="144" height="48" rx="4"/>
+      <text class="d-s" x="632" y="76">ShiftRows, MixColumns</text>
+      <text class="d-s" x="632" y="92">y 9 rondas más</text>
+    </svg>
+    <figcaption><span class="fig-tool diag">Diagrama · sitúa</span>la primera ronda, byte a byte. El atacante conoce
+    <code>p_j</code> y puede probar cada valor de <code>k_j</code>; el resto del cifrado no hace falta.</figcaption>
+  </figure>
+  <p>Hay dos razones para elegir este punto. Depende de un solo byte de clave y de un byte conocido, así que se puede
+  calcular para cada hipótesis. Y la S-box es muy no lineal: dos claves que se parecen dan salidas que no se parecen
+  nada, de modo que solo la clave correcta predice bien la fuga.</p>
+
+  <h2 id="divide">4. Divide y vencerás</h2>
+  <p>Probar las 2<sup>128</sup> ≈ 3,4·10<sup>38</sup> claves posibles es imposible. Pero cada byte de clave entra en su
+  propio <code>v_j</code>, así que se ataca por separado: 16 bytes × 256 candidatos = <b>4096 hipótesis</b>, que un
+  portátil comprueba en milisegundos. El canal lateral convierte un problema exponencial en dieciséis problemas
+  pequeños.</p>
+
+  <h2 id="spa">5. SPA: mirar una traza</h2>
+  <p>El análisis simple de consumo (SPA) consiste en mirar una traza y reconocer en ella la estructura del algoritmo.
+  En el artículo que presentó el DPA ya se ven a simple vista las 16 rondas de un DES en una sola traza
+  <span class="cite">[5]</span>. En nuestro caso sirve para saber dónde está la primera ronda y no buscar a ciegas en
+  toda la traza.</p>
+  <!-- TODO (fase 4): traza real del ATmega328P con las 10 rondas marcadas. Sin medidas no se pone figura. -->
+  <p class="todo">Esta sección tendrá una traza real cuando el montaje funcione. Que se distingan las diez rondas de
+  AES en una traza es precisamente el primer criterio de validación del montaje, y todavía no se ha comprobado.</p>
+
+  <h2 id="dpa">6. DPA: restar medias</h2>
+  <p>El análisis diferencial de consumo (DPA) de Kocher, Jaffe y Jun <span class="cite">[5]</span> fue el primer
+  ataque estadístico. Para cada candidato <code>k</code> se predice un bit de <code>v_j</code>, se separan las trazas en
+  dos grupos según ese bit y se restan sus medias. Si el candidato es falso, los grupos son aleatorios y la diferencia
+  tiende a cero; si es el correcto, aparece un pico en el instante en que se procesa <code>v_j</code>.</p>
+  <p>El DPA de un bit desaprovecha los otros siete. En nuestra simulación, con 2000 trazas y SNR = 0,1, recupera entre
+  7 y 15 de los 16 bytes según el bit que se elija, mientras que el CPA recupera los 16 (sección 4.1 de la memoria;
+  <span class="sim-badge">Datos simulados</span>). Y el mejor bit se eligió conociendo la clave: un atacante real no
+  sabría cuál escoger.</p>
+
+  <h2 id="cpa">7. CPA: correlacionar</h2>
+  <p>El CPA de Brier, Clavier y Olivier <span class="cite">[6]</span> usa la predicción entera en lugar de un bit. Para
+  cada byte <code>j</code>, cada candidato <code>k</code> y cada instante <code>t</code>, se calcula la correlación de
+  Pearson entre la fuga predicha y lo medido sobre las <code>N</code> trazas:</p>
+  <span class="math">ρ(k, t) = corr( HW(SBox(p_i,j ⊕ k)),  T_i[t] )      i = 1 … N</span>
+  <p>El candidato que gana es el de mayor <code>max_t |ρ(k, t)|</code>. Con el correcto, la predicción coincide con la
+  fuga real y la correlación sube justo en el instante de su S-box; con los otros 255, la predicción es casi
+  independiente de la traza y la correlación se queda en el ruido.</p>
+  <p>En la figura, la primera gráfica es <code>|ρ(k, t)|</code> de los 256 candidatos del byte elegido; la segunda, el
+  pico de cada uno; la tercera, la clave que sale de quedarse con el ganador de cada byte. Prueba a cambiar de byte,
+  a pulsar <b>añadir trazas</b> o a pedir una clave nueva.</p>
+  <cpa-live id="cpa-main" snr="0.1" n="1000"></cpa-live>
+  <p>El cálculo no necesita guardar las trazas: basta acumular, para cada byte y cada valor del texto claro, cuántas
+  trazas hay y su suma. Por eso la figura responde en directo con miles de trazas. El código está en
+  <code>web/js/model/cpa.js</code> y se comprueba contra la correlación directa.</p>
+
+  <h2 id="ruido">8. Ruido y número de trazas</h2>
+  <p>La relación señal-ruido (SNR) compara la varianza de la fuga con la del ruido en un instante. En el modelo
+  simulado, el pico esperado del candidato correcto es</p>
+  <span class="math">ρ_correcto = √( SNR / (1 + SNR) )</span>
+  <p>y <b>no crece con N</b>. Más trazas no hacen que el correcto correlacione más; hacen que la estimación sea más
+  precisa. Lo que baja con <code>N</code> es la correlación de los candidatos falsos, que por puro azar es del orden de
+  <code>1/√N</code>, y el máximo entre 255 candidatos y 96 instantes queda unas cuantas veces por encima. La clave
+  aparece cuando ese máximo cae por debajo del correcto. Como <code>ρ_correcto ≈ √SNR</code> cuando la SNR es pequeña,
+  hace falta <code>N</code> del orden de <code>1/SNR</code>: diez veces más ruido, diez veces más trazas.</p>
+  <p>En esta segunda figura se parte de una SNR baja y de pocas trazas. Pulsa <b>añadir trazas</b> y mira la gráfica de
+  barras. Al principio la barra del correcto también baja: con pocas trazas su pico es tan casual como el de los demás.
+  Pero se detiene en torno a 0,14, el valor del modelo para SNR = 0,02, mientras la línea <code>4/√N</code> y los
+  falsos siguen bajando hasta dejarla sola por encima.</p>
+  <cpa-live id="cpa-ruido" snr="0.02" n="100"></cpa-live>
+  <p>Un detalle del modelo: cada traza simulada tiene además un desplazamiento vertical propio, como la deriva del cero
+  de un amplificador. Para el CPA eso también es ruido, porque la correlación se calcula entre trazas en cada
+  instante. Un desplazamiento o una ganancia comunes a todas las trazas, en cambio, no cambian la correlación.</p>
+
+  <h2 id="montaje">9. Nuestro montaje</h2>
+  <p>El plan es medir la corriente del ATmega328P con una resistencia pequeña (<i>shunt</i>) en serie con su
+  alimentación: la caída de tensión en ella es proporcional a la corriente. El PC manda el texto claro por el puerto
+  serie, el microcontrolador sube un pin de <i>trigger</i>, cifra y lo baja, y el osciloscopio captura la caída en el
+  shunt alineada con el trigger.</p>
+  <figure class="diag" data-diag="montaje">
+<pre role="img" aria-label="Esquema del montaje previsto">        serie: texto claro ──►
+  PC ◄───────────────────────────────►  ATmega328P (AES-128 software)
+   ▲    ◄── texto cifrado                 │ VCC/GND        │ GPIO
+   │                                      │                │ (trigger)
+   │ USB                                [shunt]            │
+   │                                      │                │
+  Osciloscopio ◄── CH1: caída en el shunt ┘                │
+               ◄── CH2: trigger ───────────────────────────┘</pre>
+    <figcaption><span class="fig-tool diag">Diagrama · sitúa</span>el montaje previsto (<code>hardware/README.md</code>).
+    Es un plan, no algo que ya funcione.</figcaption>
+  </figure>
+  <p>Que los laboratorios de ChipWhisperer recuperen la clave de un AES en firmware con pocas trazas
+  <span class="cite">[7]</span> no implica que este montaje lo consiga: usan hardware pensado para ello. Las dudas
+  principales, que solo se resolverán midiendo, son:</p>
+  <ul>
+    <li><b>Muestreo frente a reloj.</b> A 16 MHz, un capturador de unas decenas de MS/s toma pocas muestras por ciclo
+    y sin sincronizar con el reloj del microcontrolador. Bajar el reloj mejora la resolución temporal.</li>
+    <li><b>Sincronización.</b> Si las trazas no están alineadas, el instante de la S-box cae en sitios distintos y la
+    correlación se diluye. El trigger por GPIO está para eso.</li>
+    <li><b>Desacoplo.</b> Los condensadores entre VCC y GND filtran justo las variaciones que queremos ver, y en una
+    placa Arduino Nano el regulador y el conversor USB-serie comparten alimentación con el microcontrolador.</li>
+  </ul>
+  <p>Cuando haya trazas reales, la figura del CPA podrá cargarlas en lugar de simularlas, y se verá primero la
+  simulación y luego la medida.</p>
+  <!-- TODO (fase 5): <cpa-live src="..."> con la campaña de respaldo de datos/. -->
+
+  <h2 id="resultados">10. Resultados hasta ahora</h2>
+  <p>De momento solo hay resultados de la simulación (sección 4.1 de la memoria, generados con
+  <code>uv run python -m analisis.run_all</code>). Con 4000 trazas y SNR = 0,1, el CPA de la primera ronda recupera los
+  16 bytes; el pico medio del correcto es 0,296, frente a 0,302 en teoría, y el mejor falso se queda de media en
+  0,089. El mismo ataque sobre la última ronda recupera la subclave de la ronda 10, de la que se obtiene la clave
+  maestra invirtiendo la expansión de clave.</p>
+  <table>
+    <caption><span class="sim-badge">Datos simulados</span> Trazas necesarias para recuperar los 128 bits en 60 ensayos
+    de 3000 trazas, con clave y textos claros nuevos en cada uno. «N para el 90 %» es el primer punto de control en que
+    al menos el 90 % de los ensayos tiene la clave completa; «N mediana», la mediana del primer punto de control con la
+    clave completa. Los puntos de control son 20, 28, 39, 55, 77, 108, 151, 211, 295, 413, 578, 809, 1133, 1586, 2220 y
+    3000, así que 578 significa «entre 414 y 578». Tabla 4.1 de la memoria.</caption>
+    <thead><tr><th>SNR</th><th>N para el 90 %</th><th>N mediana</th><th>|ρ| medido</th><th>|ρ| teórico</th></tr></thead>
+    <tbody>
+      <tr><td>2</td><td>55</td><td>39</td><td>0,816</td><td>0,816</td></tr>
+      <tr><td>1</td><td>77</td><td>55</td><td>0,707</td><td>0,707</td></tr>
+      <tr><td>0,5</td><td>151</td><td>108</td><td>0,577</td><td>0,577</td></tr>
+      <tr><td>0,2</td><td>295</td><td>211</td><td>0,409</td><td>0,408</td></tr>
+      <tr><td>0,1</td><td>578</td><td>413</td><td>0,301</td><td>0,302</td></tr>
+      <tr><td>0,05</td><td>1133</td><td>809</td><td>0,218</td><td>0,218</td></tr>
+      <tr><td>0,02</td><td>2220</td><td>2220</td><td>0,140</td><td>0,140</td></tr>
+      <tr><td>0,01</td><td>&gt; 3000</td><td>&gt; 3000</td><td>0,100</td><td>0,100</td></tr>
+      <tr><td>0,005</td><td>&gt; 3000</td><td>&gt; 3000</td><td>0,073</td><td>0,071</td></tr>
+    </tbody>
+  </table>
+  <p>Estos números son propiedad del <b>modelo</b>, no del montaje. Fijan el orden de magnitud con el que comparar las
+  medidas; si el montaje real se parece o no a la simulación, solo se sabrá midiendo.</p>
+  <!-- TODO (fase 5): resultados con trazas reales. -->
+
+  <h2 id="contramedidas">11. Contramedidas</h2>
+  <p>Las defensas frente al análisis de consumo se agrupan en dos familias <span class="cite">[2]</span>, y el artículo
+  base repasa las más habituales <span class="cite">[1]</span>:</p>
+  <ul>
+    <li><b>Enmascaramiento (<i>masking</i>).</b> Cada valor intermedio se combina con un número aleatorio nuevo en
+    cada ejecución, de modo que lo que se procesa ya no depende solo del texto claro y la clave. Contra el CPA de esta
+    página, que predice <code>HW(v_j)</code> directamente, la predicción deja de valer. Ataques de orden superior, que
+    combinan varios instantes, pueden seguir funcionando con más trazas.</li>
+    <li><b>Ocultación (<i>hiding</i>).</b> Se deja el valor intacto, pero se hace más difícil verlo: barajar el orden
+    en que se procesan los 16 bytes (<i>shuffling</i>), insertar retardos aleatorios o añadir ruido. Todas reducen la
+    SNR efectiva o reparten la fuga en el tiempo, y lo que consiguen es que hagan falta más trazas.</li>
+  </ul>
+  <p>Ninguna es una garantía absoluta: suben el coste del ataque, y cuánto lo suben depende de la implementación y del
+  atacante. Tampoco basta con que el código sea de tiempo constante; eso protege frente a ataques de temporización,
+  pero el consumo sigue dependiendo de los datos.</p>
+
+  <h2 id="referencias">12. Referencias</h2>
+  <ol class="refs">
+    <li>J. Mishra y S. K. Sahay. «Modern Hardware Security: A Review of Attacks and Countermeasures.» arXiv: 2501.04394
+    [cs.CR], visitado 18 de oct. de 2026. dirección: <a href="https://arxiv.org/abs/2501.04394">https://arxiv.org/abs/2501.04394</a></li>
+    <li>S. Mangard, E. Oswald y T. Popp, <i>Power Analysis Attacks: Revealing the Secrets of Smart Cards</i>. New York, NY:
+    Springer, 2007. doi: <a href="https://doi.org/10.1007/978-0-387-38162-6">10.1007/978-0-387-38162-6</a></li>
+    <li>P. Kocher, J. Jaffe, B. Jun y P. Rohatgi, «Introduction to Differential Power Analysis,» <i>Journal of
+    Cryptographic Engineering</i>, vol. 1, n.<sup>o</sup> 1, págs. 5-27, 2011. doi:
+    <a href="https://doi.org/10.1007/s13389-011-0006-y">10.1007/s13389-011-0006-y</a></li>
+    <li>National Institute of Standards and Technology, «Advanced Encryption Standard (AES),» NIST, Gaithersburg, MD,
+    Federal Information Processing Standards Publication FIPS 197-upd1, 9 de mayo de 2023. doi:
+    <a href="https://doi.org/10.6028/NIST.FIPS.197-upd1">10.6028/NIST.FIPS.197-upd1</a></li>
+    <li>P. Kocher, J. Jaffe y B. Jun, «Differential Power Analysis,» en <i>Advances in Cryptology — CRYPTO ’99</i>, ép.
+    Lecture Notes in Computer Science, vol. 1666, Berlin, Heidelberg: Springer, 1999, págs. 388-397. doi:
+    <a href="https://doi.org/10.1007/3-540-48405-1_25">10.1007/3-540-48405-1_25</a></li>
+    <li>E. Brier, C. Clavier y F. Olivier, «Correlation Power Analysis with a Leakage Model,» en <i>Cryptographic
+    Hardware and Embedded Systems — CHES 2004</i>, ép. Lecture Notes in Computer Science, vol. 3156, Berlin, Heidelberg:
+    Springer, 2004, págs. 16-29. doi: <a href="https://doi.org/10.1007/978-3-540-28632-5_2">10.1007/978-3-540-28632-5_2</a></li>
+    <li>NewAE Technology. «SCA101 Lab 4_2: CPA on Firmware Implementation of AES,» visitado 18 de oct. de 2026.
+    dirección: <a href="https://github.com/newaetech/chipwhisperer-tutorials/blob/master/courses_sca101_SOLN_Lab%204_2%20-%20CPA%20on%20Firmware%20Implementation%20of%20AES-CWNANO-CWNANO.rst">https://github.com/newaetech/chipwhisperer-tutorials/blob/master/courses_sca101_SOLN_Lab%204_2%20-%20CPA%20on%20Firmware%20Implementation%20of%20AES-CWNANO-CWNANO.rst</a></li>
+  </ol>
+  <p class="muted">Formato IEEE, el mismo de la memoria; las entradas salen de <code>memoria/referencias.bib</code>.</p>
+</main>
+</body>
+</html>

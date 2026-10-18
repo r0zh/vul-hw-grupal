@@ -37,7 +37,9 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 | 2026-10-18 | Semilla fija `20261018`; la simulación guarda sus parámetros en `analisis/salida/resultados.json` (ignorado por git) | Hecho |
 | 2026-10-18 | La SNR de la simulación se define sobre el ruido total de una muestra (offset por traza, deriva y ruido blanco), de modo que el pico del candidato correcto es `√(SNR/(1+SNR))`; la fuga de la última ronda usa la subclave 10 y su CPA recupera `K10`, que se invierte para obtener la clave | Hecho |
 | 2026-10-18 | El DPA de un bit se mantiene solo como comparación: con 2000 trazas y SNR = 0,1 recupera entre 7 y 15 de 16 bytes según el bit (el mejor, elegido conociendo la clave) donde el CPA recupera 16 | Hecho |
-| 2026-10-18 | Web explicativa con componentes interactivos en `web/`, publicada con GitHub Pages | Decidido |
+| 2026-10-18 | Web explicativa con componentes interactivos en `web/`, publicada con GitHub Pages | Hecho |
+| 2026-10-18 | La web no tiene dependencias ni build (HTML, CSS y módulos ES con rutas relativas) y reutiliza solo el código propio de interactive-notes (`artifact-kit/src`, `notes.css` y el harness), nada de `vendor/` ni `from-source/` | Hecho |
+| 2026-10-18 | La simulación de la web replica la de Python con estadística, no valor a valor: `web/tests/sim.test.js` exige el pico teórico y las trazas de la tabla 4.1 (mediana 413 y 90 % en 578 con SNR = 0,1, factor 1,5 de margen). El CPA de la web usa estadísticos suficientes y la transformada de Walsh-Hadamard, y es exacto | Hecho |
 | — | Osciloscopio: de la universidad o comprado (Hantek 6022BE) | **Pendiente de confirmación de un profesor** |
 | — | Placa Nano o ATmega328P suelto en protoboard (ver [`hardware/README.md`](hardware/README.md)) | Por evaluar |
 | — | Herramienta para la presentación (ver [`presentacion/por-decidir.md`](presentacion/por-decidir.md)) | Pendiente |
@@ -65,14 +67,14 @@ hardware/              montaje, material y puntos a revisar
 analisis/              CPA, DPA, simulación de trazas y generación de figuras
   salida/              resultados numéricos de una ejecución (ignorado por git)
 figuras/               figuras generadas por scripts, compartidas por memoria y presentación
-.github/workflows/     CI de la memoria (memoria.yml) y del análisis (analisis.yml)
+web/                   web explicativa (GitHub Pages): index.html, js/, tests/, spec/ y harness
+.github/workflows/     CI de la memoria (memoria.yml), del análisis (analisis.yml) y de la web (web.yml)
 ```
 
 Directorios previstos que se crean cuando haya contenido:
 
 - `firmware/`: AES-128 para ATmega328P, protocolo serie y GPIO de trigger.
 - `captura/`: scripts de Python que controlan la placa y el osciloscopio y guardan trazas.
-- `web/`: página explicativa con componentes interactivos, publicada con GitHub Pages.
 - `datos/`: trazas de respaldo comprimidas. Las trazas en bruto van en `datos/brutos/`, que está ignorado.
 
 ## Flujo de trabajo
@@ -108,6 +110,16 @@ uv run python -m analisis.demo               # demo en vivo del CPA (simulada, n
 ```
 
 Detalles en [`analisis/README.md`](analisis/README.md). El workflow `Análisis` ejecuta las comprobaciones y el análisis reducido **dos veces** en cada push que toque `analisis/`, para comprobar que los resultados y las figuras son deterministas.
+
+### Probar la web
+
+```sh
+cd web
+npm run serve      # http://localhost:8000/web/ (sirve la raíz del repo, como Pages bajo una subruta)
+npm run check      # tests, prueba de humo, claims y auditoría visual (~45 s; Node ≥ 22 y Chromium)
+```
+
+Detalles en [`web/README.md`](web/README.md). El workflow `Web` ejecuta `npm run check` en cada push que toque `web/` y, desde `main`, publica la carpeta en GitHub Pages.
 
 ### Git
 
@@ -148,6 +160,7 @@ Los resultados numéricos van a `analisis/salida/`, que está ignorado por git: 
 - [ ] **4. Captura:** primera traza real, rondas visibles (SPA), alineación con el trigger y captura automatizada de miles de trazas.
 - [ ] **5. Ataque real:** CPA sobre las trazas medidas, métricas y figuras definitivas. Guardar una campaña de respaldo en `datos/`.
 - [ ] **6. (Opcional) Contramedida:** p. ej., *shuffling* o retardos aleatorios en el firmware, y medir cómo se degrada el ataque. Alimenta Mitigaciones y Resultados.
+- [x] **Web explicativa:** `web/` con `<cpa-live>` (CPA en directo con SNR, N, byte, semilla y clave) y `<cpa-leak>` (de dónde sale la fuga), tests de los modelos, claims en navegador y auditoría visual (`cd web && npm run check`). Se publica en <https://r0zh.github.io/vul-hw-grupal/> desde `main`. Pendiente: Manim, `<cpa-dpa>` y `<cpa-shuffle>` (opcionales) y cargar trazas reales en la fase 5.
 - [ ] **7. Entregables:** redacción de la memoria, revisión con Trinka, presentación y ensayo de la demo con el plan B.
 
 ## Fuentes
