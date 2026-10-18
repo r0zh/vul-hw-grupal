@@ -207,6 +207,11 @@ class ExperimentConfig:
     checkpoints: tuple[int, ...] = ()
 
     def __post_init__(self) -> None:
+        if self.simulation.snr not in self.snr_levels:
+            raise ValueError(
+                f"la SNR de referencia {self.simulation.snr} no está en el "
+                "barrido (la necesita la figura del rango)"
+            )
         for level in self.figure_snr_levels:
             if level not in self.snr_levels:
                 raise ValueError(
