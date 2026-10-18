@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 # Matplotlib necesita un directorio de caché escribible. En entornos con el
@@ -80,13 +81,34 @@ def _tag(axis: plt.Axes) -> None:
     )
 
 
+#: Fecha que se escribe en el PDF. Fija, para que la misma figura dé siempre el
+#: mismo fichero: así se puede comprobar en la CI que las figuras del
+#: repositorio coinciden con lo que producen los scripts.
+PDF_DATE = "D:20260101000000+00'00'"
+
+
 def _save(figure: plt.Figure, output_dir: Path, name: str) -> Path:
     """Guarda la figura como PDF vectorial en `figuras/`."""
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / f"{name}.pdf"
     figure.savefig(path, format="pdf")
     plt.close(figure)
+    _freeze_pdf_date(path)
     return path
+
+
+def _freeze_pdf_date(path: Path) -> None:
+    """Sustituye la fecha de creación que Matplotlib escribe en el PDF.
+
+    Matplotlib pone la hora actual, de modo que dos ejecuciones idénticas
+    producen ficheros distintos byte a byte. El contenido es el mismo, pero
+    fijar la fecha permite comparar ficheros y detectar figuras desactualizadas.
+    """
+    content = path.read_bytes()
+    frozen = re.sub(rb"/(CreationDate|ModDate)\s*\([^)]*\)",
+                    rb"/\1 (" + PDF_DATE.encode() + rb")", content)
+    if frozen != content:
+        path.write_bytes(frozen)
 
 
 def _span_regions(axis: plt.Axes, centers: list[int], color: str,

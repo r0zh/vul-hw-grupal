@@ -83,6 +83,14 @@ cd memoria && latexmk          # genera memoria/build/main.pdf
 latexmk -c                     # limpia auxiliares
 ```
 
+En Arch, el paquete `biber` instala el ejecutable en `/usr/bin/vendor_perl/`, que
+no siempre está en el `PATH`. Si `latexmk` se queja de que no encuentra biber, se
+lanza con esa ruta delante:
+
+```sh
+cd memoria && PATH="/usr/bin/vendor_perl:$PATH" latexmk
+```
+
 La plantilla usa `fontspec`, así que **no compila con pdfLaTeX**. En cada push que toque `memoria/` o `figuras/`, el workflow `Memoria` compila con TeX Live completo y deja el PDF como artefacto `memoria` en la pestaña *Actions*.
 
 ### Ejecutar el análisis
