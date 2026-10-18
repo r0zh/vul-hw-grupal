@@ -24,7 +24,10 @@ Requiere XeLaTeX, biber y latexmk:
 cd memoria && latexmk    # → memoria/build/main.pdf
 ```
 
-Cada push que toque la memoria la compila en GitHub Actions y deja el PDF como artefacto.
+Cada push que toque la memoria la compila en GitHub Actions. La última versión de
+`main` está siempre en
+[`memoria.pdf`](https://github.com/r0zh/vul-hw-grupal/releases/download/memoria-latest/memoria.pdf)
+(release `memoria-latest`); las ramas y las PR dejan el PDF como artefacto del run.
 
 ## Ejecutar el análisis
 
