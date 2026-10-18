@@ -8,28 +8,30 @@ generador conoce la clave porque la usa para construir la fuga; el atacante de
 
 Modelo de una traza, en unidades arbitrarias:
 
-    T_i[t] = b_i                                  (offset y ganancia por traza)
-           + d_i[t]                               (deriva lenta dentro de la traza)
-           + n_i[t] ~ N(0, sigma²)                (ruido electrónico)
-           + sum_r g_r · HW(V_i^(r)) · k[t - t_r] (fuga de la operación r)
+    T_i[t] = b_i                                  (offset por traza)
+           + d_i · s[t]                           (deriva lenta dentro de la traza)
+           + w_i[t]                               (ruido blanco)
+           + Σ_j g_1 · HW(SBox(p_ij ^ k_j)) · h[t - t1_j]     (1.ª ronda)
+           + Σ_j g_10 · HW(x_ij) · h[t - t10_j]               (última ronda)
 
-con `k` el núcleo `(0.5, 1.0, 0.5)` centrado en cada ventana. Cada byte del
-estado ocupa su propia ventana temporal, separadas dos muestras, que es lo que
-cabría esperar de un recorrido byte a byte del estado en el ATmega328P.
+con `h` el núcleo `(0.5, 1.0, 0.5)` centrado en cada ventana y `x_ij` la
+entrada de la S-box de la última ronda en la posición de estado `j`, que
+depende de la subclave 10. Cada byte del estado ocupa su propia ventana
+temporal, separadas dos muestras, que es lo que cabría esperar de un recorrido
+byte a byte del estado en el ATmega328P.
 
-La relación señal-ruido se define sobre la **potencia de la señal de fuga**,
-de modo que el valor de `snr` que se usa en las figuras es el mismo en todas
-las campañas:
+La relación señal-ruido se define sobre la fuga de la primera ronda y sobre
+**todo** el ruido que ve el CPA en un instante, porque la correlación se
+calcula entre trazas: el offset `b_i` cambia de una traza a otra y la deriva
+también, así que para el ataque son ruido igual que el blanco.
 
-    SNR = Var(g_1 · HW(V^(1))) / sigma²
+    SNR = Var(g_1 · HW(V^(1))) / σ²,     σ² = Var(b) + Var(d)·s[t]² + Var(w[t])
 
-donde la varianza de la fuga se calcula **dentro** de cada byte del estado y se
-promedia entre los 16 (`pooled_signal_std`), que es lo que ve el CPA al atacar
-un byte cada vez. La varianza es una propiedad del conjunto de textos claros y
-de la clave, y se mide en lugar de suponerse. La SNR se define sobre la
-primera ronda; como la última ronda tiene menos amplitud (`last_round_gain`),
-su SNR efectiva es proporcionalmente menor y por eso su pico de correlación
-también lo es.
+El offset y la deriva se fijan como fracciones de `σ` (`trace_offset_ratio` y
+`trace_drift_ratio`) y el ruido blanco completa el resto en cada instante, de
+modo que la varianza total del ruido es `σ²` en todas las muestras. La varianza
+de la fuga se calcula dentro de cada byte del estado y se promedia entre los 16
+(`pooled_signal_std`).
 """
 
 from __future__ import annotations
@@ -52,8 +54,8 @@ class SyntheticTraces:
     key: np.ndarray                        # (16,) uint8
     config: SimulationConfig
     first_sbox: np.ndarray                 # (N, 16) uint8, valor intermedio real
-    last_sbox_input: np.ndarray            # (N, 16) uint8, valor intermedio real
-    noise_sigma: float                     # desviación típica del ruido añadido
+    last_sbox_input: np.ndarray            # (N, 16) uint8, orden de estado (subclave 10)
+    noise_sigma: float                     # desv. típica total del ruido por muestra
     signal_hw_std: float                   # desv. típica de la fuga de la 1.ª ronda
     leakage_regions: dict[str, list[int]] = field(default_factory=dict)
     metadata: dict[str, object] = field(default_factory=dict)
@@ -163,31 +165,29 @@ def simulate_from_texts(plaintexts: np.ndarray,
     levels = _leakage_levels(intermediates)
     first_signal = config.first_round_gain * levels["first"].astype(np.float64)
     last_signal = config.last_round_gain * levels["last"].astype(np.float64)
-    signal = first_signal + last_signal
 
     # La SNR se define sobre la fuga de la **primera** ronda, que es el valor
-    # intermedio que ataca AGENTS.md. El ruido se escala con ella y no con la
-    # potencia total de la traza: si se escalara con la suma de las dos rondas,
-    # la SNR que se reporta no sería la que ve el ataque de la primera ronda.
+    # intermedio que ataca AGENTS.md, y sobre el ruido total de un instante.
     signal_hw_std = pooled_signal_std(first_signal)
     noise_sigma = float(signal_hw_std / np.sqrt(config.snr))
 
-    # La deriva lenta se ata a ese fondo (una fracción pequeña) para que la SNR
-    # nominal describa el canal que ataca el CPA y no quede ahogada por la
-    # deriva en las SNR altas. El desplazamiento vertical de cada traza no
-    # entra en esta cuenta: al ser constante dentro de la traza, la correlación
-    # de Pearson lo elimina. Está en la traza porque un montaje real lo tiene,
-    # no porque estorbe.
-    noise_drift_std = config.trace_drift_ratio * noise_sigma
-
+    # Presupuesto del ruido: el offset y la deriva son fracciones fijas de σ y
+    # el ruido blanco pone el resto en cada muestra, así que la varianza total
+    # es σ² en todos los instantes y la SNR nominal es la que ve el CPA.
     drift_shape = np.sin(
         2.0 * np.pi * config.trace_drift_freq
         * np.arange(config.n_samples) / config.n_samples
     )
+    offset_std = config.trace_offset_ratio * noise_sigma
+    drift_std = config.trace_drift_ratio * noise_sigma
+    white_std = noise_sigma * np.sqrt(
+        1.0 - config.trace_offset_ratio**2
+        - (config.trace_drift_ratio * drift_shape) ** 2
+    )
     traces = np.zeros((n, config.n_samples), dtype=np.float64)
-    traces += rng.normal(0.0, config.trace_offset_std, size=(n, 1))
-    traces += rng.normal(0.0, noise_drift_std, size=(n, 1)) * drift_shape
-    traces += rng.normal(0.0, noise_sigma, size=traces.shape)
+    traces += rng.normal(0.0, offset_std, size=(n, 1))
+    traces += rng.normal(0.0, drift_std, size=(n, 1)) * drift_shape
+    traces += rng.normal(0.0, 1.0, size=traces.shape) * white_std
 
     regions = {
         "first_round": config.first_round_centers,
@@ -196,6 +196,8 @@ def simulate_from_texts(plaintexts: np.ndarray,
     for byte in range(16):
         _add_leakage(traces, first_signal[:, byte],
                      config.first_round_centers[byte], config.leakage_kernel)
+        # En la última ronda, `byte` es la posición de estado que procesa la
+        # S-box en ese instante, no la posición del criptograma.
         _add_leakage(traces, last_signal[:, byte],
                      config.last_round_centers[byte], config.leakage_kernel)
 
@@ -252,27 +254,17 @@ def _add_leakage(traces: np.ndarray, signal: np.ndarray, center: int,
             traces[:, sample] += weight * signal
 
 
-def theoretical_correlation_ceiling(signal_hw_std: float, snr: float,
-                                   trace_offset_std: float = 0.0) -> float:
-    """Cota superior de la correlación de Pearson con el modelo de fuga.
+def theoretical_correlation_ceiling(snr: float) -> float:
+    """Correlación esperada del candidato correcto en su instante de fuga.
 
-    Con `T = A·HW + n`, `Var(HW) = v²` y `Var(n) = v²/SNR`:
+    Con `T = HW·g + n`, `Var(g·HW) = v²` y `Var(n) = v²/SNR`:
 
-        rho_max = SNR_amplitud / sqrt(1 + SNR_amplitud)
+        rho = sqrt(SNR / (1 + SNR))
 
-    donde `SNR_amplitud = v²/σ²` es la relación de potencias `snr`. Si se pasa
-    `trace_offset_std`, se tiene en cuenta que el desplazamiento vertical de
-    cada traza engorda el denominador (la varianza total de la traza) aunque
-    no afecte al numerador: la correlación medida es entonces algo menor que
-    esta cota.
+    No depende del número de trazas: con más trazas la **estimación** de `rho`
+    es más precisa y los candidatos falsos se acercan a cero (≈ 1/√N), pero el
+    valor del correcto no crece.
     """
     if snr <= 0:
         return 0.0
-    signal_variance = signal_hw_std**2
-    noise_variance = signal_variance / snr
-    effective_noise = noise_variance + trace_offset_std**2
-    if effective_noise <= 0:
-        return 1.0
-    amplitude_snr = signal_variance / effective_noise
-    return float(np.sqrt(amplitude_snr / (1.0 + amplitude_snr)))
-
+    return float(np.sqrt(snr / (1.0 + snr)))

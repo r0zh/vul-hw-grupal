@@ -68,15 +68,15 @@ LEAKAGE_KERNEL: tuple[float, ...] = (0.5, 1.0, 0.5)
 #: ronda tiene menos amplitud y por tanto una SNR efectiva menor.
 DEFAULT_SNR: float = 0.1
 
-#: Desviación típica del desplazamiento vertical de cada traza (ganancia y
-#: offset del amplificador). Al ser constante dentro de una traza, la
-#: correlación de Pearson lo elimina: no degrada el ataque, pero está en la
-#: traza y se ve en las figuras.
-TRACE_OFFSET_STD: float = 2.0
+#: Desplazamiento vertical de cada traza (deriva del cero del amplificador),
+#: como fracción de la desviación típica total del ruido. Es constante dentro
+#: de una traza pero cambia de una a otra, así que para el CPA es ruido: la
+#: correlación se calcula entre trazas en cada instante. Forma parte del
+#: presupuesto de ruido de la SNR (ver `simulate.py`).
+TRACE_OFFSET_RATIO: float = 0.4
 
-#: Deriva lenta dentro de una traza, como fracción del ruido blanco. Se ata a
-#: la SNR para que no domine la perturbación total en las SNR altas: la SNR
-#: nominal describe entonces el canal que ataca el CPA.
+#: Deriva lenta dentro de una traza, como fracción de la desviación típica
+#: total del ruido. También entra en el presupuesto de la SNR.
 TRACE_DRIFT_RATIO: float = 0.05
 
 #: Frecuencia (normalizada) de la deriva lenta dentro de una traza.
@@ -96,9 +96,6 @@ SWEEP_TRACES: int = 3000
 
 #: Número de claves (y de conjuntos de textos claros) del barrido.
 SWEEP_TRIALS: int = 60
-
-#: Número de trazas de la campaña de referencia que se analiza en detalle.
-BASELINE_TRACES: int = 1000
 
 #: Número de trazas de la comparación entre DPA y CPA.
 DPA_TRACES: int = 2000
@@ -123,7 +120,7 @@ class SimulationConfig:
     first_round_gain: float = FIRST_ROUND_GAIN
     last_round_gain: float = LAST_ROUND_GAIN
     leakage_kernel: tuple[float, ...] = LEAKAGE_KERNEL
-    trace_offset_std: float = TRACE_OFFSET_STD
+    trace_offset_ratio: float = TRACE_OFFSET_RATIO
     trace_drift_ratio: float = TRACE_DRIFT_RATIO
     trace_drift_freq: float = TRACE_DRIFT_FREQ
 
@@ -134,6 +131,8 @@ class SimulationConfig:
             raise ValueError("la clave debe tener 16 bytes")
         if self.snr <= 0:
             raise ValueError("la SNR debe ser positiva")
+        if self.trace_offset_ratio**2 + self.trace_drift_ratio**2 >= 1:
+            raise ValueError("el offset y la deriva no caben en el ruido total")
         if len(self.leakage_kernel) % 2 == 0:
             raise ValueError("el núcleo de fuga debe tener un centro definido")
 
@@ -166,7 +165,7 @@ class SimulationConfig:
             "first_round_gain": self.first_round_gain,
             "last_round_gain": self.last_round_gain,
             "leakage_kernel": list(self.leakage_kernel),
-            "trace_offset_std": self.trace_offset_std,
+            "trace_offset_ratio": self.trace_offset_ratio,
             "trace_drift_ratio": self.trace_drift_ratio,
             "trace_drift_freq": self.trace_drift_freq,
         }
@@ -203,15 +202,15 @@ class ExperimentConfig:
     figure_snr_levels: tuple[float, ...] = FIGURE_SNR_LEVELS
     sweep_traces: int = SWEEP_TRACES
     sweep_trials: int = SWEEP_TRIALS
-    baseline_traces: int = BASELINE_TRACES
     dpa_traces: int = DPA_TRACES
     dpa_bits: tuple[int, ...] = DPA_BITS
     checkpoints: tuple[int, ...] = ()
 
     def __post_init__(self) -> None:
-        if not 0 < self.baseline_traces <= self.simulation.n_traces:
+        if self.simulation.snr not in self.snr_levels:
             raise ValueError(
-                "baseline_traces debe estar entre 1 y n_traces de la simulación"
+                f"la SNR de referencia {self.simulation.snr} no está en el "
+                "barrido (la necesita la figura del rango)"
             )
         for level in self.figure_snr_levels:
             if level not in self.snr_levels:
@@ -241,7 +240,6 @@ class ExperimentConfig:
             "figure_snr_levels": list(self.figure_snr_levels),
             "sweep_traces": self.sweep_traces,
             "sweep_trials": self.sweep_trials,
-            "baseline_traces": self.baseline_traces,
             "dpa_traces": self.dpa_traces,
             "dpa_bits": list(self.dpa_bits),
             "trace_checkpoints": self.trace_checkpoints,

@@ -126,9 +126,10 @@ def figure_synthetic_traces(campaign: simulate.SyntheticTraces,
     """Figura 1: aspecto de las trazas sintéticas y dónde está la fuga.
 
     Arriba, varias trazas superpuestas con un desplazamiento vertical para
-    verlas por separado; abajo, la media de la campaña, donde la fuga de cada
-    byte del estado aparece como un escalón de la altura del peso de Hamming
-    medio. Las bandas marcan las ventanas de la primera y la última ronda.
+    verlas por separado; abajo, la media de la campaña. Como los textos claros
+    son aleatorios, el peso de Hamming medio de cada byte es 4 y la media
+    muestra una meseta donde hay fuga, no la clave. Las bandas marcan las
+    ventanas de la primera y la última ronda.
     """
     _style()
     config = campaign.config
@@ -212,13 +213,13 @@ def figure_correlation_over_time(
     return _save(figure, output_dir, "sim-cpa-correlacion")
 
 
-def figure_rank_curve(results: dict, output_dir: Path,
-                      level_index: int = 0) -> Path:
+def figure_rank_curve(results: dict, output_dir: Path) -> Path:
     """Figura 3: rango del candidato correcto frente al número de trazas.
 
-    Izquierda, el rango medio de los 16 bytes de la clave; derecha, la
-    proporción de ensayos en los que se recuperan los 256 bits. Las barras de
-    error de la derecha son el error típico binomial del número de ensayos.
+    Usa el nivel del barrido que coincide con la SNR de la campaña de
+    referencia. Izquierda, el rango medio de los 16 bytes de la clave; derecha,
+    la proporción de ensayos en los que se recuperan los 128 bits. Las barras
+    de error de la derecha son el error típico binomial del número de ensayos.
     """
     _style()
     summary = results["sweep"]["summary"]
@@ -226,7 +227,9 @@ def figure_rank_curve(results: dict, output_dir: Path,
     mean_rank = np.asarray(summary["mean_rank"], dtype=float)
     success = np.asarray(summary["success_rate"], dtype=float)
     errors = np.asarray(summary["success_error"], dtype=float)
-    snr_levels = np.asarray(summary["snr_levels"], dtype=float)
+    snr_levels = list(summary["snr_levels"])
+    snr = results["config"]["simulation"]["snr"]
+    level_index = snr_levels.index(snr)
     trials = int(summary["trials"])
 
     figure, (left, right) = plt.subplots(
@@ -238,7 +241,7 @@ def figure_rank_curve(results: dict, output_dir: Path,
     left.set_yscale("log")
     left.set_xlabel("número de trazas $N$")
     left.set_ylabel("rango medio del byte correcto")
-    left.set_title(f"Rango medio (SNR = {snr_levels[level_index]:g})")
+    left.set_title(f"Rango medio (SNR = {snr:g})")
     left.axhline(1.0, color=_COLORS["theory"], linewidth=0.8, linestyle="--")
     left.annotate("rango 1 = acierto", xy=(checkpoints[2], 1.0), xytext=(0, 6),
                   textcoords="offset points", fontsize=7,
@@ -251,60 +254,50 @@ def figure_rank_curve(results: dict, output_dir: Path,
     right.set_ylim(-0.04, 1.06)
     right.set_xlabel("número de trazas $N$")
     right.set_ylabel(f"ensayos con la clave completa (de {trials})")
-    right.set_title("Clave completa recuperada")
+    right.set_title(f"Clave completa recuperada (SNR = {snr:g})")
     _tag(right)
     return _save(figure, output_dir, "sim-rango")
 
 
 def figure_noise_scaling(results: dict, output_dir: Path) -> Path:
-    """Figura 4: escalado de la correlación y coste en trazas frente al ruido.
+    """Figura 4: por qué hacen falta trazas, y cuántas según el ruido.
 
-    Izquierda: cota teórica de `|rho|` para cada nivel de ruido,
-    `rho_max(N) = sqrt(N·SNR/(1+N·SNR))`, con el valor medido en la campaña de
-    referencia marcado con un punto. Derecha: trazas necesarias medidas en el
-    barrido para recuperar los 256 bits en el 90 % de los ensayos.
+    Izquierda: en la campaña de referencia, pico medio del candidato correcto
+    y del mejor candidato falso frente al número de trazas, con el valor
+    teórico del correcto, `sqrt(SNR/(1+SNR))`. El correcto no crece con `N`;
+    el falso baja como 1/√N hasta quedar por debajo. Derecha: trazas
+    necesarias medidas en el barrido para recuperar los 128 bits en el 90 % de
+    los ensayos.
     """
     _style()
     summary = results["sweep"]["summary"]
     snr_levels = np.asarray(summary["snr_levels"], dtype=float)
-    checkpoints = np.asarray(summary["checkpoints"], dtype=float)
     needed = np.asarray(summary["traces_for_90_percent"], dtype=float)
     baseline = results["baseline"]
     reference = baseline["baseline"]
+    growth = baseline["growth"]
     n_traces = int(results["sweep"]["traces_per_trial"])
 
     figure, (left, right) = plt.subplots(
         1, 2, figsize=(FIG_WIDTH, 2.9), gridspec_kw={"wspace": 0.32}
     )
-    grid = np.logspace(0, np.log10(n_traces), 200)
-    for level_index in range(0, len(snr_levels), 2):
-        snr = snr_levels[level_index]
-        curve = [
-            simulate.theoretical_correlation_ceiling(1.0, snr * step)
-            for step in grid
-        ]
-        left.plot(grid, curve, linewidth=1.0, label=f"SNR = {snr:g}")
-    # Con el desplazamiento por traza de la campaña de referencia, la cota baja.
-    with_offset = [
-        simulate.theoretical_correlation_ceiling(
-            1.0, reference["snr"] * step,
-            trace_offset_std=reference["simulation"]["trace_offset_std"],
-        )
-        for step in grid
-    ]
-    left.plot(grid, with_offset, linewidth=1.0, linestyle="--",
-              color="#666666",
-              label="con el offset por traza de la referencia")
-    left.plot(
-        [reference["n_traces"]], [baseline["cpa_first"]["mean_correct_peak"]],
-        marker="o", markersize=5, color=_COLORS["accent"], linestyle="none",
-        label="medido en la campaña de referencia",
-    )
+    traces = np.asarray(growth["traces"], dtype=float)
+    keep = traces >= 8                 # con menos trazas la correlación es ±1
+    left.plot(traces[keep], np.asarray(growth["mean_correct_peak"])[keep],
+              marker="o", markersize=3, linewidth=1.0,
+              color=_COLORS["correct"], label="candidato correcto")
+    left.plot(traces[keep], np.asarray(growth["mean_best_wrong_peak"])[keep],
+              marker="o", markersize=3, linewidth=1.0,
+              color=_COLORS["wrong"], label="mejor candidato falso")
+    left.axhline(reference["theoretical_ceiling"], color=_COLORS["theory"],
+                 linewidth=0.8, linestyle="--",
+                 label=r"$\sqrt{\mathrm{SNR}/(1+\mathrm{SNR})}$")
     left.set_xscale("log")
+    left.set_ylim(0, 1.0)
     left.set_xlabel("número de trazas $N$")
-    left.set_ylabel(r"cota de $|\rho|$ del candidato correcto")
-    left.set_title("Correlación alcanzable frente a $N$")
-    left.legend(loc="lower right", framealpha=0.9, fontsize=7)
+    left.set_ylabel(r"$|\rho|$ máxima (media de 16 bytes)")
+    left.set_title(f"Correcto frente a falsos (SNR = {reference['snr']:g})")
+    left.legend(loc="upper right", framealpha=0.9, fontsize=7)
 
     valid = ~np.isnan(needed)
     right.plot(snr_levels[valid], needed[valid], marker="o", markersize=4,
@@ -317,13 +310,19 @@ def figure_noise_scaling(results: dict, output_dir: Path) -> Path:
     right.axhline(n_traces, color=_COLORS["theory"], linewidth=0.8,
                   linestyle="--")
     right.annotate(f"tope simulado ({n_traces})",
-                   xy=(snr_levels[valid][0], n_traces), xytext=(0, 5),
+                   xy=(snr_levels.min(), n_traces), xytext=(0, 4),
                    textcoords="offset points", fontsize=7,
                    color=_COLORS["theory"])
-    for level_index in np.flatnonzero(~valid):
-        right.annotate("no llega", xy=(snr_levels[level_index], n_traces),
-                       xytext=(0, -10), textcoords="offset points", fontsize=7,
-                       ha="center", color=_COLORS["theory"])
+    # Los niveles que no llegan al 90 % con el tope se marcan sobre él.
+    missing = ~valid
+    if missing.any():
+        right.plot(snr_levels[missing], np.full(missing.sum(), n_traces),
+                   marker="o", markersize=4, linestyle="none",
+                   markerfacecolor="none", color=_COLORS["theory"],
+                   label="no llega al 90 %")
+        right.legend(loc="lower left", framealpha=0.9, fontsize=7)
+    right.set_xlim(snr_levels.min() / 1.6, snr_levels.max() * 1.6)
+    right.set_ylim(top=n_traces * 1.6)
     _tag(right)
     return _save(figure, output_dir, "sim-ruido")
 
@@ -364,6 +363,7 @@ def figure_dpa_vs_cpa(results: dict, output_dir: Path) -> Path:
     right.axhline(1.0, color=_COLORS["correct"], linewidth=1.0, linestyle="--",
                   label="CPA (rango 1 = acierto)")
     right.set_yscale("log")
+    right.set_ylim(0.8, max(ranks) * 1.5)
     right.set_xlabel("bit del valor intermedio usado por el DPA")
     right.set_ylabel("rango medio del byte correcto")
     right.set_xticks(bits)
@@ -394,30 +394,37 @@ def figure_peaks_per_candidate(
     figure, (left, right) = plt.subplots(
         1, 2, figsize=(FIG_WIDTH, 2.9), gridspec_kw={"wspace": 0.34}
     )
+    places = np.arange(1, 257)                               # 1 = ganador
     for byte in range(16):
         ranked = peaks[byte, order[byte]]
-        left.plot(np.arange(256), ranked, linewidth=0.8,
+        left.plot(places, ranked, linewidth=0.8,
                   color=_COLORS["wrong"], alpha=0.8,
                   label="un byte de clave" if byte == 0 else None)
-    left.plot(np.arange(256), mean_curve, linewidth=1.3, color="#444444",
+    left.plot(places, mean_curve, linewidth=1.3, color="#444444",
               label="media de los 16 bytes")
-    left.annotate("candidato correcto", xy=(1.0, mean_curve[1]),
-                  xytext=(28, 0), textcoords="offset points", fontsize=7,
+    left.annotate("puesto 1: el correcto", xy=(1.0, mean_curve[0]),
+                  xytext=(28, -4), textcoords="offset points", fontsize=7,
                   arrowprops={"arrowstyle": "->", "linewidth": 0.6},
                   color=_COLORS["correct"])
+    left.annotate("mejor falso", xy=(2.0, mean_curve[1]),
+                  xytext=(28, 8), textcoords="offset points", fontsize=7,
+                  arrowprops={"arrowstyle": "->", "linewidth": 0.6},
+                  color="#444444")
+    left.set_xscale("log")
     left.set_xlabel("puesto del candidato (1 = ganador)")
     left.set_ylabel(r"$|\rho|$ máxima")
     left.set_title("Pico de los 256 candidatos")
-    left.legend(loc="upper right", framealpha=0.9)
+    left.legend(loc="center right", framealpha=0.9)
 
     positions = np.array([
-        int(np.flatnonzero(order[byte] == key[byte])[0]) for byte in range(16)
+        int(np.flatnonzero(order[byte] == key[byte])[0]) + 1 for byte in range(16)
     ])
     right.stem(np.arange(16), positions, basefmt=" ")
     right.set_xlabel("byte de la clave")
     right.set_ylabel("puesto del candidato correcto")
     right.set_xticks(np.arange(16))
     right.set_ylim(0, max(3.0, positions.max() + 0.6))
+    right.set_yticks(range(0, int(max(3.0, positions.max() + 0.6)) + 1))
     right.set_title("Puesto del byte correcto")
     _tag(right)
     return _save(figure, output_dir, "sim-candidatos")
