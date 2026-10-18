@@ -12,6 +12,8 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 | [`memoria/`](memoria/) | Memoria en LaTeX (plantilla TFG de la ETSI) |
 | [`presentacion/`](presentacion/) | Presentación (herramienta por decidir) |
 | [`hardware/`](hardware/) | Montaje de medida y material |
+| [`analisis/`](analisis/) | CPA, DPA, simulación de trazas y figuras |
+| [`figuras/`](figuras/) | Figuras generadas por los scripts (PDF vectorial) |
 | [`docs/`](docs/) | Enunciado, rúbrica y contexto inicial |
 
 ## Compilar la memoria
@@ -23,6 +25,20 @@ cd memoria && latexmk    # → memoria/build/main.pdf
 ```
 
 Cada push que toque la memoria la compila en GitHub Actions y deja el PDF como artefacto.
+
+## Ejecutar el análisis
+
+Requiere [`uv`](https://docs.astral.sh/uv/):
+
+```sh
+uv sync                            # dependencias (numpy, matplotlib)
+uv run python -m analisis.tests    # comprobaciones rápidas
+uv run python -m analisis.run_all  # regenera figuras y resultados (unos 4 min)
+```
+
+Todavía **no hay medidas reales**: el análisis de la fase 1 trabaja sobre trazas
+sintéticas con el modelo de fuga del peso de Hamming, y así lo indica cada
+figura. Detalles en [`analisis/README.md`](analisis/README.md).
 
 ## Referencia principal
 

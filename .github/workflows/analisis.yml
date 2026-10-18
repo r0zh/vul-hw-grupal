@@ -1,0 +1,40 @@
+# CI del análisis (fase 1): comprobaciones y regeneración de figuras.
+#
+# Las comprobaciones no necesitan trazas reales (todavía no hay): generan sus
+# propias trazas sintéticas con semilla fija. El análisis completo tarda unos
+# cuatro minutos, así que en cada push se ejecuta la versión reducida (`--fast`)
+# y el PDF de cada figura queda como artefacto `figuras`.
+name: Análisis
+
+on:
+  push:
+    paths: ['analisis/**', 'pyproject.toml', 'uv.lock', '.github/workflows/analisis.yml']
+  pull_request:
+    paths: ['analisis/**', 'pyproject.toml', 'uv.lock', '.github/workflows/analisis.yml']
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Instalar dependencias
+        run: uv sync --locked
+
+      - name: Comprobaciones (AES, ataque sin ruido, utilidades)
+        run: uv run python -m analisis.tests
+
+      - name: Análisis reducido y figuras
+        run: |
+          uv run python -m analisis.run_all --fast \
+            --figuras /tmp/figuras --resultados /tmp/resultados.json
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: figuras
+          path: /tmp/figuras/*.pdf
