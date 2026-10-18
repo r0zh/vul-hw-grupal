@@ -35,8 +35,9 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 | 2026-10-18 | AES-128 propio en `analisis/aes.py`, verificado contra los vectores del FIPS-197; sin dependencias criptográficas externas | Hecho |
 | 2026-10-18 | Trazas sintéticas con fuga por peso de Hamming, núcleo `(0,5, 1,0, 0,5)`, ventanas de 2 muestras por byte del estado, 96 muestras por traza | Hecho |
 | 2026-10-18 | Semilla fija `20261018`; la simulación guarda sus parámetros en `analisis/salida/resultados.json` (ignorado por git) | Hecho |
-| 2026-10-18 | El DPA de un bit se mantiene solo como comparación: recupera 11 de 16 bytes donde el CPA recupera 16, y con margen negativo | Hecho |
-| 2026-10-18 | Web explicativa con componentes interactivos en `web/`, publicada con GitHub Pages; encargo en [`docs/handoff-web.md`](docs/handoff-web.md) | Decidido |
+| 2026-10-18 | La SNR de la simulación se define sobre el ruido total de una muestra (offset por traza, deriva y ruido blanco), de modo que el pico del candidato correcto es `√(SNR/(1+SNR))`; la fuga de la última ronda usa la subclave 10 y su CPA recupera `K10`, que se invierte para obtener la clave | Hecho |
+| 2026-10-18 | El DPA de un bit se mantiene solo como comparación: con 2000 trazas y SNR = 0,1 recupera entre 7 y 15 de 16 bytes según el bit (el mejor, elegido conociendo la clave) donde el CPA recupera 16 | Hecho |
+| 2026-10-18 | Web explicativa con componentes interactivos en `web/`, publicada con GitHub Pages | Decidido |
 | — | Osciloscopio: de la universidad o comprado (Hantek 6022BE) | **Pendiente de confirmación de un profesor** |
 | — | Placa Nano o ATmega328P suelto en protoboard (ver [`hardware/README.md`](hardware/README.md)) | Por evaluar |
 | — | Herramienta para la presentación (ver [`presentacion/por-decidir.md`](presentacion/por-decidir.md)) | Pendiente |
@@ -52,7 +53,6 @@ docs/
   enunciado.md         enunciado del trabajo y rúbrica de la presentación
   contexto-inicial.md  instantánea del contexto de partida (no se actualiza)
   reunion-*.md         preguntas y respuestas de las reuniones con el profesor
-  handoff-web.md       encargo de la web explicativa (GitHub Pages)
   referencias/         PDF de terceros (artículo, rúbrica); ignorado por git
 memoria/
   main.tex             documento raíz; solo estructura e \input de capítulos
@@ -72,7 +72,7 @@ Directorios previstos que se crean cuando haya contenido:
 
 - `firmware/`: AES-128 para ATmega328P, protocolo serie y GPIO de trigger.
 - `captura/`: scripts de Python que controlan la placa y el osciloscopio y guardan trazas.
-- `web/`: página explicativa con componentes interactivos, publicada con GitHub Pages (ver `docs/handoff-web.md`).
+- `web/`: página explicativa con componentes interactivos, publicada con GitHub Pages.
 - `datos/`: trazas de respaldo comprimidas. Las trazas en bruto van en `datos/brutos/`, que está ignorado.
 
 ## Flujo de trabajo
@@ -142,7 +142,7 @@ Los resultados numéricos van a `analisis/salida/`, que está ignorado por git: 
 ## Plan de trabajo
 
 - [x] **0. Organización:** repositorio, plantilla, CI y este archivo.
-- [x] **1. Análisis validado en simulación:** CPA (y DPA como comparación) sobre trazas sintéticas con fuga HW y ruido gaussiano. Resultado: con 4000 trazas y SNR = 0,1 se recuperan los 128 bits; el barrido de ruido da las trazas necesarias por nivel y el DPA de un bit se queda en 11 de 16 bytes donde el CPA acierta los 16. Figuras y texto en `figuras/` y la sección 4.1 de la memoria.
+- [x] **1. Análisis validado en simulación:** CPA (y DPA como comparación) sobre trazas sintéticas con fuga HW y ruido gaussiano. Resultado: con 4000 trazas y SNR = 0,1 se recuperan los 128 bits; el barrido de ruido da las trazas necesarias por nivel (578 para el 90 % de los ensayos con SNR = 0,1) y el DPA de un bit se queda entre 7 y 15 de 16 bytes donde el CPA acierta los 16. Figuras y texto en `figuras/` y la sección 4.1 de la memoria.
 - [ ] **2. Instrumental:** respuesta del profesor sobre el osciloscopio y lista de compra definitiva con precios verificados.
 - [ ] **3. Firmware:** AES-128 en el ATmega328P verificado con los vectores de prueba de FIPS-197, protocolo serie y trigger por GPIO.
 - [ ] **4. Captura:** primera traza real, rondas visibles (SPA), alineación con el trigger y captura automatizada de miles de trazas.
