@@ -2,8 +2,8 @@
 
 Se usa para generar las trazas sintéticas de la fase 1 y para comprobar que el
 valor intermedio atacado (la salida de la S-box) es el que dice la norma.
-La implementación sigue FIPS-197 [nist2023fips197] y se verifica contra sus
-vectores de prueba en `tests.py`.
+La implementación sigue FIPS-197 [nist2023fips197] y se verifica en `tests.py`
+contra los ejemplos de la norma y otros vectores contrastados con OpenSSL.
 
 El ataque no depende de esta implementación: en la fase 5 el objetivo es el
 AES del firmware del ATmega328P. Aquí solo hace falta que el valor intermedio
@@ -232,6 +232,10 @@ def _shift_rows_index() -> "object":
 
 _SHIFT_ROWS_INDEX = _shift_rows_index()
 
+#: Permutación de ShiftRows: la posición `j` del criptograma sale de la
+#: posición de estado `SHIFT_ROWS_INDEX[j]` de la última `SubBytes`.
+SHIFT_ROWS_INDEX = _SHIFT_ROWS_INDEX
+
 
 def _shift_rows_batch(state):
     """Aplica ShiftRows a un lote de estados (N, 16)."""
@@ -256,8 +260,11 @@ def _mix_columns_batch(state):
     return out.transpose(0, 2, 1).reshape(-1, 16)
 
 
-def encrypt_batch(plaintexts, round_keys):
-    """Cifra N bloques: `plaintexts` (N, 16) uint8 y `round_keys` (11, 16)."""
+def _encrypt_batch_states(plaintexts, round_keys):
+    """Cifra N bloques y devuelve también la entrada de la última `SubBytes`.
+
+    Devuelve `(criptogramas, entrada)`, ambos (N, 16) en orden de estado.
+    """
     import numpy as np
 
     state = np.asarray(plaintexts, dtype=np.uint8) ^ round_keys[0]
@@ -267,9 +274,15 @@ def encrypt_batch(plaintexts, round_keys):
         state = _shift_rows_batch(state)
         state = _mix_columns_batch(state)
         state = state ^ round_keys[rnd]
+    last_input = state
     state = box[state]
     state = _shift_rows_batch(state)
-    return state ^ round_keys[10]
+    return state ^ round_keys[10], last_input
+
+
+def encrypt_batch(plaintexts, round_keys):
+    """Cifra N bloques: `plaintexts` (N, 16) uint8 y `round_keys` (11, 16)."""
+    return _encrypt_batch_states(plaintexts, round_keys)[0]
 
 
 def cipher_intermediates(plaintexts, key):
@@ -279,23 +292,22 @@ def cipher_intermediates(plaintexts, key):
 
     - `first_sbox`: salida de la S-box de la primera ronda, `SBox(p_j ^ k_j)`,
       de forma (N, 16). Es el valor intermedio que ataca el CPA.
-    - `last_sbox_input`: entrada de la S-box de la última ronda,
-      `InvSBox(c_j ^ k_j)`, de forma (N, 16).
+    - `last_sbox_input`: entrada de la `SubBytes` de la última ronda, (N, 16),
+      en orden de estado: la columna `i` es el byte que la S-box procesa en la
+      posición `i`. Depende de la subclave 10, no de la clave maestra.
     - `ciphertexts`: criptogramas, (N, 16).
-
-    Con la convención de estado del FIPS-197, `last_sbox_input` es también el
-    estado tras `AddRoundKey` con la clave 10 y antes de `InvSubBytes`.
     """
     import numpy as np
 
-    ciphertexts = encrypt_batch(plaintexts, key_expansion_batch(key))
+    ciphertexts, last_input = _encrypt_batch_states(
+        plaintexts, key_expansion_batch(key)
+    )
     box = np.asarray(SBOX, dtype=np.uint8)
-    inv_box = np.asarray(INV_SBOX, dtype=np.uint8)
     plaintexts = np.asarray(plaintexts, dtype=np.uint8)
     key_array = _as_bytes_array(key)
     return {
         "first_sbox": box[plaintexts ^ key_array],
-        "last_sbox_input": inv_box[ciphertexts ^ key_array],
+        "last_sbox_input": last_input,
         "ciphertexts": ciphertexts,
     }
 
@@ -316,52 +328,88 @@ def first_round_sbox_outputs(plaintexts, key) -> "object":
     return box[plaintexts ^ key]
 
 
-def last_round_sbox_inputs(ciphertexts, key) -> "object":
-    """Entrada de la S-box de la última ronda, `InvSBox(c_j ^ k_j)`.
+def last_round_sbox_inputs(ciphertexts, round_key_10) -> "object":
+    """Entrada de la S-box de la última ronda, `InvSBox(c_j ^ K10_j)`.
 
-    Es el valor intermedio clásico cuando se ataca la última ronda: la
-    secuencia real es `InvShiftRows` → `InvSubBytes` → `AddRoundKey`, de modo
-    que el byte j del estado antes de `InvSubBytes` es `c_j ^ k_j`. Devuelve
+    La última ronda es `SubBytes` → `ShiftRows` → `AddRoundKey` con la subclave
+    10, así que `c_j ^ K10_j` es la salida de la S-box y su inversa, la entrada.
+    El resultado va en el orden del criptograma: la columna `j` es el byte que
+    la S-box procesa en la posición de estado `SHIFT_ROWS_INDEX[j]`. Devuelve
     (N, 16) en `numpy.uint8`.
+
+    Con la clave maestra en lugar de `K10` el resultado no es ningún valor
+    intermedio de AES: el ataque a la última ronda recupera `K10`, y la clave
+    maestra se obtiene después con `invert_key_schedule`.
     """
     import numpy as np
 
     ciphertexts = np.asarray(ciphertexts, dtype=np.uint8)
-    key = _as_bytes_array(key)
+    round_key_10 = _as_bytes_array(round_key_10)
     inv_box = np.asarray(INV_SBOX, dtype=np.uint8)
-    return inv_box[ciphertexts ^ key]
+    return inv_box[ciphertexts ^ round_key_10]
 
 
-def fips197_vectors() -> list[tuple[bytes, bytes, bytes]]:
-    """Vectores de prueba de AES-128 tomados de FIPS-197 [nist2023fips197].
+def invert_key_schedule(round_key_10) -> bytes:
+    """Clave maestra a partir de la subclave 10 (FIPS-197 §5.2, al revés).
 
-    El primero es el ejemplo del apéndice B (idéntico al apéndice C.1) y el
-    segundo es el caso trivial del apéndice C.1. Los otros dos los publica el
-    NIST en sus ejemplos de AES y coinciden con lo que devuelve una
-    implementación de referencia independiente.
+    La expansión de AES-128 es invertible: `w[i-4] = w[i] ^ g(w[i-1])`, donde
+    `g` es `RotWord`, `SubWord` y `Rcon` cuando `i` es múltiplo de 4 y la
+    identidad en otro caso.
+    """
+    round_key_10 = bytes(_as_bytes_array(round_key_10))
+    if len(round_key_10) != 16:
+        raise ValueError("la subclave debe tener 16 bytes")
+    words: list[list[int] | None] = [None] * 44
+    for j in range(4):
+        words[40 + j] = list(round_key_10[4 * j:4 * j + 4])
+    for i in range(43, 3, -1):
+        temp = list(words[i - 1])
+        if i % 4 == 0:
+            temp = temp[1:] + temp[:1]              # RotWord
+            temp = [SBOX[b] for b in temp]          # SubWord
+            temp[0] ^= RCON[i // 4]
+        words[i - 4] = [words[i][j] ^ temp[j] for j in range(4)]
+    return bytes(b for word in words[:4] for b in word)
+
+
+def aes_test_vectors() -> list[tuple[bytes, bytes, bytes]]:
+    """Vectores de prueba de AES-128.
+
+    Los dos primeros son los ejemplos de FIPS-197 [nist2023fips197]: el del
+    apéndice B (cuya clave es la clave de laboratorio de la simulación) y el
+    del apéndice C.1. Los otros tres son casos extremos (todo a cero, todo a
+    uno) que no están en la norma; sus criptogramas se han contrastado con
+    OpenSSL (`openssl enc -aes-128-ecb -nopad`), una implementación
+    independiente.
 
     Devuelve una lista de tuplas `(clave, texto claro, criptograma)`.
     """
     return [
-        # Apéndice B / C.1: clave 000102...0f.
+        # FIPS-197, apéndice B.
+        (
+            bytes.fromhex("2b7e151628aed2a6abf7158809cf4f3c"),
+            bytes.fromhex("3243f6a8885a308d313198a2e0370734"),
+            bytes.fromhex("3925841d02dc09fbdc118597196a0b32"),
+        ),
+        # FIPS-197, apéndice C.1.
         (
             bytes.fromhex("000102030405060708090a0b0c0d0e0f"),
             bytes.fromhex("00112233445566778899aabbccddeeff"),
             bytes.fromhex("69c4e0d86a7b0430d8cdb78070b4c55a"),
         ),
-        # Apéndice C.1: clave y texto claro nulos.
+        # Clave y texto claro nulos (contrastado con OpenSSL).
         (
             bytes.fromhex("00000000000000000000000000000000"),
             bytes.fromhex("00000000000000000000000000000000"),
             bytes.fromhex("66e94bd4ef8a2c3b884cfa59ca342b2e"),
         ),
-        # Clave nula, texto claro todo a uno.
+        # Clave nula, texto claro todo a uno (contrastado con OpenSSL).
         (
             bytes.fromhex("00000000000000000000000000000000"),
             bytes.fromhex("ffffffffffffffffffffffffffffffff"),
             bytes.fromhex("3f5b8cc9ea855a0afa7347d23e8d664e"),
         ),
-        # Texto claro nulo, clave todo a uno.
+        # Texto claro nulo, clave todo a uno (contrastado con OpenSSL).
         (
             bytes.fromhex("ffffffffffffffffffffffffffffffff"),
             bytes.fromhex("00000000000000000000000000000000"),
@@ -371,10 +419,10 @@ def fips197_vectors() -> list[tuple[bytes, bytes, bytes]]:
 
 
 if __name__ == "__main__":  # comprobación rápida, sin pytest
-    for index, (key, plaintext, expected) in enumerate(fips197_vectors(), start=1):
+    for index, (key, plaintext, expected) in enumerate(aes_test_vectors(), start=1):
         round_keys = key_expansion(key)
         ciphertext = encrypt_block(plaintext, round_keys)
         recovered = decrypt_block(ciphertext, round_keys)
         assert ciphertext == expected, f"vector {index}: {ciphertext.hex()} != {expected.hex()}"
         assert recovered == plaintext, f"vector {index}: descifrado incorrecto"
-        print(f"vector {index} FIPS-197: correcto ({ciphertext.hex()})")
+        print(f"vector {index}: correcto ({ciphertext.hex()})")
