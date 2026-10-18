@@ -27,7 +27,7 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 | Fecha | Decisión | Estado |
 |---|---|---|
 | 2026-10-18 | Memoria en LaTeX con la plantilla TFG de la ETSI, sin portada, resumen ni contraportada | Hecho |
-| 2026-10-18 | Compilación en local (latexmk + XeLaTeX + biber) y CI en GitHub Actions que publica el PDF | Hecho |
+| 2026-10-18 | Compilación en local (latexmk + XeLaTeX + biber) y CI en GitHub Actions que publica el PDF; desde `main`, en la release `memoria-latest` (el PDF no se versiona) | Hecho |
 | 2026-10-18 | Citas en formato IEEE con biblatex (`style=ieee`) | Hecho |
 | 2026-10-18 | Montaje DIY con ATmega328P (Arduino Nano) | Decidido |
 | 2026-10-18 | Python ≥ 3.11 con `uv` y un único `pyproject.toml` en la raíz; dependencias `numpy` y `matplotlib` | Hecho |
@@ -95,7 +95,7 @@ lanza con esa ruta delante:
 cd memoria && PATH="/usr/bin/vendor_perl:$PATH" latexmk
 ```
 
-La plantilla usa `fontspec`, así que **no compila con pdfLaTeX**. En cada push que toque `memoria/` o `figuras/`, el workflow `Memoria` compila con TeX Live completo y deja el PDF como artefacto `memoria` en la pestaña *Actions*.
+La plantilla usa `fontspec`, así que **no compila con pdfLaTeX**. En cada push que toque `memoria/` o `figuras/`, el workflow `Memoria` compila con TeX Live completo y deja el PDF como artefacto `memoria` en la pestaña *Actions*. En los push a `main`, además, lo publica en la release `memoria-latest`, con enlace fijo: <https://github.com/r0zh/vul-hw-grupal/releases/download/memoria-latest/memoria.pdf>.
 
 ### Ejecutar el análisis
 

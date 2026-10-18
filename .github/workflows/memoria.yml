@@ -1,4 +1,7 @@
-# Compila la memoria en cada push/PR que la toque y publica el PDF como artefacto.
+# Compila la memoria en cada push/PR que la toque y publica el PDF como
+# artefacto. En los push a main, además, lo publica en la release fija
+# `memoria-latest`, que da un enlace estable a la última versión:
+# https://github.com/r0zh/vul-hw-grupal/releases/download/memoria-latest/memoria.pdf
 name: Memoria
 
 on:
@@ -8,9 +11,16 @@ on:
     paths: ['memoria/**', 'figuras/**', '.github/workflows/memoria.yml']
   workflow_dispatch:
 
+# Dos publicaciones a la vez se pisarían la release: se ejecutan en fila.
+concurrency:
+  group: memoria-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write          # para publicar la release
     steps:
       - uses: actions/checkout@v7
 
@@ -24,3 +34,18 @@ jobs:
         with:
           name: memoria
           path: memoria/build/main.pdf
+
+      - name: Publicar en la release memoria-latest
+        # Solo desde main: las ramas y las PR se quedan en el artefacto.
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # La release se rehace en cada publicación para que su etiqueta apunte
+        # al commit compilado. El enlace de descarga no cambia.
+        run: |
+          cp memoria/build/main.pdf memoria.pdf
+          gh release delete memoria-latest --cleanup-tag --yes || true
+          gh release create memoria-latest memoria.pdf \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "Memoria (última versión de main)" \
+            --notes "PDF compilado automáticamente desde main en el commit ${GITHUB_SHA::7}. Se sustituye en cada push que toque la memoria o las figuras."
