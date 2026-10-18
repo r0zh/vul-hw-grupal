@@ -4,6 +4,8 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 
 **Equipo:** Juan Diego Bermúdez Ureba, Brian Polo Caballero, Alberto Bartolomé Iruela y Roberto Sánchez Martín.
 
+**Web explicativa:** <https://r0zh.github.io/vul-hw-grupal/>, el ataque explicado desde cero con figuras interactivas (trazas simuladas).
+
 ## Contenido
 
 | Ruta | Qué hay |
@@ -14,6 +16,7 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 | [`hardware/`](hardware/) | Montaje de medida y material |
 | [`analisis/`](analisis/) | CPA, DPA, simulación de trazas y figuras |
 | [`figuras/`](figuras/) | Figuras generadas por los scripts (PDF vectorial) |
+| [`web/`](web/) | Web explicativa con componentes interactivos (GitHub Pages) |
 | [`docs/`](docs/) | Enunciado, rúbrica y contexto inicial |
 
 ## Compilar la memoria
