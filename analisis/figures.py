@@ -262,6 +262,17 @@ def figure_noise_scaling(results: dict, output_dir: Path) -> Path:
             for step in grid
         ]
         left.plot(grid, curve, linewidth=1.0, label=f"SNR = {snr:g}")
+    # Con el desplazamiento por traza de la campaña de referencia, la cota baja.
+    with_offset = [
+        simulate.theoretical_correlation_ceiling(
+            1.0, reference["snr"] * step,
+            trace_offset_std=reference["simulation"]["trace_offset_std"],
+        )
+        for step in grid
+    ]
+    left.plot(grid, with_offset, linewidth=1.0, linestyle="--",
+              color="#666666",
+              label="con el offset por traza de la referencia")
     left.plot(
         [reference["n_traces"]], [baseline["cpa_first"]["mean_correct_peak"]],
         marker="o", markersize=5, color=_COLORS["accent"], linestyle="none",

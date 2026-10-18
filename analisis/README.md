@@ -70,13 +70,17 @@ T_i[t] = offset_i + deriva_i[t] + ruido_i[t] + Σ_r g_r · HW(V_i^(r)) · k[t - 
 - `V^(1) = SBox(p_j ⊕ k_j)`: salida de la S-box de la primera ronda, el valor
   intermedio que ataca el CPA según `AGENTS.md`.
 - `V^(10) = InvSBox(c_j ⊕ k_j)`: entrada de la S-box de la última ronda, el
-  otro punto de ataque clásico. Se simula para tenerlo validado antes de medir.
+  otro punto de ataque clásico. Se simula para tenerlo validado antes de medir;
+  su amplitud es `last_round_gain` (0,8 por defecto).
 - `k` es un núcleo `(0,5 · 1,0 · 0,5)`: cada byte del estado ocupa su propia
   ventana temporal, separadas dos muestras, como cabría esperar de un recorrido
   byte a byte del estado en el ATmega328P.
-- La relación señal-ruido se define sobre la potencia de la fuga:
-  `SNR = Var(Σ g_r · HW) / Var(ruido)`. El offset por traza no entra en la
-  cuenta porque la correlación de Pearson lo elimina; la deriva lenta sí.
+- La relación señal-ruido se define sobre la potencia de la fuga de la primera
+  ronda: `SNR = Var(g_1 · HW(SBox(p ⊕ k))) / Var(ruido)`. La varianza se calcula
+  *dentro* de cada byte y se promedia entre los 16 (`pooled_signal_std`),
+  porque el CPA ataca un byte cada vez. La última ronda tiene una SNR efectiva
+  menor, proporcional a su amplitud. El offset por traza no entra en la cuenta
+  porque la correlación de Pearson lo elimina; la deriva lenta sí.
 
 **Nada de esto describe el montaje real.** Parámetros como el número de
 muestras, la separación entre ventanas o el ruido son hipótesis de trabajo que
