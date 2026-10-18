@@ -107,6 +107,7 @@ def run_baseline(config: ExperimentConfig) -> dict[str, object]:
     results["growth"] = growth
     results["checkpoints"] = checkpoints
     results["baseline"] = {
+        "simulation": simulation.as_dict(),
         "n_traces": int(simulation.n_traces),
         "n_samples": int(simulation.n_samples),
         "snr": float(simulation.snr),

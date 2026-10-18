@@ -21,11 +21,15 @@ La relación señal-ruido se define sobre la **potencia de la señal de fuga**,
 de modo que el valor de `snr` que se usa en las figuras es el mismo en todas
 las campañas:
 
-    SNR = Var(sum_r g_r · HW(V^(r))) / sigma²
+    SNR = Var(g_1 · HW(V^(1))) / sigma²
 
-El factor de ruido `sigma` se escala con la desviación típica de los pesos de
-Hamming para clavar esa SNR. La varianza, por tanto, es una propiedad del
-conjunto de textos claros y de la clave, y se mide en lugar de suponerse.
+donde la varianza de la fuga se calcula **dentro** de cada byte del estado y se
+promedia entre los 16 (`pooled_signal_std`), que es lo que ve el CPA al atacar
+un byte cada vez. La varianza es una propiedad del conjunto de textos claros y
+de la clave, y se mide en lugar de suponerse. La SNR se define sobre la
+primera ronda; como la última ronda tiene menos amplitud (`last_round_gain`),
+su SNR efectiva es proporcionalmente menor y por eso su pico de correlación
+también lo es.
 """
 
 from __future__ import annotations
@@ -50,7 +54,7 @@ class SyntheticTraces:
     first_sbox: np.ndarray                 # (N, 16) uint8, valor intermedio real
     last_sbox_input: np.ndarray            # (N, 16) uint8, valor intermedio real
     noise_sigma: float                     # desviación típica del ruido añadido
-    signal_hw_std: float                   # desviación típica del peso de Hamming
+    signal_hw_std: float                   # desv. típica de la fuga de la 1.ª ronda
     leakage_regions: dict[str, list[int]] = field(default_factory=dict)
     metadata: dict[str, object] = field(default_factory=dict)
 
@@ -160,17 +164,20 @@ def simulate_from_texts(plaintexts: np.ndarray,
     first_signal = config.first_round_gain * levels["first"].astype(np.float64)
     last_signal = config.last_round_gain * levels["last"].astype(np.float64)
     signal = first_signal + last_signal
-    signal_hw_std = float(signal.std())
 
-    # Ruido: la SNR fija la potencia del fondo blanco, `Var(A·HW)/SNR`. La
-    # deriva lenta se ata a ese fondo (una fracción pequeña) para que la SNR
+    # La SNR se define sobre la fuga de la **primera** ronda, que es el valor
+    # intermedio que ataca AGENTS.md. El ruido se escala con ella y no con la
+    # potencia total de la traza: si se escalara con la suma de las dos rondas,
+    # la SNR que se reporta no sería la que ve el ataque de la primera ronda.
+    signal_hw_std = pooled_signal_std(first_signal)
+    noise_sigma = float(signal_hw_std / np.sqrt(config.snr))
+
+    # La deriva lenta se ata a ese fondo (una fracción pequeña) para que la SNR
     # nominal describa el canal que ataca el CPA y no quede ahogada por la
-    # deriva en las SNR altas.
-    #
-    # El desplazamiento vertical de cada traza no entra en esta cuenta: al ser
-    # constante dentro de la traza, la correlación de Pearson lo elimina. Está
-    # en la traza porque un montaje real lo tiene, no porque estorbe.
-    noise_sigma = float(np.sqrt(signal.var() / config.snr))
+    # deriva en las SNR altas. El desplazamiento vertical de cada traza no
+    # entra en esta cuenta: al ser constante dentro de la traza, la correlación
+    # de Pearson lo elimina. Está en la traza porque un montaje real lo tiene,
+    # no porque estorbe.
     noise_drift_std = config.trace_drift_ratio * noise_sigma
 
     drift_shape = np.sin(
@@ -209,6 +216,21 @@ def simulate_from_texts(plaintexts: np.ndarray,
             "seed": int(config.seed),
         },
     )
+
+
+def pooled_signal_std(signal: np.ndarray) -> float:
+    """Desviación típica de la fuga **dentro** de cada byte del estado.
+
+    `signal` tiene forma `(n, 16)`. La varianza se calcula byte a byte y se
+    promedia (varianza combinada). Se hace así y no sobre los 16 bytes juntos
+    porque el CPA ataca un byte cada vez: la dispersión *entre* bytes no es
+    ruido para el ataque, es señal. Tomar la desviación típica global
+    sobreestimaría el ruido y la SNR que se reporta no sería la que ve el
+    ataque.
+    """
+    signal = np.asarray(signal, dtype=np.float64)
+    per_byte_variance = signal.var(axis=0)
+    return float(np.sqrt(per_byte_variance.mean()))
 
 
 def _replace_config(config: SimulationConfig, overrides: dict) -> SimulationConfig:

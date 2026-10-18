@@ -40,9 +40,15 @@ S-box de la última, $k[\cdot]$ un núcleo $(0{,}5,\,1{,}0,\,0{,}5)$ que reparte
 cada operación en tres muestras consecutivas y $t_r$ el instante central de la
 operación del byte $r$. La separación entre ventanas es de dos muestras, como
 correspondería a un recorrido byte a byte del estado en el microcontrolador.
-La relación señal-ruido se define sobre la potencia de la fuga,
-$\mathrm{SNR} = \operatorname{Var}\!\left(\sum_r g_r \operatorname{HW}(V^{(r)})\right) / \sigma_n^2$,
-que es lo que permite comparar campañas con distinto ruido. El desplazamiento
+La relación señal-ruido se define sobre la potencia de la fuga de la primera
+ronda,
+$\mathrm{SNR} = \operatorname{Var}\!\left(g_1 \operatorname{HW}(V^{(1)})\right) / \sigma_n^2$,
+que es lo que permite comparar campañas con distinto ruido. La varianza se
+calcula \emph{dentro} de cada byte del estado y se promedia entre los 16,
+porque el CPA ataca un byte cada vez: la dispersión entre bytes no es ruido
+para el ataque, es señal. Como la última ronda tiene menos amplitud
+($g_{10} < g_1$), su SNR efectiva es proporcionalmente menor y por eso su pico
+de correlación también lo es. El desplazamiento
 $b_i$ es constante dentro de una traza: infla la varianza de la traza y por
 tanto rebaja algo la correlación medida, pero no cambia el orden de los
 candidatos, porque la correlación de Pearson lo elimina.
@@ -84,15 +90,16 @@ La \cref{fig:sim-cpa-correlacion} muestra el resultado central del ataque sobre
 la campaña de referencia. Arriba está el coeficiente de correlación del
 candidato correcto de cada uno de los 16 bytes; abajo, el mayor de los 255
 candidatos falsos. La diferencia es nítida: el candidato correcto llega a
-$|\rho| \approx \num{0,22}$ justo en la ventana de su byte, mientras que
-ningún candidato falso pasa de $\num{0,07}$. Los 16 bytes de la clave se
+$|\rho| \approx \num{0,27}$ justo en la ventana de su byte, mientras que
+ningún candidato falso pasa de $\num{0,09}$. Los 16 bytes de la clave se
 recuperan con 4000 trazas, tanto atacando la primera ronda
-($\overline{|\rho|} = \num{0,221}$, mínimo $\num{0,212}$) como la última
-($\overline{|\rho|} = \num{0,184}$). La cota teórica para esta campaña es
-$\rho_{\max} = \sqrt{\mathrm{SNR}/(1+\mathrm{SNR})} = \num{0,302}$; la
-diferencia se explica por el desplazamiento por traza de la
-\cref{eq:modelo-traza}, que engorda la varianza de la traza y baja la cota a
-$\num{0,286}$ en estas condiciones.
+($\overline{|\rho|} = \num{0,272}$, mínimo $\num{0,263}$) como la última
+($\overline{|\rho|} = \num{0,226}$). La cota teórica para esta campaña,
+$\rho_{\max} = \sqrt{\mathrm{SNR}/(1+\mathrm{SNR})} = \num{0,302}$, baja a
+$\num{0,277}$ al tener en cuenta el desplazamiento por traza de la
+\cref{eq:modelo-traza}, que engorda la varianza de la traza; el valor medido
+queda un 2~\% por debajo de esa cota corregida, que es lo que cabe esperar de
+una estimación con un número finito de trazas.
 
 \begin{figure}[htbp]
   \centering
@@ -109,7 +116,7 @@ $\num{0,286}$ en estas condiciones.
 La \cref{fig:sim-candidatos} ordena los 256 candidatos por su pico de
 correlación y muestra en qué puesto queda el correcto. La separación entre el
 primero y el resto es el margen del ataque: $\overline{\Delta|\rho|} =
-\num{0,146}$ en la primera ronda, y el candidato correcto es el primero en los
+\num{0,188}$ en la primera ronda, y el candidato correcto es el primero en los
 16 bytes. El ataque acierta también en el \emph{tiempo}: el pico del byte $j$
 cae en la muestra $15 + 2j$, que es donde el simulador colocó su operación.
 
@@ -156,15 +163,15 @@ correcto de cada posición. El resultado está en la
     \toprule
     {SNR} & {N para el 90~\%} & {N mediana} & {pico de $|\rho|$} \\
     \midrule
-    2      & 211  & 151  & 0,515 \\
-    1      & 211  & 211  & 0,466 \\
-    0,5    & 295  & 295  & 0,400 \\
-    0,2    & 578  & 413  & 0,300 \\
-    0,1    & 1133 & 809  & 0,227 \\
-    0,05   & 1586 & 1586 & 0,166 \\
-    0,02   & \multicolumn{1}{c}{$>$3000} & \multicolumn{1}{c}{$>$3000} & 0,108 \\
-    0,01   & \multicolumn{1}{c}{$>$3000} & \multicolumn{1}{c}{$>$3000} & 0,079 \\
-    0,005  & \multicolumn{1}{c}{$>$3000} & \multicolumn{1}{c}{$>$3000} & 0,062 \\
+    2      & 151  & 151  & 0,538 \\
+    1      & 211  & 151  & 0,503 \\
+    0,5    & 211  & 211  & 0,449 \\
+    0,2    & 413  & 295  & 0,355 \\
+    0,1    & 809  & 578  & 0,277 \\
+    0,05   & 1133 & 1133 & 0,208 \\
+    0,02   & 3000 & 2220 & 0,137 \\
+    0,01   & \multicolumn{1}{c}{$>$3000} & 3000 & 0,099 \\
+    0,005  & \multicolumn{1}{c}{$>$3000} & \multicolumn{1}{c}{$>$3000} & 0,073 \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -182,12 +189,13 @@ correcto de cada posición. El resultado está en la
 
 Los resultados siguen la ley esperada: la correlación crece como
 $\sqrt{N\,\mathrm{SNR}/(1 + N\,\mathrm{SNR})}$, de modo que hacer el ataque
-viable con diez veces menos trazas exige diez veces menos ruido. Por debajo de
-$\mathrm{SNR} = 0{,}02$ la campaña de 3000 trazas ya no basta y el candidato
-correcto se queda fuera del primer puesto en más de la mitad de los ensayos.
-Hay que insistir en que estos números son propiedad del \emph{modelo}, no del
-montaje: fijan el orden de magnitud que habrá que comparar con las medidas
-reales, y solo entonces se podrá decir si el montaje se parece a la simulación.
+viable con diez veces menos trazas exige, aproximadamente, diez veces menos
+ruido. Con $\mathrm{SNR} = 0{,}1$ hacen falta unas 800 trazas para recuperar
+la clave completa en la mitad de los ensayos, y por debajo de
+$\mathrm{SNR} = 0{,}01$ la campaña de 3000 trazas ya no basta. Hay que
+insistir en que estos números son propiedad del \emph{modelo}, no del montaje:
+fijan el orden de magnitud que habrá que comparar con las medidas reales, y
+solo entonces se podrá decir si el montaje se parece a la simulación.
 
 \subsection{Comparación con el DPA}
 
@@ -196,8 +204,11 @@ El DPA clásico separa las trazas según un único bit del valor intermedio
 de peso de Hamming del CPA \cite{brier2004cpa}. La \cref{fig:sim-dpa-cpa} lo
 cuantifica sobre la misma campaña de 2000 trazas con $\mathrm{SNR} = 0{,}1$: el
 CPA recupera los 16 bytes, mientras que el mejor de los ocho bits del DPA
-recupera 8 y el peor, uno solo. La comparación justifica atacar con el peso de
-Hamming completo (o con un modelo de fuga más rico) en cuanto el ruido aprieta.
+recupera 11 y el peor, 6. Además de acertar menos bytes, el DPA lo hace con un
+margen medio negativo ($\num{-0,019}$ frente a $\num{0,123}$ del CPA), es
+decir, sin distinguir con claridad la hipótesis correcta. La comparación
+justifica atacar con el peso de Hamming completo ---o con un modelo de fuga más
+rico--- en cuanto el ruido aprieta.
 
 \begin{figure}[htbp]
   \centering

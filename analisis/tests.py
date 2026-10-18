@@ -80,12 +80,15 @@ def test_cpa_recovers_key_without_noise() -> None:
         assert abs(int(peaks[byte, campaign.key[byte]]) - centers[byte]) <= 2, (
             f"el pico del byte {byte} no cae en su ventana"
         )
-    ceiling = simulate.theoretical_correlation_ceiling(
-        campaign.signal_hw_std, 1e6
-    )
-    peaks_value = np.abs(scores).max(axis=2)
-    assert peaks_value[np.arange(16), campaign.key].min() > 0.999 * ceiling, (
-        "la correlación del candidato correcto no llega a la cota teórica"
+    # Con ruido despreciable, la correlación del candidato correcto en su
+    # propio instante tiene que coincidir con la cota teórica. Es la
+    # comprobación de que la convención de la SNR es la que ve el ataque.
+    centers = np.array(config.first_round_centers)
+    rows = np.arange(16)
+    at_center = np.abs(scores[rows, campaign.key.astype(np.intp), centers])
+    ceiling = simulate.theoretical_correlation_ceiling(campaign.signal_hw_std, 1e6)
+    assert abs(float(at_center.mean()) - ceiling) < 0.01, (
+        f"correlación {at_center.mean():.4f} frente a la cota {ceiling:.4f}"
     )
 
 

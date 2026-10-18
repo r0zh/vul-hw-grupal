@@ -63,8 +63,9 @@ LEAKAGE_KERNEL: tuple[float, ...] = (0.5, 1.0, 0.5)
 
 # ──────────────────────────────── Ruido ──────────────────────────────────
 
-#: Relación señal-ruido de referencia, definida sobre la potencia de la fuga:
-#: `SNR = Var(A · HW) / Var(ruido)`.
+#: Relación señal-ruido de referencia, definida sobre la potencia de la fuga de
+#: la primera ronda: `SNR = Var(g_1 · HW(SBox(p ⊕ k))) / Var(ruido)`. La última
+#: ronda tiene menos amplitud y por tanto una SNR efectiva menor.
 DEFAULT_SNR: float = 0.1
 
 #: Desviación típica del desplazamiento vertical de cada traza (ganancia y
