@@ -26,8 +26,8 @@ def _fast_config() -> ExperimentConfig:
     simulation = SimulationConfig(n_traces=600, snr=0.1)
     return ExperimentConfig(
         simulation=simulation,
-        snr_levels=(1.0, 0.2, 0.05),
-        figure_snr_levels=(1.0, 0.2, 0.05),
+        snr_levels=(1.0, 0.1, 0.02),
+        figure_snr_levels=(1.0, 0.1, 0.02),
         sweep_traces=600,
         sweep_trials=6,
         dpa_traces=600,
