@@ -50,6 +50,7 @@ uv.lock                versiones fijadas de las dependencias
 docs/
   enunciado.md         enunciado del trabajo y rúbrica de la presentación
   contexto-inicial.md  instantánea del contexto de partida (no se actualiza)
+  reunion-*.md         preguntas y respuestas de las reuniones con el profesor
   referencias/         PDF de terceros (artículo, rúbrica); ignorado por git
 memoria/
   main.tex             documento raíz; solo estructura e \input de capítulos
@@ -100,6 +101,7 @@ uv sync                                      # crea .venv con numpy y matplotlib
 uv run python -m analisis.tests              # comprobaciones rápidas
 uv run python -m analisis.run_all            # fase 1 completa y figuras (~4 min)
 uv run python -m analisis.run_all --fast     # versión de humo
+uv run python -m analisis.demo               # demo en vivo del CPA (simulada, no escribe nada)
 ```
 
 Detalles en [`analisis/README.md`](analisis/README.md). El workflow `Análisis` ejecuta las comprobaciones y el análisis reducido **dos veces** en cada push que toque `analisis/`, para comprobar que los resultados y las figuras son deterministas.

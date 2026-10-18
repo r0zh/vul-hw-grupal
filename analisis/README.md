@@ -17,6 +17,7 @@ las fases 2 a 5 del plan de `AGENTS.md`).
 | `figures.py` | Figuras en PDF vectorial para `figuras/` |
 | `config.py` | Todos los parámetros de la simulación y de los experimentos |
 | `run_all.py` | Regenera los resultados y todas las figuras |
+| `demo.py` | Demo en vivo: la clave aparece byte a byte al crecer N (no escribe ficheros) |
 | `tests.py` | Comprobaciones rápidas (AES, ataque sin ruido, utilidades) |
 
 ## Reproducir todo desde cero
@@ -65,6 +66,26 @@ figuras.
 
 Lo único que cambia entre ejecuciones es el campo `seconds` del JSON (y los
 `seconds` por ataque), que es el tiempo que ha tardado cada parte.
+
+## Demo en vivo
+
+Pensada para enseñar el ataque, no para producir resultados: no escribe ningún
+fichero y los números de la memoria salen de `run_all`.
+
+```sh
+uv run python -m analisis.demo                  # terminal, SNR = 0,1
+uv run python -m analisis.demo --snr 0.02       # más ruido: hacen falta más trazas
+uv run python -m analisis.demo --plot --byte 5  # además, ventana con ρ(t) de un byte
+```
+
+Cada fila es un CPA completo sobre las primeras `N` trazas: la clave recuperada
+(en verde los bytes acertados), la media de `max_t |ρ|` del candidato correcto
+y del mejor falso, y el peor puesto del byte correcto. Con la semilla fija y
+SNR = 0,1, los 16 bytes se mantienen desde 650 trazas.
+
+`--plot` necesita un backend de matplotlib con ventana. Con algunas versiones
+del Python que instala `uv`, el de Tk no carga; se arregla con
+`uv python upgrade --reinstall`.
 
 ## Qué se simula y qué se mide
 
