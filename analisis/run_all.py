@@ -30,7 +30,6 @@ def _fast_config() -> ExperimentConfig:
         figure_snr_levels=(1.0, 0.2, 0.05),
         sweep_traces=600,
         sweep_trials=6,
-        baseline_traces=600,
         dpa_traces=600,
     )
 
@@ -49,7 +48,6 @@ def _no_sweep_config() -> ExperimentConfig:
         figure_snr_levels=(full.simulation.snr,),
         sweep_traces=full.sweep_traces,
         sweep_trials=4,
-        baseline_traces=full.baseline_traces,
         dpa_traces=full.dpa_traces,
     )
 
