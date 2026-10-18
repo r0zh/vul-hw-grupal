@@ -36,6 +36,7 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 | 2026-10-18 | Trazas sintéticas con fuga por peso de Hamming, núcleo `(0,5, 1,0, 0,5)`, ventanas de 2 muestras por byte del estado, 96 muestras por traza | Hecho |
 | 2026-10-18 | Semilla fija `20261018`; la simulación guarda sus parámetros en `analisis/salida/resultados.json` (ignorado por git) | Hecho |
 | 2026-10-18 | El DPA de un bit se mantiene solo como comparación: recupera 11 de 16 bytes donde el CPA recupera 16, y con margen negativo | Hecho |
+| 2026-10-18 | Web explicativa con componentes interactivos en `web/`, publicada con GitHub Pages; encargo en [`docs/handoff-web.md`](docs/handoff-web.md) | Decidido |
 | — | Osciloscopio: de la universidad o comprado (Hantek 6022BE) | **Pendiente de confirmación de un profesor** |
 | — | Placa Nano o ATmega328P suelto en protoboard (ver [`hardware/README.md`](hardware/README.md)) | Por evaluar |
 | — | Herramienta para la presentación (ver [`presentacion/por-decidir.md`](presentacion/por-decidir.md)) | Pendiente |
@@ -51,6 +52,7 @@ docs/
   enunciado.md         enunciado del trabajo y rúbrica de la presentación
   contexto-inicial.md  instantánea del contexto de partida (no se actualiza)
   reunion-*.md         preguntas y respuestas de las reuniones con el profesor
+  handoff-web.md       encargo de la web explicativa (GitHub Pages)
   referencias/         PDF de terceros (artículo, rúbrica); ignorado por git
 memoria/
   main.tex             documento raíz; solo estructura e \input de capítulos
@@ -70,6 +72,7 @@ Directorios previstos que se crean cuando haya contenido:
 
 - `firmware/`: AES-128 para ATmega328P, protocolo serie y GPIO de trigger.
 - `captura/`: scripts de Python que controlan la placa y el osciloscopio y guardan trazas.
+- `web/`: página explicativa con componentes interactivos, publicada con GitHub Pages (ver `docs/handoff-web.md`).
 - `datos/`: trazas de respaldo comprimidas. Las trazas en bruto van en `datos/brutos/`, que está ignorado.
 
 ## Flujo de trabajo
