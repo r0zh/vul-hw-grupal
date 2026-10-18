@@ -19,9 +19,15 @@ __pycache__/
 *.pyc
 .venv/
 .ipynb_checkpoints/
+# Caché de uv dentro del repo (con UV_CACHE_DIR), para entornos restringidos
+.uv-cache/
+.matplotlib/
 
 # Trazas en bruto (grandes); las de respaldo para la demo van comprimidas en datos/
 datos/brutos/
+
+# Trazas sintéticas y resultados numéricos: se regeneran con los scripts
+analisis/salida/
 
 # Material con derechos de terceros (el repo es público)
 docs/referencias/

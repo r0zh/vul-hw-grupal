@@ -30,6 +30,12 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 | 2026-10-18 | Compilación en local (latexmk + XeLaTeX + biber) y CI en GitHub Actions que publica el PDF | Hecho |
 | 2026-10-18 | Citas en formato IEEE con biblatex (`style=ieee`) | Hecho |
 | 2026-10-18 | Montaje DIY con ATmega328P (Arduino Nano) | Decidido |
+| 2026-10-18 | Python ≥ 3.11 con `uv` y un único `pyproject.toml` en la raíz; dependencias `numpy` y `matplotlib` | Hecho |
+| 2026-10-18 | El CPA se valida primero en simulación (fase 1) antes de tocar el hardware | Hecho |
+| 2026-10-18 | AES-128 propio en `analisis/aes.py`, verificado contra los vectores del FIPS-197; sin dependencias criptográficas externas | Hecho |
+| 2026-10-18 | Trazas sintéticas con fuga por peso de Hamming, núcleo `(0,5, 1,0, 0,5)`, ventanas de 2 muestras por byte del estado, 96 muestras por traza | Hecho |
+| 2026-10-18 | Semilla fija `20261018`; la simulación guarda sus parámetros en `analisis/salida/resultados.json` (ignorado por git) | Hecho |
+| 2026-10-18 | El DPA de un bit se mantiene solo como comparación: recupera 11 de 16 bytes donde el CPA recupera 16, y con margen negativo | Hecho |
 | — | Osciloscopio: de la universidad o comprado (Hantek 6022BE) | **Pendiente de confirmación de un profesor** |
 | — | Placa Nano o ATmega328P suelto en protoboard (ver [`hardware/README.md`](hardware/README.md)) | Por evaluar |
 | — | Herramienta para la presentación (ver [`presentacion/por-decidir.md`](presentacion/por-decidir.md)) | Pendiente |
@@ -39,9 +45,12 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 ```
 AGENTS.md              este archivo (CLAUDE.md lo importa)
 README.md              portada del repo en GitHub
+pyproject.toml         proyecto único de Python (uv), para captura/ y analisis/
+uv.lock                versiones fijadas de las dependencias
 docs/
   enunciado.md         enunciado del trabajo y rúbrica de la presentación
   contexto-inicial.md  instantánea del contexto de partida (no se actualiza)
+  reunion-*.md         preguntas y respuestas de las reuniones con el profesor
   referencias/         PDF de terceros (artículo, rúbrica); ignorado por git
 memoria/
   main.tex             documento raíz; solo estructura e \input de capítulos
@@ -51,15 +60,16 @@ memoria/
   template/            plantilla UMA (estilo y fuentes Malacitana); no tocar
 presentacion/          por decidir
 hardware/              montaje, material y puntos a revisar
+analisis/              CPA, DPA, simulación de trazas y generación de figuras
+  salida/              resultados numéricos de una ejecución (ignorado por git)
 figuras/               figuras generadas por scripts, compartidas por memoria y presentación
-.github/workflows/     CI de la memoria
+.github/workflows/     CI de la memoria (memoria.yml) y del análisis (analisis.yml)
 ```
 
 Directorios previstos que se crean cuando haya contenido:
 
 - `firmware/`: AES-128 para ATmega328P, protocolo serie y GPIO de trigger.
 - `captura/`: scripts de Python que controlan la placa y el osciloscopio y guardan trazas.
-- `analisis/`: CPA, DPA, simulación de trazas y generación de figuras.
 - `datos/`: trazas de respaldo comprimidas. Las trazas en bruto van en `datos/brutos/`, que está ignorado.
 
 ## Flujo de trabajo
@@ -74,7 +84,27 @@ cd memoria && latexmk          # genera memoria/build/main.pdf
 latexmk -c                     # limpia auxiliares
 ```
 
+En Arch, el paquete `biber` instala el ejecutable en `/usr/bin/vendor_perl/`, que
+no siempre está en el `PATH`. Si `latexmk` se queja de que no encuentra biber, se
+lanza con esa ruta delante:
+
+```sh
+cd memoria && PATH="/usr/bin/vendor_perl:$PATH" latexmk
+```
+
 La plantilla usa `fontspec`, así que **no compila con pdfLaTeX**. En cada push que toque `memoria/` o `figuras/`, el workflow `Memoria` compila con TeX Live completo y deja el PDF como artefacto `memoria` en la pestaña *Actions*.
+
+### Ejecutar el análisis
+
+```sh
+uv sync                                      # crea .venv con numpy y matplotlib
+uv run python -m analisis.tests              # comprobaciones rápidas
+uv run python -m analisis.run_all            # fase 1 completa y figuras (~4 min)
+uv run python -m analisis.run_all --fast     # versión de humo
+uv run python -m analisis.demo               # demo en vivo del CPA (simulada, no escribe nada)
+```
+
+Detalles en [`analisis/README.md`](analisis/README.md). El workflow `Análisis` ejecuta las comprobaciones y el análisis reducido **dos veces** en cada push que toque `analisis/`, para comprobar que los resultados y las figuras son deterministas.
 
 ### Git
 
@@ -82,9 +112,11 @@ La plantilla usa `fontspec`, así que **no compila con pdfLaTeX**. En cada push 
 - Mensajes de commit en español, en imperativo y concretos ("Añade esqueleto del capítulo de mitigaciones").
 - El repo es público: no se suben PDF de terceros, credenciales ni nada que no sea nuestro.
 
-### Python (cuando haya código)
+### Python
 
-`uv` con un único `pyproject.toml` en la raíz para `captura/` y `analisis/`, con Python 3.11 o superior. Dependencias mínimas previstas: `numpy`, `matplotlib`, `pyserial` y el driver del osciloscopio que se elija.
+`uv` con un único `pyproject.toml` en la raíz para `captura/` y `analisis/`, con Python 3.11 o superior. Dependencias actuales: `numpy` y `matplotlib`; cuando llegue la captura se añadirán `pyserial` y el driver del osciloscopio que se elija.
+
+Los resultados numéricos van a `analisis/salida/`, que está ignorado por git: se regeneran con `uv run python -m analisis.run_all` a partir de la semilla fija. Las trazas sintéticas no se guardan; si alguna vez hace falta conservar una campaña, se usa el formato de trazas de las convenciones (`.npz` + `.json`) y se marca como simulada dentro del propio JSON.
 
 ## Convenciones
 
@@ -107,7 +139,7 @@ La plantilla usa `fontspec`, así que **no compila con pdfLaTeX**. En cada push 
 ## Plan de trabajo
 
 - [x] **0. Organización:** repositorio, plantilla, CI y este archivo.
-- [ ] **1. Análisis validado en simulación:** CPA (y DPA como comparación) sobre trazas sintéticas con fuga HW y ruido gaussiano; comprobar que se recupera la clave y cómo escala con el ruido.
+- [x] **1. Análisis validado en simulación:** CPA (y DPA como comparación) sobre trazas sintéticas con fuga HW y ruido gaussiano. Resultado: con 4000 trazas y SNR = 0,1 se recuperan los 128 bits; el barrido de ruido da las trazas necesarias por nivel y el DPA de un bit se queda en 11 de 16 bytes donde el CPA acierta los 16. Figuras y texto en `figuras/` y la sección 4.1 de la memoria.
 - [ ] **2. Instrumental:** respuesta del profesor sobre el osciloscopio y lista de compra definitiva con precios verificados.
 - [ ] **3. Firmware:** AES-128 en el ATmega328P verificado con los vectores de prueba de FIPS-197, protocolo serie y trigger por GPIO.
 - [ ] **4. Captura:** primera traza real, rondas visibles (SPA), alineación con el trigger y captura automatizada de miles de trazas.

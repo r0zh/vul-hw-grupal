@@ -1,0 +1,63 @@
+# CI del análisis (fase 1): comprobaciones y regeneración de figuras.
+#
+# Las comprobaciones no necesitan trazas reales (todavía no hay): generan sus
+# propias trazas sintéticas con semilla fija. El análisis completo tarda unos
+# cuatro minutos, así que en cada push se ejecuta la versión reducida (`--fast`)
+# y el PDF de cada figura queda como artefacto `figuras`.
+name: Análisis
+
+on:
+  push:
+    paths: ['analisis/**', 'pyproject.toml', 'uv.lock', '.github/workflows/analisis.yml']
+  pull_request:
+    paths: ['analisis/**', 'pyproject.toml', 'uv.lock', '.github/workflows/analisis.yml']
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Instalar dependencias
+        run: uv sync --locked
+
+      - name: Comprobaciones (AES, ataque sin ruido, utilidades)
+        run: uv run python -m analisis.tests
+
+      - name: Análisis reducido, dos veces, para comprobar que es determinista
+        # Las figuras llevan la fecha del PDF fija, así que dos ejecuciones con
+        # los mismos parámetros tienen que dar el mismo fichero. Si esta
+        # comprobación falla, hay algo que depende del reloj o del orden de
+        # ejecución y los resultados dejarían de ser reproducibles.
+        run: |
+          uv run python -m analisis.run_all --fast \
+            --figuras /tmp/figuras-a --resultados /tmp/resultados-a.json
+          uv run python -m analisis.run_all --fast \
+            --figuras /tmp/figuras-b --resultados /tmp/resultados-b.json
+          python -c "
+          import json, pathlib, sys
+          a = json.load(open('/tmp/resultados-a.json'))
+          b = json.load(open('/tmp/resultados-b.json'))
+          for doc in (a, b):
+              doc.pop('seconds', None)
+              for key in ('cpa_first', 'cpa_last'):
+                  doc['baseline'][key].pop('seconds', None)
+          if json.dumps(a, sort_keys=True) != json.dumps(b, sort_keys=True):
+              sys.exit('los resultados numéricos no son deterministas')
+          for figure in sorted(pathlib.Path('/tmp/figuras-a').glob('*.pdf')):
+              other = pathlib.Path('/tmp/figuras-b') / figure.name
+              if figure.read_bytes() != other.read_bytes():
+                  sys.exit(f'la figura {figure.name} no es determinista')
+          print('resultados y figuras deterministas')
+          "
+          sha256sum /tmp/figuras-a/*.pdf
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: figuras
+          path: /tmp/figuras-a/*.pdf
