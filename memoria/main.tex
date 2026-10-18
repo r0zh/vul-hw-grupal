@@ -1,0 +1,74 @@
+% ======================================================================
+% Memoria del trabajo grupal — Vulnerabilidades Hardware
+% Plantilla TFG ETSI Informática (UMA) sin portada, resumen ni contraportada.
+% Compilar con: latexmk   (usa XeLaTeX + biber, ver latexmkrc)
+% ======================================================================
+\documentclass[12pt,a4paper,oneside,spanish]{book}  % spanish: babel y cleveref
+
+%───────── Auxiliary packages ──────────────────────────────────────────
+\usepackage[es-noshorthands,es-tabla]{babel}
+\usepackage{csquotes}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{siunitx}
+\usepackage{amsmath,amssymb}
+\usepackage{listings}
+\usepackage[
+  backend=biber,
+  style=ieee
+]{biblatex}
+\addbibresource{referencias.bib}
+
+% Figuras compartidas con la presentación (generadas por los scripts de análisis)
+\graphicspath{{../figuras/}}
+
+% Listings config
+\lstset{
+  basicstyle=\ttfamily\small,
+  numbers=left,
+  numberstyle=\tiny,
+  columns=fullflexible,
+  frame=single,
+  breaklines=true,
+  tabsize=2
+}
+
+%───────── Template ────────────────────────────────────────────────────
+\usepackage{template/sty_files/template-TFGspanish-uma}
+
+% \cref en español con los mismos nombres que los títulos de la plantilla
+\crefname{table}{tabla}{tablas}
+\Crefname{table}{Tabla}{Tablas}
+\crefname{section}{sección}{secciones}
+\Crefname{section}{Sección}{Secciones}
+
+%======================================================================
+\begin{document}
+
+\frontmatter
+
+%────────────────────── TOC and lists ──────────────────────────────────
+\tableofcontents
+\clearpage
+\listoffigures
+\clearpage
+
+\mainmatter
+\input{capitulos/01-introduccion}
+\input{capitulos/02-descripcion}
+\input{capitulos/03-mitigaciones}
+\input{capitulos/04-resultados}
+\input{capitulos/05-conclusiones}
+
+%────────────────────── Appendices ─────────────────────────────────────
+\begin{umaappendices}
+\input{capitulos/anexos}
+\end{umaappendices}
+
+%────────────────────── Bibliography ───────────────────────────────────
+\backmatter
+\printbibliography[title={Bibliografía}]
+
+\end{document}
+% ======================================================================

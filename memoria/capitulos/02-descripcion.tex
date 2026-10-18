@@ -1,0 +1,25 @@
+%────────────────────── Capítulo 2 — Descripción ───────────────────────
+% Detalles sobre el mecanismo de ataque y su implementación.
+\chapter{Descripción del ataque}
+\label{cap:descripcion}
+
+\section{AES-128 y el valor intermedio atacado}
+% TODO: estructura de AES \cite{nist2023fips197}; primera ronda,
+% AddRoundKey + SubBytes; por qué se ataca SBox(p XOR k).
+
+\section{Análisis simple de consumo (SPA)}
+% TODO: inspección visual de trazas; identificar las rondas.
+
+\section{Análisis diferencial de consumo (DPA)}
+% TODO: partición de trazas según un bit hipotético y diferencia de medias
+% \cite{kocher1999dpa}.
+
+\section{Análisis de consumo por correlación (CPA)}
+% TODO: modelo de peso de Hamming y correlación de Pearson
+% \cite{brier2004cpa}. Ecuación de referencia:
+% \rho_{k,t} = corr( HW(SBox(p_i XOR k)), T_i[t] ) para k = 0..255.
+
+\section{Implementación experimental}
+% TODO: montaje (microcontrolador, shunt, trigger, capturador), firmware
+% AES, protocolo PC <-> placa y procesamiento de trazas en Python.
+% Esquema del montaje en figuras/.

@@ -1,0 +1,4 @@
+# Configuración de latexmk para la memoria. Ejecutar `latexmk` desde memoria/.
+$pdf_mode = 5;              # XeLaTeX: la plantilla usa fontspec
+$out_dir = 'build';         # auxiliares y PDF en memoria/build/
+@default_files = ('main.tex');
