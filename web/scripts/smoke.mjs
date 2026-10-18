@@ -12,7 +12,7 @@ import { findChrome } from './cdp.mjs';
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const PORT = 8123, BASE = `http://localhost:${PORT}`;
 const PAGES = [
-  { path: '/web/index.html', must: ['cpa-live id="cpa-main"', 'data-recovered="16"', 'cpa-leak id="leak"', 'data-hw="4"', 'Datos simulados', 'aes-title'] },
+  { path: '/web/index.html', must: ['cpa-live id="cpa-main"', 'data-recovered="16"', 'cpa-leak id="leak"', 'data-hw="4"', 'cpa-sbox id="sbox"', 'data-xor="25"', 'Datos simulados', 'aes-title'] },
 ];
 const chrome = findChrome();
 if (!chrome) { console.log('smoke: no hay Chromium, se omite'); process.exit(0); }

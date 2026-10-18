@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="./css/notes.css">
   <script type="module" src="./js/components/cpa-leak.js"></script>
   <script type="module" src="./js/components/cpa-live.js"></script>
+  <script type="module" src="./js/components/cpa-sbox.js"></script>
 </head>
 <body>
 <main>
@@ -63,7 +64,9 @@
   en el bus un byte con muchos unos cuesta, en media, algo más que uno con pocos <span class="cite">[2]</span>. Es una
   aproximación: el consumo real depende también del valor anterior (la distancia de Hamming entre ambos) y de cada
   circuito.</p>
-  <p>La figura lo muestra con un byte. Arriba, el valor que se calcula y su peso de Hamming. Abajo, la traza media de
+  <p>Lo que mide el atacante es una <b>traza</b>: el consumo del microcontrolador durante un cifrado, muestreado por el
+  osciloscopio a intervalos regulares. Es una lista de números, uno por instante <code>t</code>, y cada cifrado da una
+  traza nueva. La figura lo muestra con un byte. Arriba, el valor que se calcula y su peso de Hamming. Abajo, la traza media de
   20 000 trazas simuladas agrupadas según el peso de Hamming de ese byte: lejos del instante en que se calcula, las
   nueve medias coinciden; en ese instante, se ordenan de 0 a 8.</p>
   <cpa-leak id="leak" p="0x32" k="0x2b"></cpa-leak>
@@ -72,10 +75,26 @@
   Todo lo que sigue es una forma cuidadosa de aprovechar eso.</p>
 
   <h2 id="aes">3. Lo justo de AES</h2>
-  <p>AES-128 cifra bloques de 16 bytes con una clave de 16 bytes en diez rondas <span class="cite">[4]</span>. Para
-  el ataque solo importa el principio de la primera: <b>AddRoundKey</b> hace el XOR de cada byte del texto claro con
-  el byte de clave de su posición, y <b>SubBytes</b> pasa el resultado por la S-box, una tabla fija de 256 entradas.
-  El valor atacado es la salida de la S-box del byte <i>j</i>:</p>
+  <p>AES-128 cifra bloques de 16 bytes con una clave de 16 bytes <span class="cite">[4]</span>. El bloque que se cifra
+  es el <b>texto claro</b>; en el ataque lo manda el PC, así que el atacante lo conoce. AES copia el texto claro en un
+  <b>estado</b> de 16 bytes, le aplica un AddRoundKey con la clave y lo transforma en diez <b>rondas</b>. Cada ronda
+  repite la misma secuencia de pasos, que en el estándar se llaman SubBytes, ShiftRows, MixColumns y AddRoundKey (la
+  última se salta MixColumns). Al final, el estado es el texto cifrado.</p>
+  <p>Para el ataque solo importan los dos primeros pasos, el AddRoundKey inicial y el SubBytes de la primera ronda, y
+  los dos trabajan byte a byte:</p>
+  <ul>
+    <li><b>AddRoundKey</b> mezcla el estado con la clave mediante un XOR (<code>⊕</code>) bit a bit: el bit resultante
+    es 1 si los dos bits son distintos y 0 si son iguales. En el inicial se usa la clave tal cual, de modo que el byte
+    <i>j</i> del estado pasa a ser <code>p_j ⊕ k_j</code>. Por ejemplo,
+    <code>0x32 ⊕ 0x2b = 00110010 ⊕ 00101011 = 00011001 = 0x19</code>.</li>
+    <li><b>SubBytes</b> sustituye cada byte por otro consultando la <b>S-box</b> (<i>substitution box</i>), una tabla
+    fija y pública de 256 entradas: la primera cifra hexadecimal del byte da la fila y la segunda, la columna. Para
+    <code>0x19</code>, la fila 1 y la columna 9 dan <code>0xd4</code>. La tabla no tiene nada secreto; es el paso no
+    lineal del cifrado <span class="cite">[4]</span>, porque los otros tres solo recolocan bytes o los combinan con XOR
+    y operaciones lineales.</li>
+  </ul>
+  <p>Estos dos números son el primer byte del ejemplo del apéndice B del FIPS-197, el mismo que usa la figura de la
+  sección anterior. El valor atacado es la salida de la S-box del byte <i>j</i>:</p>
   <span class="math">v_j = SBox(p_j ⊕ k_j)</span>
   <figure class="diag" data-diag="aes">
     <svg viewBox="0 0 720 160" role="img" aria-labelledby="aes-title aes-desc">
@@ -114,12 +133,23 @@
       <text class="d-s" x="632" y="76">ShiftRows, MixColumns</text>
       <text class="d-s" x="632" y="92">y 9 rondas más</text>
     </svg>
-    <figcaption><span class="fig-tool diag">Diagrama · sitúa</span>la primera ronda, byte a byte. El atacante conoce
+    <figcaption><span class="fig-tool diag">Diagrama · sitúa</span>la primera ronda, byte a byte: el <code>⊕</code> es el AddRoundKey inicial. El atacante conoce
     <code>p_j</code> y puede probar cada valor de <code>k_j</code>; el resto del cifrado no hace falta.</figcaption>
   </figure>
-  <p>Hay dos razones para elegir este punto. Depende de un solo byte de clave y de un byte conocido, así que se puede
-  calcular para cada hipótesis. Y la S-box es muy no lineal: dos claves que se parecen dan salidas que no se parecen
-  nada, de modo que solo la clave correcta predice bien la fuga.</p>
+  <p>Hay dos razones para elegir este punto. La primera: depende de un solo byte de clave y de un byte conocido, así
+  que se puede calcular para cada hipótesis de <code>k_j</code>.</p>
+  <p>La segunda explica por qué se ataca la salida de la S-box y no la del XOR, que también depende solo de
+  <code>p_j</code> y <code>k_j</code>. Si se predijera <code>HW(p_j ⊕ k)</code>, el candidato complementario
+  <code>k ⊕ 0xff</code> (todos los bits al revés) predeciría <code>8 − HW(p_j ⊕ k)</code>: exactamente lo contrario,
+  con la misma |ρ| que el correcto, y no habría forma de distinguirlos. Los candidatos que difieren del correcto en un
+  solo bit también predicen casi lo mismo. La S-box rompe esa estructura: dos entradas parecidas dan salidas que no se
+  parecen nada, y solo el candidato correcto predice bien la fuga. La figura lo muestra con la tabla completa; abajo se
+  puede cambiar el valor atacado.</p>
+  <cpa-sbox id="sbox" p="0x32" k="0x2b"></cpa-sbox>
+  <p>Las barras no son un ataque con ruido, sino la correlación exacta, sobre los 256 textos claros posibles, entre la
+  predicción de cada candidato y la del correcto. En un CPA con muchas trazas, el pico de cada candidato falso tiende a
+  esa barra multiplicada por el pico del correcto, así que esta figura dice de antemano qué candidatos falsos van a
+  hacerle sombra al correcto.</p>
 
   <h2 id="divide">4. Divide y vencerás</h2>
   <p>Probar las 2<sup>128</sup> ≈ 3,4·10<sup>38</sup> claves posibles es imposible. Pero cada byte de clave entra en su
@@ -129,7 +159,7 @@
 
   <h2 id="spa">5. SPA: mirar una traza</h2>
   <p>El análisis simple de consumo (SPA) consiste en mirar una traza y reconocer en ella la estructura del algoritmo.
-  En el artículo que presentó el DPA ya se ven a simple vista las 16 rondas de un DES en una sola traza
+  En el artículo que presentó el DPA ya se ven a simple vista las 16 rondas de un DES (el estándar de cifrado anterior a AES) en una sola traza
   <span class="cite">[5]</span>. En nuestro caso sirve para saber dónde está la primera ronda y no buscar a ciegas en
   toda la traza.</p>
   <!-- TODO (fase 4): traza real del ATmega328P con las 10 rondas marcadas. Sin medidas no se pone figura. -->
@@ -141,7 +171,8 @@
   ataque estadístico. Para cada candidato <code>k</code> se predice un bit de <code>v_j</code>, se separan las trazas en
   dos grupos según ese bit y se restan sus medias. Si el candidato es falso, los grupos son aleatorios y la diferencia
   tiende a cero; si es el correcto, aparece un pico en el instante en que se procesa <code>v_j</code>.</p>
-  <p>El DPA de un bit desaprovecha los otros siete. En nuestra simulación, con 2000 trazas y SNR = 0,1, recupera entre
+  <p>El DPA de un bit desaprovecha los otros siete. En nuestra simulación, con 2000 trazas y SNR = 0,1 (mucho más ruido que fuga; la relación señal-ruido se define
+  en la <a href="#ruido">sección 8</a>), recupera entre
   7 y 15 de los 16 bytes según el bit que se elija, mientras que el CPA recupera los 16 (sección 4.1 de la memoria;
   <span class="sim-badge">Datos simulados</span>). Y el mejor bit se eligió conociendo la clave: un atacante real no
   sabría cuál escoger.</p>
@@ -151,7 +182,13 @@
   cada byte <code>j</code>, cada candidato <code>k</code> y cada instante <code>t</code>, se calcula la correlación de
   Pearson entre la fuga predicha y lo medido sobre las <code>N</code> trazas:</p>
   <span class="math">ρ(k, t) = corr( HW(SBox(p_i,j ⊕ k)),  T_i[t] )      i = 1 … N</span>
-  <p>El candidato que gana es el de mayor <code>max_t |ρ(k, t)|</code>. Con el correcto, la predicción coincide con la
+  <p>Aquí <code>p_i,j</code> es el byte <code>j</code> del texto claro de la traza <code>i</code> y
+  <code>T_i[t]</code>, la muestra <code>t</code> de esa traza. La correlación de Pearson mide si dos series suben y
+  bajan a la vez: vale 1 si una es proporcional a la otra, −1 si es proporcional pero al revés y 0 si no tienen
+  relación lineal. Para cada candidato se toma el pico a lo largo de la traza, <code>max_t |ρ(k, t)|</code>, en valor
+  absoluto porque el signo de la fuga depende de cómo se mida (por ejemplo, de en qué lado de la alimentación esté el
+  shunt).</p>
+  <p>El candidato que gana es el de mayor pico. Con el correcto, la predicción coincide con la
   fuga real y la correlación sube justo en el instante de su S-box; con los otros 255, la predicción es casi
   independiente de la traza y la correlación se queda en el ruido.</p>
   <p>En la figura, la primera gráfica es <code>|ρ(k, t)|</code> de los 256 candidatos del byte elegido; la segunda, el
@@ -166,11 +203,17 @@
   <p>La relación señal-ruido (SNR) compara la varianza de la fuga con la del ruido en un instante. En el modelo
   simulado, el pico esperado del candidato correcto es</p>
   <span class="math">ρ_correcto = √( SNR / (1 + SNR) )</span>
-  <p>y <b>no crece con N</b>. Más trazas no hacen que el correcto correlacione más; hacen que la estimación sea más
-  precisa. Lo que baja con <code>N</code> es la correlación de los candidatos falsos, que por puro azar es del orden de
-  <code>1/√N</code>, y el máximo entre 255 candidatos y 96 instantes queda unas cuantas veces por encima. La clave
-  aparece cuando ese máximo cae por debajo del correcto. Como <code>ρ_correcto ≈ √SNR</code> cuando la SNR es pequeña,
-  hace falta <code>N</code> del orden de <code>1/SNR</code>: diez veces más ruido, diez veces más trazas.</p>
+  <p>El razonamiento tiene tres pasos:</p>
+  <ul>
+    <li>Ese pico <b>no crece con N</b>. Más trazas no hacen que el correcto correlacione más; solo hacen que su
+    estimación sea más precisa.</li>
+    <li>Lo que baja con <code>N</code> es la correlación de los candidatos falsos. La de cada uno es puro azar, del orden
+    de <code>1/√N</code>; pero se miran 255 candidatos en 96 instantes, y el mayor de todos esos valores queda unas
+    cuantas veces por encima de <code>1/√N</code>.</li>
+    <li>La clave aparece cuando ese máximo cae por debajo del correcto. Como <code>ρ_correcto ≈ √SNR</code> cuando la
+    SNR es pequeña, hace falta <code>N</code> del orden de <code>1/SNR</code>: diez veces más ruido, diez veces más
+    trazas.</li>
+  </ul>
   <p>En esta segunda figura se parte de una SNR baja y de pocas trazas. Pulsa <b>añadir trazas</b> y mira la gráfica de
   barras. Al principio la barra del correcto también baja: con pocas trazas su pico es tan casual como el de los demás.
   Pero se detiene en torno a 0,14, el valor del modelo para SNR = 0,02, mientras la línea <code>4/√N</code> y los
@@ -201,7 +244,8 @@
   <span class="cite">[7]</span> no implica que este montaje lo consiga: usan hardware pensado para ello. Las dudas
   principales, que solo se resolverán midiendo, son:</p>
   <ul>
-    <li><b>Muestreo frente a reloj.</b> A 16 MHz, un capturador de unas decenas de MS/s toma pocas muestras por ciclo
+    <li><b>Muestreo frente a reloj.</b> A 16 MHz, un capturador de unas decenas de MS/s (millones de muestras por segundo) toma pocas muestras por
+    ciclo
     y sin sincronizar con el reloj del microcontrolador. Bajar el reloj mejora la resolución temporal.</li>
     <li><b>Sincronización.</b> Si las trazas no están alineadas, el instante de la S-box cae en sitios distintos y la
     correlación se diluye. El trigger por GPIO está para eso.</li>
@@ -216,8 +260,9 @@
   <p>De momento solo hay resultados de la simulación (sección 4.1 de la memoria, generados con
   <code>uv run python -m analisis.run_all</code>). Con 4000 trazas y SNR = 0,1, el CPA de la primera ronda recupera los
   16 bytes; el pico medio del correcto es 0,296, frente a 0,302 en teoría, y el mejor falso se queda de media en
-  0,089. El mismo ataque sobre la última ronda recupera la subclave de la ronda 10, de la que se obtiene la clave
-  maestra invirtiendo la expansión de clave.</p>
+  0,089. El mismo ataque funciona sobre la última ronda. AES no usa la clave tal cual en cada AddRoundKey: la expande en
+  once subclaves, una por cada AddRoundKey <span class="cite">[4]</span>. Atacando la última ronda se recupera la
+  subclave 10 y, como la expansión se puede deshacer, de ella sale la clave original.</p>
   <table>
     <caption><span class="sim-badge">Datos simulados</span> Trazas necesarias para recuperar los 128 bits en 60 ensayos
     de 3000 trazas, con clave y textos claros nuevos en cada uno. «N para el 90 %» es el primer punto de control en que
@@ -247,8 +292,9 @@
   <ul>
     <li><b>Enmascaramiento (<i>masking</i>).</b> Cada valor intermedio se combina con un número aleatorio nuevo en
     cada ejecución, de modo que lo que se procesa ya no depende solo del texto claro y la clave. Contra el CPA de esta
-    página, que predice <code>HW(v_j)</code> directamente, la predicción deja de valer. Ataques de orden superior, que
-    combinan varios instantes, pueden seguir funcionando con más trazas.</li>
+    página, que predice <code>HW(v_j)</code> directamente, la predicción deja de valer. Los ataques de orden superior,
+    que combinan varios instantes de la misma traza (por ejemplo, el de la máscara y el del valor enmascarado), pueden
+    seguir funcionando con más trazas.</li>
     <li><b>Ocultación (<i>hiding</i>).</b> Se deja el valor intacto, pero se hace más difícil verlo: barajar el orden
     en que se procesan los 16 bytes (<i>shuffling</i>), insertar retardos aleatorios o añadir ruido. Todas reducen la
     SNR efectiva o reparten la fuga en el tiempo, y lo que consiguen es que hagan falta más trazas.</li>

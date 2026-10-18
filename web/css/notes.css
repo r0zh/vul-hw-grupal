@@ -77,8 +77,8 @@ figcaption .fig-tool { margin-right: 7px; }
 i.lk { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: 4px; }
 .lk-ok { background: var(--accent); } .lk-gray { background: var(--gray); }
 .lk-win { background: var(--win); height: 10px !important; border: 1px solid var(--mem); }
-.out { margin-top: 8px; font-size: 12.5px; line-height: 1.7; color: var(--muted); }
-.out b { color: var(--ink); }
+.out, .sx-lookup { margin-top: 8px; font-size: 12.5px; line-height: 1.7; color: var(--muted); }
+.out b, .sx-lookup b { color: var(--ink); }
 .cl-sub { font-size: 12.5px; color: var(--muted); margin: 10px 0 2px; }
 
 /* SVG: marcas finas, rejilla recesiva, texto en tinta (nunca en el color de la serie) */
@@ -135,3 +135,24 @@ i.lk { display: inline-block; width: 14px; height: 2px; vertical-align: middle; 
   nav.toc ol { columns: 1; }
 }
 .lx-legend span.on .lx-sw { background: var(--mem); height: 4px; }
+
+/* <cpa-sbox> */
+cpa-sbox { display: block; margin: 22px 0 28px; }
+.sx-xor { display: inline-grid; grid-template-columns: auto auto auto; gap: 3px 10px; align-items: center; margin: 4px 0 6px;
+  font: 600 13px ui-monospace, Menlo, monospace; }
+.sx-row { display: contents; }
+.sx-row small { font: 10.5px system-ui, sans-serif; color: var(--muted); text-align: right; }
+.sx-sum .bits, .sx-sum code { border-top: 1px solid var(--muted); padding-top: 3px; }
+.sx-xor .bits { display: inline-flex; gap: 2px; }
+.sx-xor .bit { font-style: normal; width: 15px; text-align: center; border-radius: 3px; font-size: 12px; }
+.sx-xor .bit.b1 { background: var(--accent); color: var(--bg); }
+.sx-xor .bit.b0 { background: var(--grid); color: var(--muted); }
+.fig .sx-off { fill: var(--bg); stroke: var(--grid); }
+.fig .sx-line { fill: var(--grid); stroke: var(--line); }
+.fig .sx-on { fill: var(--win); stroke: var(--mem); stroke-width: 1.5; }
+.fig .sx-t { fill: var(--muted); font: 10.5px ui-monospace, Menlo, monospace; text-anchor: middle; }
+.fig .sx-t.on { fill: var(--ink); font-weight: 700; }
+.sx-cell { cursor: pointer; }
+.sx-q { margin-top: 14px; }
+.sx-b-c { fill: var(--mem); }
+.lk.sx-lk-c { background: var(--mem); }
