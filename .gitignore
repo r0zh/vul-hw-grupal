@@ -39,3 +39,6 @@ UMA_TFG_ETSI_Plantilla_*.zip
 .DS_Store
 .vscode/
 .idea/
+
+# Web: capturas e informes que generan learn y visual
+web/review/
