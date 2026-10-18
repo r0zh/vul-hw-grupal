@@ -1,0 +1,15 @@
+{
+  "name": "vul-hw-web",
+  "private": true,
+  "type": "module",
+  "description": "Web explicativa del CPA sobre AES-128, sin dependencias ni build",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "serve": "python3 -m http.server 8000 --directory ..",
+    "test": "node --test tests/*.test.js",
+    "smoke": "node scripts/smoke.mjs",
+    "learn": "node scripts/learn.mjs",
+    "visual": "node scripts/visual.mjs",
+    "check": "npm test && npm run smoke && npm run learn && npm run visual"
+  }
+}

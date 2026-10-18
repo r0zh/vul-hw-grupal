@@ -1,0 +1,68 @@
+# CI y despliegue de la web explicativa (web/) en GitHub Pages.
+#
+# En cada push o PR que toque web/ se ejecuta `npm run check`: tests de los
+# modelos con node --test y, en Chromium headless, la prueba de humo, los
+# claims de aprendizaje y la auditoría visual. Solo los push a main (y el
+# lanzamiento manual) publican después la carpeta web/ en
+# https://r0zh.github.io/vul-hw-grupal/.
+name: Web
+
+on:
+  push:
+    paths: ['web/**', '.github/workflows/web.yml']
+  pull_request:
+    paths: ['web/**', '.github/workflows/web.yml']
+  workflow_dispatch:
+
+# Un despliegue a la vez; uno en curso no se cancela a medias.
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # cdp.mjs usa el WebSocket global, que llega con Node 22.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Tests, prueba de humo, claims y auditoría visual
+        working-directory: web
+        # El runner trae Google Chrome; los scripts lo buscan en el PATH.
+        run: |
+          export CHROME="$(command -v chromium || command -v chromium-browser || command -v google-chrome)"
+          echo "Navegador: $CHROME"
+          npm run check
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: web-review
+          path: web/review/
+          if-no-files-found: ignore
+
+  deploy:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: web
+
+      - id: deployment
+        uses: actions/deploy-pages@v5
