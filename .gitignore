@@ -1,0 +1,35 @@
+# LaTeX
+memoria/build/
+presentacion/build/
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+*.xdv
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+
+# Trazas en bruto (grandes); las de respaldo para la demo van comprimidas en datos/
+datos/brutos/
+
+# Material con derechos de terceros (el repo es público)
+docs/referencias/
+
+# Plantilla original (ya extraída en memoria/template/)
+UMA_TFG_ETSI_Plantilla_*.zip
+
+# Sistema / editores
+.DS_Store
+.vscode/
+.idea/

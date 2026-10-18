@@ -1,0 +1,110 @@
+% Bibliografía del trabajo (biblatex + biber, estilo IEEE).
+% Toda entrada debe estar verificada contra su DOI, arXiv o URL oficial.
+% Las fuentes web llevan urldate con la fecha de consulta.
+
+%───────── Artículo base ────────────────────────────────────────────────
+@online{mishra2025modern,
+  author       = {Mishra, Jyotiprakash and Sahay, Sanjay K.},
+  title        = {Modern Hardware Security: A Review of Attacks and Countermeasures},
+  date         = {2025-01-08},
+  eprint       = {2501.04394},
+  eprinttype   = {arxiv},
+  eprintclass  = {cs.CR},
+  url          = {https://arxiv.org/abs/2501.04394},
+  urldate      = {2026-10-18}
+}
+
+%───────── Análisis de consumo: trabajos fundacionales ──────────────────
+@inproceedings{kocher1999dpa,
+  author       = {Kocher, Paul and Jaffe, Joshua and Jun, Benjamin},
+  title        = {Differential Power Analysis},
+  booktitle    = {Advances in Cryptology --- CRYPTO '99},
+  series       = {Lecture Notes in Computer Science},
+  volume       = {1666},
+  publisher    = {Springer},
+  location     = {Berlin, Heidelberg},
+  year         = {1999},
+  pages        = {388--397},
+  doi          = {10.1007/3-540-48405-1_25}
+}
+
+@article{kocher2011intro,
+  author       = {Kocher, Paul and Jaffe, Joshua and Jun, Benjamin and Rohatgi, Pankaj},
+  title        = {Introduction to Differential Power Analysis},
+  journaltitle = {Journal of Cryptographic Engineering},
+  volume       = {1},
+  number       = {1},
+  year         = {2011},
+  pages        = {5--27},
+  doi          = {10.1007/s13389-011-0006-y}
+}
+
+@inproceedings{brier2004cpa,
+  author       = {Brier, Eric and Clavier, Christophe and Olivier, Francis},
+  title        = {Correlation Power Analysis with a Leakage Model},
+  booktitle    = {Cryptographic Hardware and Embedded Systems --- CHES 2004},
+  series       = {Lecture Notes in Computer Science},
+  volume       = {3156},
+  publisher    = {Springer},
+  location     = {Berlin, Heidelberg},
+  year         = {2004},
+  pages        = {16--29},
+  doi          = {10.1007/978-3-540-28632-5_2}
+}
+
+@book{mangard2007power,
+  author       = {Mangard, Stefan and Oswald, Elisabeth and Popp, Thomas},
+  title        = {Power Analysis Attacks: Revealing the Secrets of Smart Cards},
+  publisher    = {Springer},
+  location     = {New York, NY},
+  year         = {2007},
+  doi          = {10.1007/978-0-387-38162-6}
+}
+
+%───────── AES ──────────────────────────────────────────────────────────
+@techreport{nist2023fips197,
+  author       = {{National Institute of Standards and Technology}},
+  title        = {Advanced Encryption Standard (AES)},
+  type         = {Federal Information Processing Standards Publication},
+  number       = {FIPS 197-upd1},
+  institution  = {NIST},
+  location     = {Gaithersburg, MD},
+  date         = {2023-05-09},
+  doi          = {10.6028/NIST.FIPS.197-upd1}
+}
+
+%───────── ChipWhisperer (documentación y tutoriales) ───────────────────
+@online{cw-getting-started,
+  author       = {{NewAE Technology}},
+  title        = {Getting Started --- ChipWhisperer Documentation},
+  url          = {https://chipwhisperer.readthedocs.io/en/latest/getting-started.html},
+  urldate      = {2026-10-18}
+}
+
+@online{cw-analyzer-api,
+  author       = {{NewAE Technology}},
+  title        = {Analyzer API --- ChipWhisperer Documentation},
+  url          = {https://chipwhisperer.readthedocs.io/en/latest/analyzer-api.html},
+  urldate      = {2026-10-18}
+}
+
+@online{cw-lab-cpa,
+  author       = {{NewAE Technology}},
+  title        = {{SCA101} Lab 4\_2: {CPA} on Firmware Implementation of {AES}},
+  url          = {https://github.com/newaetech/chipwhisperer-tutorials/blob/master/courses_sca101_SOLN_Lab%204_2%20-%20CPA%20on%20Firmware%20Implementation%20of%20AES-CWNANO-CWNANO.rst},
+  urldate      = {2026-10-18}
+}
+
+@online{cw-lab-dpa,
+  author       = {{NewAE Technology}},
+  title        = {{SCA101} Lab 3\_3: {DPA} on Firmware Implementation of {AES}},
+  url          = {https://github.com/newaetech/chipwhisperer-tutorials/blob/master/courses_sca101_SOLN_Lab%203_3%20-%20DPA%20on%20Firmware%20Implementation%20of%20AES-CWNANO-CWNANO.rst},
+  urldate      = {2026-10-18}
+}
+
+@online{cw-nano,
+  author       = {{NewAE Technology}},
+  title        = {{ChipWhisperer-Nano}},
+  url          = {https://www.newae.com/product-page/chipwhisperer-nano},
+  urldate      = {2026-10-18}
+}

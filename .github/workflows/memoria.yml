@@ -1,0 +1,26 @@
+# Compila la memoria en cada push/PR que la toque y publica el PDF como artefacto.
+name: Memoria
+
+on:
+  push:
+    paths: ['memoria/**', 'figuras/**', '.github/workflows/memoria.yml']
+  pull_request:
+    paths: ['memoria/**', 'figuras/**', '.github/workflows/memoria.yml']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: xu-cheng/latex-action@v4
+        with:
+          root_file: main.tex
+          working_directory: memoria
+          latexmk_use_xelatex: true
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: memoria
+          path: memoria/build/main.pdf
