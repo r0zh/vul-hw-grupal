@@ -57,7 +57,14 @@ UV_CACHE_DIR=$PWD/.uv-cache uv run python -m analisis.run_all
 ```
 
 La semilla y el resto de parámetros están en `analisis/config.py`. Con los
-mismos parámetros, la salida es idéntica byte a byte.
+mismos parámetros la salida es idéntica byte a byte: los números del JSON no
+dependen del reloj y las figuras se guardan con la fecha del PDF fija
+(`figures.PDF_DATE`), así que dos ejecuciones producen el mismo fichero. La CI
+lo comprueba ejecutando el análisis dos veces y comparando los resultados y las
+figuras.
+
+Lo único que cambia entre ejecuciones es el campo `seconds` del JSON (y los
+`seconds` por ataque), que es el tiempo que ha tardado cada parte.
 
 ## Qué se simula y qué se mide
 
