@@ -4,23 +4,249 @@
 \label{cap:descripcion}
 
 \section{AES-128 y el valor intermedio atacado}
-% TODO: estructura de AES \cite{nist2023fips197}; primera ronda,
-% AddRoundKey + SubBytes; por qué se ataca SBox(p XOR k).
+\label{sec:aes}
+
+AES-128 cifra bloques de 16 bytes con una clave de 16 bytes
+\cite{nist2023fips197}. El bloque se copia en un \emph{estado} de 16 bytes, al
+que se aplica un primer \texttt{AddRoundKey} con la clave y, después, diez
+rondas. Cada ronda encadena cuatro transformaciones: \texttt{SubBytes}, que
+sustituye cada byte por su imagen en una tabla fija de 256 entradas (la S-box);
+\texttt{ShiftRows}, que rota las filas del estado; \texttt{MixColumns}, que
+combina linealmente los bytes de cada columna, y \texttt{AddRoundKey}, que hace
+el XOR del estado con una subclave. La última ronda omite \texttt{MixColumns}.
+Las once subclaves se obtienen de la clave mediante la expansión de clave. La
+S-box es pública y no tiene nada secreto; es el único paso no lineal del
+cifrado.
+
+Para el ataque solo importan los dos primeros pasos, que trabajan byte a byte.
+El \texttt{AddRoundKey} inicial usa la clave tal cual, así que el byte $j$ del
+estado pasa a valer $p_j \oplus k_j$, donde $p_j$ es el byte $j$ del texto
+claro y $k_j$ el de la clave. El \texttt{SubBytes} de la primera ronda lo
+transforma en
+\begin{equation}
+  v_j = \mathrm{SBox}(p_j \oplus k_j),
+  \label{eq:valor-intermedio}
+\end{equation}
+que es el valor intermedio que se ataca en este trabajo. Hay dos razones para
+elegirlo.
+
+La primera es que depende de un solo byte de clave y de un byte que el atacante
+conoce, porque es quien elige el texto claro. Para cada uno de los 256 valores
+posibles de $k_j$ se puede calcular qué valor $v_j$ habría procesado el
+dispositivo, y comprobar cuál de esas predicciones encaja con el consumo medido.
+Cada byte se ataca por separado: en lugar de $2^{128}$ claves hay que
+comprobar $16 \times 256 = 4096$ hipótesis.
+
+La segunda explica por qué se ataca la salida de la S-box y no la del XOR, que
+también depende solo de $p_j$ y $k_j$. Con el modelo de fuga del peso de
+Hamming (\cref{sec:cpa}), la predicción del candidato complementario
+$k \oplus \mathtt{0xff}$ sería $\operatorname{HW}(p_j \oplus k \oplus
+\mathtt{0xff}) = 8 - \operatorname{HW}(p_j \oplus k)$: exactamente la contraria,
+con la misma correlación en valor absoluto que el candidato correcto, y no
+habría forma de distinguirlos. Los candidatos que difieren del correcto en un
+solo bit también predecirían casi lo mismo. La S-box rompe esa estructura,
+porque dos entradas parecidas dan salidas que no se parecen, y solo el candidato
+correcto predice bien la fuga.
+
+El mismo razonamiento vale para la última ronda, que no tiene
+\texttt{MixColumns}: el byte del criptograma $c_j$ es la salida de la S-box,
+desplazada por \texttt{ShiftRows}, combinada por XOR con un byte de la subclave
+de la ronda 10. La hipótesis $\mathrm{InvSBox}(c_j \oplus k)$ permite atacar
+esa subclave, y como la expansión de clave de AES-128 es invertible, de ella se
+deduce la clave. En este trabajo el ataque principal es el de la primera ronda;
+el de la última se usa en la simulación como comprobación adicional
+(\cref{sec:validacion-simulada}).
 
 \section{Análisis simple de consumo (SPA)}
-% TODO: inspección visual de trazas; identificar las rondas.
+\label{sec:spa}
+
+El análisis simple consiste en observar una traza, o la media de unas pocas, y
+reconocer en ella las operaciones del algoritmo \cite[sec.~II.B.1]{mishra2025modern}.
+Cuando el camino de ejecución depende de la clave, como en una exponenciación
+modular de RSA que solo multiplica cuando un bit vale uno, el SPA puede revelar
+la clave directamente. En el artículo que presentó el DPA ya se distinguían a
+simple vista las 16 rondas de un DES en una sola traza \cite{kocher1999dpa}.
+
+Un AES software bien escrito ejecuta las mismas instrucciones sea cual sea la
+clave, así que el SPA no basta para atacarlo. En este trabajo sirve para otra
+cosa: localizar la primera ronda dentro de la traza, para capturar solo esa
+ventana y no buscar a ciegas, y comprobar que el montaje funciona. Que se
+distingan las diez rondas en una traza es el primer criterio de validación de la
+captura, y todavía no se ha comprobado.
+% TODO: traza real con las rondas marcadas cuando el montaje funcione (fase 4).
 
 \section{Análisis diferencial de consumo (DPA)}
-% TODO: partición de trazas según un bit hipotético y diferencia de medias
-% \cite{kocher1999dpa}.
+\label{sec:dpa}
+
+El DPA de Kocher, Jaffe y Jun \cite{kocher1999dpa} fue el primer ataque
+estadístico sobre el consumo. Se miden $N$ cifrados con textos claros aleatorios
+y se guarda, para cada uno, la traza $T_i$ y el texto claro $p_i$. Para cada
+byte $j$ y cada candidato $k$, una \emph{función de selección} predice un bit
+del valor intermedio; aquí, el bit $\ell$ de $\mathrm{SBox}(p_{i,j} \oplus k)$.
+Las trazas se reparten en dos grupos, $G_0$ y $G_1$, según el valor predicho de
+ese bit, y se restan sus medias en cada instante:
+\begin{equation}
+  \Delta_j(k, t) = \frac{1}{|G_1|} \sum_{i \in G_1} T_i[t]
+                 - \frac{1}{|G_0|} \sum_{i \in G_0} T_i[t].
+  \label{eq:dpa}
+\end{equation}
+
+Si el candidato es falso, la partición no tiene relación con lo que hace el
+dispositivo, los dos grupos son estadísticamente iguales y la diferencia tiende
+a cero al crecer $N$. Si es el correcto, en el instante en que se procesa $v_j$
+uno de los grupos consume sistemáticamente algo más que el otro y aparece un
+pico. El candidato elegido es el que da el pico más alto.
+
+El DPA de un bit desaprovecha información: el dispositivo filtra los ocho bits
+de $v_j$ a la vez, y los siete que no se usan para partir se comportan como
+ruido. Además, el bit más informativo depende de la implementación y el
+atacante no sabe de antemano cuál escoger.
 
 \section{Análisis de consumo por correlación (CPA)}
 \label{sec:cpa}
-% TODO: modelo de peso de Hamming y correlación de Pearson
-% \cite{brier2004cpa}. Ecuación de referencia:
-% \rho_{k,t} = corr( HW(SBox(p_i XOR k)), T_i[t] ) para k = 0..255.
+
+El CPA de Brier, Clavier y Olivier \cite{brier2004cpa} sustituye la partición
+por un \emph{modelo de fuga} que predice el consumo entero, y la diferencia de
+medias por la correlación de Pearson
+\cite[sec.~II.B.3]{mishra2025modern}.
+
+El modelo más habitual es el peso de Hamming $\operatorname{HW}(v)$, el número
+de bits a uno del valor procesado, que supone que el consumo en el instante en
+que se manipula $v$ es aproximadamente $a \operatorname{HW}(v) + b$ más ruido.
+Brier et al.\ proponen en general la distancia de Hamming entre el valor y un
+estado de referencia ---el contenido previo del registro o del bus---, del que
+el peso de Hamming es el caso con referencia nula. Aquí se usa el peso de
+Hamming porque no se conoce qué valor ocupaba antes el registro en el
+microcontrolador. Es una hipótesis de trabajo: si las medidas encajan mejor con
+otro modelo, se cambiará.
+
+Para cada byte $j$, cada candidato $k$ y cada instante $t$ se calcula la
+correlación entre la fuga predicha $h_i = \operatorname{HW}(\mathrm{SBox}(p_{i,j}
+\oplus k))$ y la muestra medida $T_i[t]$ sobre las $N$ trazas:
+\begin{equation}
+  \rho_j(k, t) =
+  \frac{\sum_{i=1}^{N} (h_i - \bar h)\,(T_i[t] - \bar T[t])}
+       {\sqrt{\sum_{i=1}^{N} (h_i - \bar h)^2}\,\sqrt{\sum_{i=1}^{N} (T_i[t] - \bar T[t])^2}},
+  \label{eq:cpa}
+\end{equation}
+donde $\bar h$ y $\bar T[t]$ son las medias sobre las trazas. El candidato
+elegido para el byte $j$ es
+\begin{equation}
+  \hat k_j = \arg\max_{k} \, \max_{t} \, \lvert \rho_j(k, t) \rvert .
+  \label{eq:cpa-decision}
+\end{equation}
+Se usa el valor absoluto porque el signo de la fuga depende del montaje; por
+ejemplo, de en qué lado de la alimentación se coloca el \emph{shunt}.
+
+Con el candidato correcto, la predicción coincide con la fuga real y la
+correlación sube en el instante en que se calcula su S-box. Con los otros 255,
+la predicción es casi independiente de la traza y la correlación se queda en el
+nivel del azar, que baja como $1/\sqrt{N}$. La correlación del candidato
+correcto, en cambio, no crece con $N$: depende solo de la relación entre la
+varianza de la fuga y la del ruido. La clave aparece cuando el máximo de los
+falsos cae por debajo del correcto, y por eso el número de trazas necesario
+crece aproximadamente como el inverso del cuadrado de la correlación del
+correcto. La \cref{sec:validacion-simulada} cuantifica esta relación sobre
+trazas simuladas.
+
+Frente al DPA de un bit, el CPA aprovecha los ocho bits del valor intermedio y
+da una medida normalizada, comparable entre bytes y entre montajes. El coste de
+cálculo es moderado: $16 \times 256$ correlaciones por instante de la traza,
+que se pueden calcular de una vez como un producto de matrices. Además, como la
+predicción solo depende del byte de texto claro, basta acumular para cada byte
+$j$ y cada uno de los 256 valores de $p_j$ cuántas trazas hay y su suma, sin
+guardar las trazas; así lo hace la web explicativa del proyecto.
 
 \section{Implementación experimental}
-% TODO: montaje (microcontrolador, shunt, trigger, capturador), firmware
-% AES, protocolo PC <-> placa y procesamiento de trazas en Python.
-% Esquema del montaje en figuras/.
+\label{sec:implementacion}
+
+Esta sección describe el montaje previsto. El análisis ya está implementado y
+validado en simulación, pero el instrumental está pendiente de confirmar y el
+firmware y la captura todavía no existen. Lo que se dice aquí sobre el
+hardware es un diseño, no un resultado: se confirmará o se corregirá con las
+medidas del \cref{cap:resultados}.
+
+\subsection{Arquitectura}
+
+El montaje sigue el esquema habitual de los laboratorios de análisis de consumo
+sobre firmware, como los de ChipWhisperer \cite{cw-lab-dpa,cw-lab-cpa}, pero con
+componentes de propósito general:
+
+\begin{enumerate}
+  \item El PC envía por serie un texto claro aleatorio de 16 bytes al
+    microcontrolador.
+  \item El firmware activa una salida digital de disparo, cifra con la clave de
+    laboratorio, desactiva el disparo y devuelve el criptograma.
+  \item Un osciloscopio mide en un canal la caída de tensión en una resistencia
+    de \emph{shunt} en serie con la alimentación del microcontrolador, que es
+    proporcional a su corriente, y en otro la señal de disparo.
+  \item El PC comprueba el criptograma con su propia implementación de AES y
+    guarda la terna (texto claro, criptograma, traza).
+\end{enumerate}
+
+Se repite el proceso miles de veces y las trazas se atacan con el mismo código
+que se ha validado en simulación.
+% TODO: esquema del montaje en figuras/ cuando esté decidido.
+
+\subsection{Microcontrolador y firmware}
+
+El dispositivo atacado es un ATmega328P, el microcontrolador de 8 bits del
+Arduino Nano. Está por decidir si se usa la placa o el chip suelto en una placa
+de prototipos. En la placa, el regulador, el conversor USB-serie y los
+condensadores de desacoplo comparten alimentación con el microcontrolador, y es
+difícil medir solo su corriente; el chip suelto, con su cristal y sus
+condensadores, permite colocar el \emph{shunt} solo en su línea de alimentación
+o de masa, con el mismo firmware.
+% TODO: decisión Nano / chip suelto (AGENTS.md, hardware/README.md).
+
+El firmware implementará un AES-128 software sin protecciones, con
+\texttt{SubBytes} como una consulta a tabla byte a byte. Ese recorrido secuencial
+del estado es el que hace que cada byte del valor intermedio se procese en su
+propia ventana temporal, que es la hipótesis del modelo de trazas simuladas. Se
+verificará con los ejemplos del FIPS-197 \cite{nist2023fips197} antes de medir.
+% TODO: fase 3. Protocolo serie, velocidad, pin de disparo y commit del
+% firmware cuando existan.
+
+\subsection{Medida del consumo}
+
+La corriente del microcontrolador se convierte en tensión con una resistencia
+de \emph{shunt} de bajo valor. Si se coloca en la línea de masa, la caída se
+puede medir respecto a masa con una sonda normal, aunque hay que vigilar los
+bucles de masa entre el PC, la placa y el osciloscopio. Los condensadores de
+desacoplo filtran precisamente las variaciones rápidas de corriente que se
+quieren medir, así que su posición respecto al \emph{shunt} es una decisión del
+diseño.
+% TODO: valor del shunt, posición y necesidad de amplificador (preguntas 3 y 4
+% de docs/reunion-2026-10-19.md).
+
+El osciloscopio puede ser uno del laboratorio de la universidad o uno USB
+comprado; está pendiente de que lo confirme un profesor. Tiene que cumplir tres
+requisitos: muestrear lo bastante rápido para resolver la actividad de cada
+instrucción, disparar con la señal del firmware o capturarla en un segundo canal
+para alinear las trazas después, y poder controlarse desde Python en Linux para
+automatizar la campaña. Si el reloj del microcontrolador es demasiado rápido
+para el muestreo disponible, se puede reducir, a costa de reajustar la velocidad
+del puerto serie.
+% TODO: modelo de osciloscopio, frecuencia de muestreo y reloj del MCU, con
+% enlace y fecha de consulta de las especificaciones.
+
+\subsection{Procesamiento de las trazas}
+
+El análisis está escrito en Python, con \texttt{numpy} para el cálculo y
+\texttt{matplotlib} para las figuras, en el directorio \texttt{analisis/} del
+repositorio. Incluye una implementación propia de AES-128, verificada con los
+vectores del FIPS-197, de la que salen las predicciones del valor intermedio; el
+CPA de la \cref{eq:cpa} y el DPA de la \cref{eq:dpa}, vectorizados sobre los 256
+candidatos y todas las muestras; las métricas que se reportan (correlación
+frente al tiempo, pico por candidato, puesto de la clave correcta frente al
+número de trazas) y el generador de trazas sintéticas de la
+\cref{sec:validacion-simulada}. Con una semilla fija, la salida es idéntica
+entre ejecuciones, y la integración continua lo comprueba en cada cambio.
+
+Las trazas reales se guardarán en un fichero \texttt{.npz} por campaña con las
+trazas, los textos claros, los criptogramas y la clave, más un \texttt{.json}
+de metadatos con la frecuencia de muestreo, el reloj del microcontrolador, el
+\emph{shunt}, el osciloscopio, la fecha y la versión del firmware. Antes del
+ataque habrá que alinear las trazas con la señal de disparo y, si es necesario,
+recortarlas a la ventana de la primera ronda que se identifique por SPA.
+% TODO: alineación y preprocesado reales cuando haya trazas (fase 4).

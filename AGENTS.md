@@ -161,7 +161,7 @@ Los resultados numéricos van a `analisis/salida/`, que está ignorado por git: 
 - [ ] **5. Ataque real:** CPA sobre las trazas medidas, métricas y figuras definitivas. Guardar una campaña de respaldo en `datos/`.
 - [ ] **6. (Opcional) Contramedida:** p. ej., *shuffling* o retardos aleatorios en el firmware, y medir cómo se degrada el ataque. Alimenta Mitigaciones y Resultados.
 - [x] **Web explicativa:** `web/` con `<cpa-live>` (CPA en directo con SNR, N, byte, semilla y clave), `<cpa-leak>` (de dónde sale la fuga) y `<cpa-sbox>` (AddRoundKey y SubBytes con un byte, y por qué atacar `p ⊕ k` empata con el complementario), tests de los modelos, claims en navegador y auditoría visual (`cd web && npm run check`). Se publica en <https://r0zh.github.io/vul-hw-grupal/> desde `main`. Pendiente: Manim, `<cpa-dpa>` y `<cpa-shuffle>` (opcionales) y cargar trazas reales en la fase 5.
-- [ ] **7. Entregables:** redacción de la memoria, revisión con Trinka, presentación y ensayo de la demo con el plan B.
+- [ ] **7. Entregables:** redacción de la memoria, revisión con Trinka, presentación y ensayo de la demo con el plan B. Capítulos 1 a 3 en borrador (2026-10-19); la sección 2.5 describe el montaje previsto y deja `% TODO` en lo que depende del instrumental, el firmware y la captura.
 
 ## Fuentes
 

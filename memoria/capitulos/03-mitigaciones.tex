@@ -3,16 +3,214 @@
 \chapter{Mitigaciones}
 \label{cap:mitigaciones}
 
-% TODO: para cada familia: idea, coste (área, tiempo, energía) y límites.
-% Ninguna es una garantía absoluta. Tiempo constante != protección frente
-% a análisis de consumo.
+El ataque del \cref{cap:descripcion} necesita dos cosas: que el consumo en un
+instante concreto dependa de un valor intermedio que el atacante puede predecir,
+y que pueda repetir la medida las veces suficientes para que la estadística
+saque esa dependencia del ruido. Las contramedidas atacan una de las dos.
+Mangard, Oswald y Popp las agrupan en dos familias \cite{mangard2007power}: el
+\emph{ocultamiento} (\emph{hiding}), que reduce la relación señal-ruido haciendo
+el consumo constante o impredecible en el tiempo, y el \emph{enmascaramiento}
+(\emph{masking}), que hace que los valores que se procesan dejen de ser
+predecibles aunque el consumo siga dependiendo de ellos. A estas se suman las
+medidas de protocolo, como la renovación de claves, que limitan cuántas trazas
+puede reunir el atacante con una misma clave. La revisión de Mishra y Sahay
+recoge las tres \cite[secs.~II.C.5 y III.D]{mishra2025modern}.
+
+Ninguna de ellas es una garantía absoluta. Cada una sube el coste del ataque
+---más trazas, mejor equipo, un modelo más elaborado---, y casi todas tienen un
+coste para el defensor en tiempo de ejecución, área, energía o complejidad.
+Las secciones siguientes describen cada una, su coste y sus límites, y qué
+efecto tendría sobre el ataque de este trabajo.
 
 \section{Enmascaramiento (\emph{masking})}
+\label{sec:masking}
+
+El enmascaramiento combina cada valor sensible con un número aleatorio nuevo en
+cada ejecución, la \emph{máscara}, y opera sobre el valor enmascarado. En el
+enmascaramiento booleano, en lugar de $v$ se manipula $v \oplus m$, con $m$
+uniforme y desconocida para el atacante. Cada valor que pasa por el procesador
+es, por separado, independiente de la clave, y la predicción
+$\operatorname{HW}(\mathrm{SBox}(p_j \oplus k))$ del CPA deja de correlar con
+el consumo de cualquier instante. Chari et al.\ formalizaron la idea dividiendo
+cada valor en varias partes aleatorias y demostraron que, si cada parte se mide
+con ruido, el número de trazas necesario crece exponencialmente con el número de
+partes \cite{chari1999masking}.
+
+En AES, las operaciones lineales (\texttt{AddRoundKey}, \texttt{ShiftRows},
+\texttt{MixColumns}) se aplican a cada parte por separado. La S-box no es
+lineal y obliga a algo más: en software, lo habitual es calcular en cada
+ejecución una tabla enmascarada $\mathrm{SBox}'(x \oplus m) = \mathrm{SBox}(x)
+\oplus m'$ \cite{herbst2006aes}. Eso cuesta memoria para la
+tabla, tiempo para recalcularla y una fuente de números aleatorios en el
+dispositivo.
+
+El límite principal es que el enmascaramiento de primer orden solo protege
+frente a ataques que miran un instante. Un atacante que combina las muestras de
+dos instantes ---el de la máscara y el del valor enmascarado--- recupera una
+dependencia con la clave: es el DPA de segundo orden, que Messerges ya aplicó en
+2000 contra software enmascarado \cite{messerges2000second}. Más partes elevan
+el orden del ataque necesario, y con ruido suficiente su coste, pero también el
+del cifrado. Además, la protección depende de que las partes no se combinen
+nunca en el hardware sin querer, por ejemplo al sobrescribir un registro que
+contenía una con la otra, y eso es difícil de garantizar en un procesador real.
+% TODO: fuente concreta (capítulo de Mangard et al. sobre ataques a
+% implementaciones enmascaradas, o artículo específico).
+
+Contra el ataque de este trabajo, una implementación enmascarada correcta haría
+fallar el CPA de primer orden tal como está escrito, independientemente del
+número de trazas.
 
 \section{Aleatorización y \emph{shuffling}}
+\label{sec:shuffling}
+
+La aleatorización no oculta el valor, sino el momento en que se procesa. El CPA
+compara las trazas instante a instante, así que supone que la S-box del byte $j$
+se calcula siempre en la misma muestra. Hay dos formas de romper esa
+alineación en software:
+
+\begin{itemize}
+  \item \emph{Shuffling}: procesar los 16 bytes del estado en un orden
+    aleatorio distinto en cada cifrado. Las operaciones de AES son las mismas
+    en cualquier orden, y el coste es pequeño: generar una permutación por
+    cifrado \cite{herbst2006aes}.
+  \item Retardos aleatorios: insertar entre las operaciones bucles de duración
+    aleatoria, de modo que todo lo que viene detrás se desplaza
+    \cite{clavier2000countermeasures}. Cuesta tiempo de ejecución, en
+    proporción a la longitud media de los retardos.
+\end{itemize}
+
+El efecto sobre el CPA se puede estimar con el razonamiento de la
+\cref{sec:cpa}. Si la S-box de un byte cae con la misma probabilidad en
+cualquiera de $m$ posiciones, en cada una solo está presente en una de cada $m$
+trazas, y su correlación se reduce aproximadamente a $\rho/m$. Como el número
+de trazas crece como el inverso del cuadrado de la correlación, harían falta
+del orden de $m^2$ veces más. Con el \emph{shuffling} de 16 bytes, $m = 16$. El
+atacante puede compensarlo en parte sumando las $m$ ventanas posibles antes de
+correlar, como proponen Clavier et al.\ frente a los retardos aleatorios
+\cite{clavier2000countermeasures}; si el ruido de las ventanas es independiente,
+la correlación queda en torno a $\rho/\sqrt{m}$ y el factor baja a unas $m$
+veces. Estas estimaciones salen de un modelo simple y no se han comprobado
+sobre trazas: medirlas es el objetivo de la fase opcional de contramedidas.
+% TODO: si se hace la fase 6, comparar con las trazas necesarias medidas.
+
+El límite de la aleatorización es que no elimina la fuga, solo la diluye: con
+suficientes trazas, el ataque vuelve a funcionar. Por eso se combina con el
+enmascaramiento, como en la implementación de Herbst et al.\ para tarjetas
+inteligentes de 8 bits \cite{herbst2006aes}. Además, si el SPA permite
+reconocer los retardos en una traza individual, se pueden eliminar alineando las
+trazas antes del ataque.
 
 \section{Lógica balanceada}
+\label{sec:logica-balanceada}
+
+Las lógicas balanceadas atacan la causa física de la fuga. En la lógica de
+doble raíl con precarga, cada bit se representa con dos señales
+complementarias que se precargan a un valor fijo en cada ciclo y después se
+evalúan: en cada ciclo cambia exactamente una de las dos, sea cual sea el
+dato, y el consumo es en principio independiente del valor
+\cite{tiri2004wddl}. WDDL (\emph{wave dynamic differential logic}) implementa
+esa idea con celdas estándar, de modo que se puede aplicar en ASIC o en FPGA
+\cite{tiri2004wddl}; Mishra y Sahay la citan entre las contramedidas hardware
+frente al DPA \cite[sec.~III.D]{mishra2025modern}.
+
+El coste es alto: se duplican las señales y se añade la fase de precarga, lo que
+aumenta el área, el consumo y el tiempo de cada operación. El límite es que el
+equilibrio nunca es perfecto, porque las dos líneas de cada par no tienen
+exactamente la misma capacidad tras el rutado, y esa diferencia residual
+vuelve a depender del dato \cite{mangard2007power}.
+% TODO: fuente: precisar el capítulo de Mangard et al. (ocultamiento).
+
+Esta contramedida se decide al diseñar el circuito. En un microcontrolador
+comercial como el ATmega328P, que no la incorpora, no se puede aplicar desde el
+firmware.
 
 \section{Inyección de ruido}
+\label{sec:ruido}
+
+Otra forma de ocultamiento es añadir consumo que no depende de los datos: un
+generador de ruido en la alimentación, circuitos que conmutan al azar o, en
+software, operaciones falsas intercaladas con las reales
+\cite[sec.~III.D]{mishra2025modern}. El objetivo es bajar la relación
+señal-ruido de la medida.
+
+Es una de las medidas más baratas, pero su efecto sobre el CPA es limitado
+porque el ruido independiente de los datos se cancela al promediar. La
+simulación de la \cref{sec:validacion-simulada} lo ilustra: al pasar de una
+relación señal-ruido de 0,2 a 0,02, las trazas que necesita el 90~\% de los
+ensayos pasan de 295 a 2220, unas 7,5 veces más (\cref{tab:sim-ruido}). El ataque se encarece de forma lineal, no exponencial
+como con el enmascaramiento, y un atacante con tiempo y un buen equipo de
+captura lo compensa. Por eso el ruido se usa como complemento de otras medidas y
+no como protección única.
 
 \section{Renovación de claves (\emph{re-keying})}
+\label{sec:rekeying}
+
+La renovación de claves no toca la implementación del cifrado, sino el uso que
+se hace de él. Si cada clave cifra menos bloques de los que el atacante
+necesita para recuperarla, el CPA no llega a converger. En el esquema de
+\emph{fresh re-keying} de Medwed et al., cada sesión cifra con una clave nueva
+que se deriva de la clave maestra y de un número aleatorio público; la función
+de derivación se elige para que sea fácil de proteger, de modo que solo ella
+necesita contramedidas costosas, y el cifrado de cada sesión se puede dejar sin
+proteger \cite{medwed2010fresh}. Mishra y Sahay mencionan también la opción de
+fijar el intervalo de renovación a partir del número de trazas que necesita un
+ataque \cite[sec.~II.C.5]{mishra2025modern}.
+
+Su límite es que desplaza el problema en lugar de eliminarlo: la clave maestra
+sigue en el dispositivo y la derivación sigue siendo un objetivo. Además,
+requiere cambiar el protocolo, porque las dos partes tienen que sincronizar la
+clave de cada sesión, y no protege frente a ataques que necesitan muy pocas
+trazas, como los de plantillas \cite[sec.~II.B.4]{mishra2025modern}.
+
+En el modelo simulado, con una relación señal-ruido de 0,1, la mediana de
+trazas para recuperar la clave completa está entre 296 y 413
+(\cref{tab:sim-ruido}). Una clave que se renovara cada pocas decenas de
+cifrados quedaría fuera del alcance de ese ataque, pero el umbral real depende
+del montaje y no se conoce hasta medir.
+
+\section{Tiempo constante no es protección frente al consumo}
+\label{sec:tiempo-constante}
+
+Una implementación de tiempo constante ejecuta las mismas instrucciones, en el
+mismo orden y con la misma duración, sea cual sea la clave. Protege frente a los
+ataques de tiempo \cite{kocher1996timing} y frente al SPA basado en el flujo de
+ejecución, pero no frente al DPA ni al CPA: el consumo de cada instrucción sigue
+dependiendo de los valores que manipula. De hecho, un código de tiempo constante
+favorece al atacante de consumo, porque produce trazas perfectamente alineadas.
+Es exactamente la situación del modelo simulado de la
+\cref{sec:validacion-simulada}, en el que el CPA recupera la clave.
+
+\section{Resumen}
+\label{sec:resumen-mitigaciones}
+
+La \cref{tab:mitigaciones} resume las contramedidas. Su coste y su eficacia
+se indican de forma cualitativa, porque dependen de la implementación y no se
+han medido en este trabajo.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Resumen de las contramedidas frente al análisis de consumo. Las
+    valoraciones son cualitativas y proceden de las referencias citadas en
+    cada sección.}
+  \label{tab:mitigaciones}
+  \small
+  \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.9cm}
+                               >{\raggedright\arraybackslash}p{1.8cm}
+                               >{\raggedright\arraybackslash}X
+                               >{\raggedright\arraybackslash}X}
+    \toprule
+    Contramedida & Nivel & Efecto sobre el CPA & Límite principal \\
+    \midrule
+    Enmascaramiento & Algoritmo & Anula el CPA de primer orden &
+      Ataques de orden superior; combinación accidental de las partes \\
+    \emph{Shuffling} y retardos & Algoritmo & Diluye el pico; más trazas &
+      No elimina la fuga; integración de ventanas y realineado \\
+    Lógica balanceada & Circuito & Reduce la fuga en origen &
+      Desequilibrio residual; solo en diseño de hardware \\
+    Inyección de ruido & Circuito o software & Baja la SNR; más trazas &
+      El ruido se cancela al promediar \\
+    Renovación de claves & Protocolo & Limita las trazas por clave &
+      La derivación de claves sigue expuesta; cambia el protocolo \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
