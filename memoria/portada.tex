@@ -1,0 +1,48 @@
+% ======================================================================
+% Portada de la memoria. Reproduce la portada azul de la plantilla
+% (template/sty_files/cotutor_cover-blueuma.sty, v1.4) adaptada a un
+% trabajo de asignatura: sin tutor ni departamento y con los cuatro autores.
+% Los logos son los de la plantilla, en template/logos/.
+% ======================================================================
+\begin{titlepage}
+  \thispagestyle{empty}%
+  \begin{tikzpicture}[remember picture,overlay]
+    \fill[UMAblue] (current page.south west) rectangle (current page.north east);
+    \node[anchor=north west,xshift=1.5cm,yshift=-1.5cm]
+          at (current page.north west)
+          {\includegraphics[width=4.5cm]{template/logos/NEG-uma-logo.png}};
+    \node[anchor=north east,xshift=-1.5cm,yshift=-1.5cm]
+          at (current page.north east)
+          {\includegraphics[width=9cm]{template/logos/NEG-etsi-logo.png}};
+  \end{tikzpicture}%
+  \MalacitanaRoman\color{UMAgray}%
+  \vspace*{2.5cm}%
+  \begin{center}
+    {\color{white}\fontsize{16pt}{18pt}\selectfont
+      Escuela Técnica Superior de Ingeniería Informática\par}
+    \vspace{0.15cm}
+    {\fontsize{14pt}{16pt}\selectfont \textit{Vulnerabilidades Hardware}\par}
+
+    \vspace{1.2cm}
+
+    {\color{white}\bfseries\fontsize{20pt}{22pt}\selectfont
+      Ataque de análisis de consumo por correlación (CPA) sobre AES-128\par}
+    \vspace{0.4cm}
+    {\color{white}\fontsize{16pt}{18pt}\selectfont
+      Recuperación de la clave en un ATmega328P con un montaje de medida propio\par}
+
+    \vspace{1.2cm}
+
+    {\Large\textit{Realizado por}\par}
+    \vspace{0.15cm}
+    {\color{white}\Large
+      Juan Diego Bermúdez Ureba\par
+      Brian Polo Caballero\par
+      Alberto Bartolomé Iruela\par
+      Roberto Sánchez Martín\par}
+
+    \vfill
+    {\Large Universidad de Málaga · Curso 2026/2027\par}
+  \end{center}
+  \vspace*{0.5cm}%
+\end{titlepage}

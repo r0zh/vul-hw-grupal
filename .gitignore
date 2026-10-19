@@ -34,6 +34,7 @@ docs/referencias/
 
 # Plantilla original (ya extraída en memoria/template/)
 UMA_TFG_ETSI_Plantilla_*.zip
+UMA_TFG_ETSI_Plantilla_*/
 
 # Sistema / editores
 .DS_Store
