@@ -1,6 +1,7 @@
 % ======================================================================
 % Memoria del trabajo grupal — Vulnerabilidades Hardware
-% Plantilla TFG ETSI Informática (UMA) sin portada, resumen ni contraportada.
+% Plantilla TFG ETSI Informática (UMA) con portada propia (portada.tex),
+% sin resumen ni contraportada.
 % Compilar con: latexmk   (usa XeLaTeX + biber, ver latexmkrc)
 % ======================================================================
 \documentclass[12pt,a4paper,oneside,spanish]{book}  % spanish: babel y cleveref
@@ -9,6 +10,7 @@
 \usepackage[es-noshorthands,es-tabla]{babel}
 \usepackage{csquotes}
 \usepackage{graphicx}
+\usepackage{tikz}   % fondo azul de portada.tex
 \usepackage{booktabs}
 \usepackage{tabularx}
 \usepackage{siunitx}
@@ -45,6 +47,8 @@
 
 %======================================================================
 \begin{document}
+
+\input{portada}
 
 \frontmatter
 

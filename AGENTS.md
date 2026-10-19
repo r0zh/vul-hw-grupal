@@ -27,6 +27,7 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 | Fecha | Decisión | Estado |
 |---|---|---|
 | 2026-10-18 | Memoria en LaTeX con la plantilla TFG de la ETSI, sin portada, resumen ni contraportada | Hecho |
+| 2026-10-19 | Se añade a la memoria una portada propia (`memoria/portada.tex`) con el estilo de la portada azul de la plantilla, adaptada a un trabajo de asignatura (sin tutor ni departamento). El enunciado pide quitar la portada; se mantiene por decisión del equipo | Hecho |
 | 2026-10-18 | Compilación en local (latexmk + XeLaTeX + biber) y CI en GitHub Actions que publica el PDF; desde `main`, en la release `memoria-latest` (el PDF no se versiona) | Hecho |
 | 2026-10-18 | Citas en formato IEEE con biblatex (`style=ieee`) | Hecho |
 | 2026-10-18 | Montaje DIY con ATmega328P (Arduino Nano) | Decidido |
@@ -58,10 +59,11 @@ docs/
   referencias/         PDF de terceros (artículo, rúbrica); ignorado por git
 memoria/
   main.tex             documento raíz; solo estructura e \input de capítulos
+  portada.tex          portada con el estilo de la plantilla, adaptada al trabajo
   capitulos/           un .tex por capítulo del esquema TFG + anexos
   referencias.bib      bibliografía compartida con la presentación
   latexmkrc            XeLaTeX + biber, salida en memoria/build/
-  template/            plantilla UMA (estilo y fuentes Malacitana); no tocar
+  template/            plantilla UMA (estilo, fuentes Malacitana y logos); no tocar
 presentacion/          por decidir
 hardware/              montaje, material y puntos a revisar
 analisis/              CPA, DPA, simulación de trazas y generación de figuras
