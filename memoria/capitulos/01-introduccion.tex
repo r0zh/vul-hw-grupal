@@ -4,18 +4,104 @@
 \label{cap:introduccion}
 
 \section{Motivación}
-% TODO: pregunta de partida: ¿puede filtrarse una clave AES sin leer la
-% memoria ni romper el algoritmo? Encuadre dentro de la seguridad hardware
-% \cite{mishra2025modern}.
+\label{sec:motivacion}
+
+AES es el cifrado por bloques que el NIST estandarizó en 2001
+\cite{nist2023fips197}. Está pensado para usarse como una caja negra: quien
+solo ve textos claros y cifrados no debería poder deducir la clave más rápido
+que probándolas todas, y con 128 bits eso está fuera de alcance. Pero un cifrado no se ejecuta en abstracto, sino en un
+circuito que consume energía, tarda un tiempo y emite radiación mientras
+calcula. La pregunta de partida de este trabajo es si esas magnitudes físicas
+bastan para extraer una clave de AES sin leer la memoria del dispositivo y sin
+romper el algoritmo.
+
+La respuesta, conocida desde finales de los noventa, es que sí. Kocher mostró
+en 1996 que el tiempo de ejecución de implementaciones de RSA o Diffie-Hellman
+revelaba la clave privada \cite{kocher1996timing}, y en 1999 Kocher, Jaffe y
+Jun hicieron lo mismo con el consumo eléctrico de implementaciones de DES
+\cite{kocher1999dpa}. Desde entonces, los ataques de canal lateral se han
+convertido en una de las familias principales de la seguridad hardware, junto
+con los ataques a la microarquitectura, la inyección de fallos o los ataques a
+la memoria. La revisión de Mishra y Sahay, que sirve de artículo base para este
+trabajo, dedica una sección a los canales laterales de consumo y otra a los
+ataques diferenciales sobre implementaciones criptográficas y a sus
+contramedidas \cite[secs.~II.B, III.C y III.D]{mishra2025modern}.
 
 \section{Canales laterales de consumo}
-% TODO: qué es un canal lateral, por qué el consumo depende de los datos
-% procesados y por qué esto no es un fallo matemático de AES
-% \cite{kocher1999dpa,kocher2011intro}.
+\label{sec:canales-laterales}
+
+Un canal lateral es cualquier información que un sistema deja escapar durante
+una operación, además de sus entradas y salidas legítimas: el tiempo que tarda,
+la potencia que consume, el campo electromagnético que radia o incluso el sonido
+que produce \cite[sec.~II.B]{mishra2025modern}. Este trabajo se ocupa del
+consumo.
+
+En la lógica CMOS, la mayor parte de la energía se gasta al cargar y descargar
+las capacidades de los nodos que cambian de valor. Un registro o un bus que pasa
+a contener un byte con muchos unos, o que cambia muchos bits respecto a su valor
+anterior, consume en media algo más que uno que apenas cambia. El consumo
+instantáneo depende, por tanto, de los datos que se procesan, y no solo de la
+instrucción que se ejecuta \cite{mangard2007power,kocher2011intro}. La
+diferencia es minúscula frente al consumo total y frente al ruido de la medida,
+pero es sistemática: se repite cada vez que se procesa el mismo valor, y el
+ruido no.
+
+De ahí salen tres técnicas de ataque de dificultad creciente, que se describen
+en el \cref{cap:descripcion}. El análisis simple de consumo (SPA) consiste en
+mirar una traza y reconocer en ella la estructura del algoritmo. El análisis
+diferencial (DPA) \cite{kocher1999dpa} y el análisis por correlación (CPA)
+\cite{brier2004cpa} recogen miles de trazas y usan la estadística para separar
+la parte del consumo que depende de un valor intermedio del cifrado de todo lo
+demás. Si ese valor depende de un trozo pequeño de la clave, cada trozo se puede
+adivinar por separado, y la búsqueda exhaustiva de $2^{128}$ claves se convierte
+en dieciséis búsquedas de 256 candidatos.
+
+Conviene subrayar que esto no es un fallo matemático de AES. El ataque no
+aprovecha ninguna propiedad del algoritmo que permita deducir la clave a partir
+de textos claros y cifrados, sino una \emph{implementación} concreta que, al
+ejecutarse, filtra información física sobre los valores que manipula. La misma
+clave en una implementación protegida, o en un dispositivo al que el atacante no
+tiene acceso físico, no sería vulnerable de la misma forma.
 
 \section{Objetivos y alcance}
-% TODO: demostrar CPA sobre AES-128 software en un ATmega328P propio,
-% con clave de laboratorio. Qué queda fuera del alcance.
+\label{sec:objetivos}
+
+El objetivo del trabajo es demostrar un ataque CPA sobre un AES-128 software sin
+protecciones que se ejecuta en un microcontrolador ATmega328P, y recuperar la
+clave a partir de trazas de consumo medidas con un montaje construido por el
+propio grupo. En concreto, se plantean estos objetivos:
+
+\begin{enumerate}
+  \item Implementar el ataque (CPA, y DPA como comparación) y validarlo sobre
+    trazas simuladas, para saber que el código es correcto y qué cabe esperar
+    de él antes de medir nada.
+  \item Programar el AES-128 en el microcontrolador, verificado con los vectores
+    de la norma, con un protocolo serie para recibir textos claros y una señal
+    de disparo que marque el inicio del cifrado.
+  \item Medir el consumo del microcontrolador con una resistencia de
+    \emph{shunt} y un osciloscopio, y automatizar la captura de miles de trazas.
+  \item Atacar las trazas reales y medir cuántas hacen falta para recuperar cada
+    byte de la clave.
+  \item Revisar las contramedidas existentes y, si da tiempo, medir cómo una de
+    ellas degrada el ataque.
+\end{enumerate}
+
+Quedan fuera del alcance las implementaciones protegidas (salvo la contramedida
+opcional del último punto), los AES en hardware, los ataques electromagnéticos,
+los ataques de plantillas y la inyección de fallos. Todo el experimento se hace
+sobre hardware y firmware propios, con una clave de laboratorio que no protege
+nada real. El éxito no está garantizado: depende del ruido del montaje, de la
+sincronización de las trazas, de la frecuencia de muestreo y de la propia
+implementación.
 
 \section{Estructura del documento}
-% TODO: un párrafo que recorra los capítulos siguientes.
+\label{sec:estructura}
+
+El \cref{cap:descripcion} describe AES-128, el valor intermedio que se ataca, las
+tres técnicas de análisis de consumo y el montaje experimental. El
+\cref{cap:mitigaciones} repasa las contramedidas, su coste y sus límites. El
+\cref{cap:resultados} presenta los resultados: primero la validación del ataque
+sobre trazas simuladas y después las medidas sobre el microcontrolador. El
+\cref{cap:conclusiones} resume los puntos fuertes y débiles del ataque, y los
+anexos recogen los detalles del montaje y del código y una bibliografía
+comentada.
