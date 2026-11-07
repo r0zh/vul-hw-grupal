@@ -9,7 +9,7 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 - **Equipo:** Juan Diego Bermúdez Ureba, Brian Polo Caballero, Alberto Bartolomé Iruela y Roberto Sánchez Martín.
 - **GitHub:** <https://github.com/r0zh/vul-hw-grupal> (**público**). Colaboradores: `r0zh`, `Alman368`, `juandiego-bmu` y `plc50` (Brian; pendiente de invitar).
 - **Entregables:** dos PDF, memoria y presentación. Se puede actualizar la entrega hasta el día de la presentación y solo la sube un miembro. Enunciado y rúbrica completos en [`docs/enunciado.md`](docs/enunciado.md).
-- **Fecha de presentación:** aún no se conoce.
+- **Fecha de presentación:** aún no se conoce. El **2026-11-16** hay que presentar una versión bastante avanzada, casi final.
 - **Artículo base:** J. Mishra y S. K. Sahay, *Modern Hardware Security: A Review of Attacks and Countermeasures*, arXiv:2501.04394, 2025. Secciones relevantes: II.B (SPA, DPA y CPA), III.C (ataques DPA a implementaciones criptográficas) y III.D (contramedidas).
 
 ## Qué se demuestra
@@ -30,7 +30,7 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 | 2026-10-19 | Se añade a la memoria una portada propia (`memoria/portada.tex`) con el estilo de la portada azul de la plantilla, adaptada a un trabajo de asignatura (sin tutor ni departamento). El enunciado pide quitar la portada; se mantiene por decisión del equipo | Hecho |
 | 2026-10-18 | Compilación en local (latexmk + XeLaTeX + biber) y CI en GitHub Actions que publica el PDF; desde `main`, en la release `memoria-latest` (el PDF no se versiona) | Hecho |
 | 2026-10-18 | Citas en formato IEEE con biblatex (`style=ieee`) | Hecho |
-| 2026-10-18 | Montaje DIY con ATmega328P (Arduino Nano) | Decidido |
+| 2026-10-18 | Montaje DIY con ATmega328P | Decidido |
 | 2026-10-18 | Python ≥ 3.11 con `uv` y un único `pyproject.toml` en la raíz; dependencias `numpy` y `matplotlib` | Hecho |
 | 2026-10-18 | El CPA se valida primero en simulación (fase 1) antes de tocar el hardware | Hecho |
 | 2026-10-18 | AES-128 propio en `analisis/aes.py`, verificado contra los vectores del FIPS-197; sin dependencias criptográficas externas | Hecho |
@@ -41,8 +41,10 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 | 2026-10-18 | Web explicativa con componentes interactivos en `web/`, publicada con GitHub Pages | Hecho |
 | 2026-10-18 | La web no tiene dependencias ni build (HTML, CSS y módulos ES con rutas relativas) y reutiliza solo el código propio de interactive-notes (`artifact-kit/src`, `notes.css` y el harness), nada de `vendor/` ni `from-source/` | Hecho |
 | 2026-10-18 | La simulación de la web replica la de Python con estadística, no valor a valor: `web/tests/sim.test.js` exige el pico teórico y las trazas de la tabla 4.1 (mediana 413 y 90 % en 578 con SNR = 0,1, factor 1,5 de margen). El CPA de la web usa estadísticos suficientes y la transformada de Walsh-Hadamard, y es exacto | Hecho |
-| — | Osciloscopio: de la universidad o comprado (Hantek 6022BE) | **Pendiente de confirmación de un profesor** |
-| — | Placa Nano o ATmega328P suelto en protoboard (ver [`hardware/README.md`](hardware/README.md)) | Por evaluar |
+| 2026-11-07 | Osciloscopio Tektronix TDS 220 prestado por un profesor, solo para usar en el laboratorio del departamento por la mañana. Para capturar desde Python hace falta el módulo TDS2CM o TDS2MM (ver [`hardware/README.md`](hardware/README.md)) | Decidido; **falta saber si tiene módulo** |
+| 2026-11-07 | ATmega328P suelto en protoboard con cristal de 16 MHz, programado con un Arduino Uno R3 (chip DIP) que, sin el chip, hace de puente USB-serie. Se descarta el Nano porque su regulador y su conversor USB-serie comparten alimentación con el MCU | Decidido; material comprado |
+| 2026-11-07 | Shunt en VCC (como el CW304 NOTDuino de NewAE), medido en el lado del chip con acoplamiento AC; valor entre 10 y 50 Ω, a elegir midiendo | Hipótesis de partida |
+| 2026-11-07 | Plan B si el TDS 220 no tiene módulo: CPA con un ChipWhisperer-Nano del laboratorio y TDS 220 para SPA y caracterización de la fuga, más un CPA manual de un byte con promediado | Pendiente (falta confirmar que el CW-Nano existe y se puede usar) |
 | — | Herramienta para la presentación (ver [`presentacion/por-decidir.md`](presentacion/por-decidir.md)) | Pendiente |
 
 ## Estructura del repositorio
@@ -157,7 +159,7 @@ Los resultados numéricos van a `analisis/salida/`, que está ignorado por git: 
 
 - [x] **0. Organización:** repositorio, plantilla, CI y este archivo.
 - [x] **1. Análisis validado en simulación:** CPA (y DPA como comparación) sobre trazas sintéticas con fuga HW y ruido gaussiano. Resultado: con 4000 trazas y SNR = 0,1 se recuperan los 128 bits; el barrido de ruido da las trazas necesarias por nivel (578 para el 90 % de los ensayos con SNR = 0,1) y el DPA de un bit se queda entre 7 y 15 de 16 bytes donde el CPA acierta los 16. Figuras y texto en `figuras/` y la sección 4.1 de la memoria.
-- [ ] **2. Instrumental:** respuesta del profesor sobre el osciloscopio y lista de compra definitiva con precios verificados.
+- [ ] **2. Instrumental:** osciloscopio confirmado (TDS 220 prestado) y material de la placa comprado el 2026-11-07 (47,45 €, detalle en `hardware/README.md`). Falta: saber si el TDS 220 tiene módulo, comprobar los componentes del kit propio y confirmar las sesiones de laboratorio (se piden el martes 10 de 10:45 a 14:30, con huelga ese día, y el jueves 12).
 - [ ] **3. Firmware:** AES-128 en el ATmega328P verificado con los vectores de prueba de FIPS-197, protocolo serie y trigger por GPIO.
 - [ ] **4. Captura:** primera traza real, rondas visibles (SPA), alineación con el trigger y captura automatizada de miles de trazas.
 - [ ] **5. Ataque real:** CPA sobre las trazas medidas, métricas y figuras definitivas. Guardar una campaña de respaldo en `datos/`.
