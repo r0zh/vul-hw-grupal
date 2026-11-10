@@ -18,6 +18,7 @@ las fases 2 a 5 del plan de `AGENTS.md`).
 | `config.py` | Todos los parámetros de la simulación y de los experimentos |
 | `run_all.py` | Regenera los resultados y todas las figuras |
 | `demo.py` | Demo en vivo: la clave aparece byte a byte al crecer N (no escribe ficheros) |
+| `real.py` | CPA de una campaña guardada (`datos/brutos/`, del ChipWhisperer o `--simular`): clave, rangos, trazas necesarias y figuras en `analisis/salida/<campaña>/` |
 | `tests.py` | Comprobaciones rápidas (AES, ataque sin ruido, utilidades) |
 
 ## Reproducir todo desde cero
