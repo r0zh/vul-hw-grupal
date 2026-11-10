@@ -43,3 +43,6 @@ UMA_TFG_ETSI_Plantilla_*/
 
 # Web: capturas e informes que generan learn y visual
 web/review/
+
+# Firmware compilado (se regenera con firmware/build.sh)
+firmware/build/

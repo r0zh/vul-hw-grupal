@@ -18,6 +18,15 @@ dependencies = [
     "matplotlib>=3.9",
 ]
 
+# Captura con el ChipWhisperer (solo hace falta en el portátil conectado a él):
+#   uv sync --group captura
+# Se usa la rama develop de NewAE fijada a un commit porque la 6.0.0 de PyPI
+# exige numpy<=1.26.4, incompatible con numpy>=2.0 y con Python 3.14.
+[dependency-groups]
+captura = [
+    "chipwhisperer @ git+https://github.com/newaetech/chipwhisperer@c5e8151e794e86cf588aeca6ed9d9c5f5f245c28",
+]
+
 [project.scripts]
 analisis = "analisis.run_all:main"
 
@@ -26,7 +35,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["analisis"]
+packages = ["analisis", "captura"]
 
 [tool.uv]
 package = true
