@@ -1,6 +1,6 @@
 # Ataque CPA sobre AES-128 con un montaje DIY
 
-Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad de Málaga). Demostramos un ataque de análisis de consumo por correlación (CPA) contra una implementación software de AES-128 en un ATmega328P. El hardware, el firmware y la clave de laboratorio son nuestros.
+Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad de Málaga). Demostramos un ataque de análisis de consumo por correlación (CPA) contra una implementación software de AES-128 sin protecciones en el STM32F030 de un ChipWhisperer-Nano, con trazas capturadas por nosotros y una clave de laboratorio que no protege nada real.
 
 **Equipo:** Juan Diego Bermúdez Ureba, Brian Polo Caballero, Alberto Bartolomé Iruela y Roberto Sánchez Martín.
 
@@ -13,8 +13,10 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 | [`AGENTS.md`](AGENTS.md) | Contexto, decisiones, convenciones y plan de trabajo |
 | [`memoria/`](memoria/) | Memoria en LaTeX (plantilla TFG de la ETSI) |
 | [`presentacion/`](presentacion/) | Presentación (herramienta por decidir) |
-| [`hardware/`](hardware/) | Montaje de medida y material |
-| [`analisis/`](analisis/) | CPA, DPA, simulación de trazas y figuras |
+| [`hardware/`](hardware/) | ChipWhisperer-Nano: puesta en marcha |
+| [`firmware/`](firmware/) | Compilación de la víctima (`simpleserial-aes` de NewAE) |
+| [`captura/`](captura/) | Captura de trazas con el ChipWhisperer |
+| [`analisis/`](analisis/) | CPA, DPA, simulación de trazas, CPA de campañas reales y figuras |
 | [`figuras/`](figuras/) | Figuras generadas por los scripts (PDF vectorial) |
 | [`web/`](web/) | Web explicativa con componentes interactivos (GitHub Pages) |
 | [`docs/`](docs/) | Enunciado, rúbrica y contexto inicial |

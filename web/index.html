@@ -11,7 +11,7 @@
     addEventListener('unhandledrejection', (e) => fail(e.reason));
   </script>
   <title>Leer una clave AES en el consumo: el ataque CPA, desde cero</title>
-  <meta name="description" content="Explicación interactiva del análisis de consumo por correlación (CPA) sobre AES-128 en un ATmega328P. Trabajo de Vulnerabilidades Hardware, ETSI Informática, Universidad de Málaga.">
+  <meta name="description" content="Explicación interactiva del análisis de consumo por correlación (CPA) sobre AES-128 en un microcontrolador STM32F030, medido con un ChipWhisperer-Nano. Trabajo de Vulnerabilidades Hardware, ETSI Informática, Universidad de Málaga.">
   <link rel="stylesheet" href="./css/notes.css">
   <script type="module" src="./js/components/cpa-leak.js"></script>
   <script type="module" src="./js/components/cpa-live.js"></script>
@@ -43,16 +43,16 @@
   </nav>
 
   <h2 id="que">1. Qué vamos a hacer</h2>
-  <p>El objetivo es recuperar la clave de un AES-128 que se ejecuta en un microcontrolador ATmega328P, sin tocar
+  <p>El objetivo es recuperar la clave de un AES-128 que se ejecuta en un microcontrolador STM32F030, sin tocar
   su memoria ni su software: solo midiendo cuánta corriente consume mientras cifra. Es uno de los ataques de canal
   lateral que recoge el artículo base del trabajo <span class="cite">[1]</span>.</p>
   <p>Conviene dejar claras dos cosas desde el principio. La primera: <b>AES no se rompe</b>. El algoritmo sigue
   siendo seguro; lo que se explota es una implementación concreta, un AES en software y sin protecciones, que deja
-  escapar información física mientras trabaja. La segunda: el hardware, el firmware y la clave son nuestros. La
-  clave es de laboratorio y no protege nada real.</p>
+  escapar información física mientras trabaja. La segunda: la placa es de laboratorio y la clave la elegimos nosotros.
+  No protege nada real.</p>
   <p>Todas las figuras de esta página usan <b>trazas simuladas</b> con el mismo modelo que el análisis en Python del
   repositorio, y lo indican con la etiqueta <span class="sim-badge">Datos simulados</span>. Todavía no hay medidas
-  del montaje.</p>
+  reales.</p>
 
   <h2 id="fuga">2. Por qué el consumo filtra datos</h2>
   <p>Un microcontrolador está hecho de lógica CMOS. Una puerta CMOS apenas consume mientras su salida está quieta;
@@ -65,7 +65,7 @@
   aproximación: el consumo real depende también del valor anterior (la distancia de Hamming entre ambos) y de cada
   circuito.</p>
   <p>Lo que mide el atacante es una <b>traza</b>: el consumo del microcontrolador durante un cifrado, muestreado por el
-  osciloscopio a intervalos regulares. Es una lista de números, uno por instante <code>t</code>, y cada cifrado da una
+  capturador (un osciloscopio o, en nuestro caso, el ChipWhisperer) a intervalos regulares. Es una lista de números, uno por instante <code>t</code>, y cada cifrado da una
   traza nueva. La figura lo muestra con un byte. Arriba, el valor que se calcula y su peso de Hamming. Abajo, la traza media de
   20 000 trazas simuladas agrupadas según el peso de Hamming de ese byte: lejos del instante en que se calcula, las
   nueve medias coinciden; en ese instante, se ordenan de 0 a 8.</p>
@@ -162,9 +162,9 @@
   En el artículo que presentó el DPA ya se ven a simple vista las 16 rondas de un DES (el estándar de cifrado anterior a AES) en una sola traza
   <span class="cite">[5]</span>. En nuestro caso sirve para saber dónde está la primera ronda y no buscar a ciegas en
   toda la traza.</p>
-  <!-- TODO (fase 4): traza real del ATmega328P con las 10 rondas marcadas. Sin medidas no se pone figura. -->
-  <p class="todo">Esta sección tendrá una traza real cuando el montaje funcione. Que se distingan las diez rondas de
-  AES en una traza es precisamente el primer criterio de validación del montaje, y todavía no se ha comprobado.</p>
+  <!-- TODO (fase 4): traza real del STM32F030 (CW-Nano) con la primera ronda marcada. Sin medidas no se pone figura. -->
+  <p class="todo">Esta sección tendrá una traza real cuando se haya capturado la primera. Que se distinga la estructura
+  de AES en la traza media es el primer criterio de validación de la captura, y todavía no se ha comprobado.</p>
 
   <h2 id="dpa">6. DPA: restar medias</h2>
   <p>El análisis diferencial de consumo (DPA) de Kocher, Jaffe y Jun <span class="cite">[5]</span> fue el primer
@@ -224,33 +224,33 @@
   instante. Un desplazamiento o una ganancia comunes a todas las trazas, en cambio, no cambian la correlación.</p>
 
   <h2 id="montaje">9. Nuestro montaje</h2>
-  <p>El plan es medir la corriente del ATmega328P con una resistencia pequeña (<i>shunt</i>) en serie con su
-  alimentación: la caída de tensión en ella es proporcional a la corriente. El PC manda el texto claro por el puerto
-  serie, el microcontrolador sube un pin de <i>trigger</i>, cifra y lo baja, y el osciloscopio captura la caída en el
-  shunt alineada con el trigger.</p>
+  <p>Medimos con un ChipWhisperer-Nano <span class="cite">[8]</span>, una placa de NewAE que lleva en la misma PCB
+  el microcontrolador atacado (un STM32F030) y el capturador, y se conecta al PC por USB. El PC manda el texto claro
+  por el puerto serie, el microcontrolador sube un pin de <i>trigger</i>, cifra y lo baja, y el flanco del trigger
+  arranca el convertidor del Nano, que muestrea el consumo durante un número fijo de muestras.</p>
   <figure class="diag" data-diag="montaje">
-<pre role="img" aria-label="Esquema del montaje previsto">        serie: texto claro ──►
-  PC ◄───────────────────────────────►  ATmega328P (AES-128 software)
-   ▲    ◄── texto cifrado                 │ VCC/GND        │ GPIO
-   │                                      │                │ (trigger)
-   │ USB                                [shunt]            │
-   │                                      │                │
-  Osciloscopio ◄── CH1: caída en el shunt ┘                │
-               ◄── CH2: trigger ───────────────────────────┘</pre>
-    <figcaption><span class="fig-tool diag">Diagrama · sitúa</span>el montaje previsto (<code>hardware/README.md</code>).
-    Es un plan, no algo que ya funcione.</figcaption>
+<pre role="img" aria-label="Esquema del montaje con el ChipWhisperer-Nano">                    ┌──────────── ChipWhisperer-Nano ─────────────┐
+       USB          │                                             │
+  PC ◄─────────────►│  capturador ◄── trigger ──  STM32F030       │
+   texto claro ──►  │  (ADC 8 bits,               (AES-128 en C,  │
+   ◄── cifrado,     │   20 MS/s máx.) ◄─ consumo ─ sin proteger)  │
+       traza        │       ▲                          ▲          │
+                    │       └──── reloj común ─────────┘          │
+                    └─────────────────────────────────────────────┘</pre>
+    <figcaption><span class="fig-tool diag">Diagrama · sitúa</span>el montaje (<code>hardware/README.md</code>).
+    Todavía no se ha capturado ninguna traza.</figcaption>
   </figure>
-  <p>Que los laboratorios de ChipWhisperer recuperen la clave de un AES en firmware con pocas trazas
-  <span class="cite">[7]</span> no implica que este montaje lo consiga: usan hardware pensado para ello. Las dudas
-  principales, que solo se resolverán midiendo, son:</p>
+  <p>Con la configuración por defecto, el microcontrolador y el convertidor van a 7,5 MHz con el mismo reloj: una
+  muestra por ciclo y siempre en la misma fase, así que las trazas deberían salir alineadas sin procesarlas. Es un
+  caso favorable para el atacante, porque la placa está pensada para estos laboratorios. Aun así, que los de NewAE
+  recuperen la clave con pocas trazas <span class="cite">[7]</span> no implica cuántas nos harán falta a nosotros.
+  Las dudas que solo se resolverán midiendo son:</p>
   <ul>
-    <li><b>Muestreo frente a reloj.</b> A 16 MHz, un capturador de unas decenas de MS/s (millones de muestras por segundo) toma pocas muestras por
-    ciclo
-    y sin sincronizar con el reloj del microcontrolador. Bajar el reloj mejora la resolución temporal.</li>
-    <li><b>Sincronización.</b> Si las trazas no están alineadas, el instante de la S-box cae en sitios distintos y la
-    correlación se diluye. El trigger por GPIO está para eso.</li>
-    <li><b>Desacoplo.</b> Los condensadores entre VCC y GND filtran justo las variaciones que queremos ver, y en una
-    placa Arduino Nano el regulador y el conversor USB-serie comparten alimentación con el microcontrolador.</li>
+    <li><b>Ventana.</b> Si las 5000 muestras por defecto cubren la primera ronda, y dónde está dentro de la traza.</li>
+    <li><b>Ruido.</b> Con 8 bits de resolución y la ganancia fija del Nano, cuál es la SNR real y, por tanto, cuántas
+    trazas hacen falta comparadas con la simulación.</li>
+    <li><b>Modelo de fuga.</b> Si el peso de Hamming describe bien el consumo de este Cortex-M0, o si se ajusta mejor
+    otro modelo.</li>
   </ul>
   <p>Cuando haya trazas reales, la figura del CPA podrá cargarlas en lugar de simularlas, y se verá primero la
   simulación y luego la medida.</p>
@@ -323,6 +323,8 @@
     Springer, 2004, págs. 16-29. doi: <a href="https://doi.org/10.1007/978-3-540-28632-5_2">10.1007/978-3-540-28632-5_2</a></li>
     <li>NewAE Technology. «SCA101 Lab 4_2: CPA on Firmware Implementation of AES,» visitado 18 de oct. de 2026.
     dirección: <a href="https://github.com/newaetech/chipwhisperer-tutorials/blob/master/courses_sca101_SOLN_Lab%204_2%20-%20CPA%20on%20Firmware%20Implementation%20of%20AES-CWNANO-CWNANO.rst">https://github.com/newaetech/chipwhisperer-tutorials/blob/master/courses_sca101_SOLN_Lab%204_2%20-%20CPA%20on%20Firmware%20Implementation%20of%20AES-CWNANO-CWNANO.rst</a></li>
+    <li>NewAE Technology. «CW1101 ChipWhisperer-Nano — ChipWhisperer Documentation,» visitado 10 de nov. de 2026.
+    dirección: <a href="https://chipwhisperer.readthedocs.io/en/latest/Capture/ChipWhisperer-Nano.html">https://chipwhisperer.readthedocs.io/en/latest/Capture/ChipWhisperer-Nano.html</a></li>
   </ol>
   <p class="muted">Formato IEEE, el mismo de la memoria; las entradas salen de <code>memoria/referencias.bib</code>.</p>
 </main>

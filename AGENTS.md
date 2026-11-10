@@ -4,7 +4,7 @@ Contexto y normas del repositorio para el equipo y para cualquier agente (Claude
 
 ## Proyecto
 
-Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad de Málaga): demostrar y documentar un **ataque de análisis de consumo por correlación (CPA) sobre AES-128** ejecutado en un microcontrolador propio, con un montaje de medida construido por nosotros.
+Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad de Málaga): demostrar y documentar un **ataque de análisis de consumo por correlación (CPA) sobre AES-128** ejecutado en un microcontrolador, con trazas medidas por nosotros con un ChipWhisperer-Nano.
 
 - **Equipo:** Juan Diego Bermúdez Ureba, Brian Polo Caballero, Alberto Bartolomé Iruela y Roberto Sánchez Martín.
 - **GitHub:** <https://github.com/r0zh/vul-hw-grupal> (**público**). Colaboradores: `r0zh`, `Alman368`, `juandiego-bmu` y `plc50` (Brian; pendiente de invitar).
@@ -14,7 +14,7 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 
 ## Qué se demuestra
 
-- **Objetivo:** recuperar la clave de laboratorio de un AES-128 software sin protecciones que se ejecuta en un ATmega328P, a partir de trazas de consumo medidas con un shunt.
+- **Objetivo:** recuperar la clave de laboratorio de un AES-128 software sin protecciones que se ejecuta en el STM32F030 del ChipWhisperer-Nano, a partir de trazas de consumo capturadas con el propio Nano.
 - **Valor intermedio atacado:** salida de la S-box de la primera ronda, `SBox(p ⊕ k)`, para cada byte de clave por separado (16 × 256 candidatos).
 - **Modelo de fuga:** peso de Hamming. Para cada candidato `k` y cada instante `t` se calcula la correlación de Pearson `ρ(k, t) = corr(HW(SBox(p_i ⊕ k)), T_i[t])` sobre las `N` trazas. Se elige el `k` con mayor `max_t |ρ(k, t)|`.
 - **SPA** sirve para localizar las rondas en la traza; **DPA** (diferencia de medias por partición) se explica como antecedente; **CPA** es el ataque principal de la demo.
@@ -30,7 +30,7 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 | 2026-10-19 | Se añade a la memoria una portada propia (`memoria/portada.tex`) con el estilo de la portada azul de la plantilla, adaptada a un trabajo de asignatura (sin tutor ni departamento). El enunciado pide quitar la portada; se mantiene por decisión del equipo | Hecho |
 | 2026-10-18 | Compilación en local (latexmk + XeLaTeX + biber) y CI en GitHub Actions que publica el PDF; desde `main`, en la release `memoria-latest` (el PDF no se versiona) | Hecho |
 | 2026-10-18 | Citas en formato IEEE con biblatex (`style=ieee`) | Hecho |
-| 2026-10-18 | Montaje DIY con ATmega328P | Decidido |
+| 2026-10-18 | Montaje DIY con ATmega328P | Sustituido (2026-11-10) |
 | 2026-10-18 | Python ≥ 3.11 con `uv` y un único `pyproject.toml` en la raíz; dependencias `numpy` y `matplotlib` | Hecho |
 | 2026-10-18 | El CPA se valida primero en simulación (fase 1) antes de tocar el hardware | Hecho |
 | 2026-10-18 | AES-128 propio en `analisis/aes.py`, verificado contra los vectores del FIPS-197; sin dependencias criptográficas externas | Hecho |
@@ -41,10 +41,14 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 | 2026-10-18 | Web explicativa con componentes interactivos en `web/`, publicada con GitHub Pages | Hecho |
 | 2026-10-18 | La web no tiene dependencias ni build (HTML, CSS y módulos ES con rutas relativas) y reutiliza solo el código propio de interactive-notes (`artifact-kit/src`, `notes.css` y el harness), nada de `vendor/` ni `from-source/` | Hecho |
 | 2026-10-18 | La simulación de la web replica la de Python con estadística, no valor a valor: `web/tests/sim.test.js` exige el pico teórico y las trazas de la tabla 4.1 (mediana 413 y 90 % en 578 con SNR = 0,1, factor 1,5 de margen). El CPA de la web usa estadísticos suficientes y la transformada de Walsh-Hadamard, y es exacto | Hecho |
-| 2026-11-07 | Osciloscopio Tektronix TDS 220 prestado por un profesor, solo para usar en el laboratorio del departamento por la mañana. Para capturar desde Python hace falta el módulo TDS2CM o TDS2MM (ver [`hardware/README.md`](hardware/README.md)) | Decidido; **falta saber si tiene módulo** |
-| 2026-11-07 | ATmega328P suelto en protoboard con cristal de 16 MHz, programado con un Arduino Uno R3 (chip DIP) que, sin el chip, hace de puente USB-serie. Se descarta el Nano porque su regulador y su conversor USB-serie comparten alimentación con el MCU | Decidido; material comprado |
-| 2026-11-07 | Shunt en VCC (como el CW304 NOTDuino de NewAE), medido en el lado del chip con acoplamiento AC; valor entre 10 y 50 Ω, a elegir midiendo | Hipótesis de partida |
-| 2026-11-07 | Plan B si el TDS 220 no tiene módulo: CPA con un ChipWhisperer-Nano del laboratorio y TDS 220 para SPA y caracterización de la fuga, más un CPA manual de un byte con promediado | Pendiente (falta confirmar que el CW-Nano existe y se puede usar) |
+| 2026-11-07 | Osciloscopio Tektronix TDS 220 prestado por un profesor, solo para usar en el laboratorio del departamento por la mañana. Para capturar desde Python hace falta el módulo TDS2CM o TDS2MM (ver [`hardware/README.md`](hardware/README.md)) | Descartado (2026-11-10) |
+| 2026-11-07 | ATmega328P suelto en protoboard con cristal de 16 MHz, programado con una Kuman UNO R3 propia (chip DIP, Optiboot comprobado) que, sin el chip, hace de puente USB-serie. Se descarta el Nano porque su regulador y su conversor USB-serie comparten alimentación con el MCU | Descartado (2026-11-10) |
+| 2026-11-07 | Shunt en VCC (como el CW304 NOTDuino de NewAE), medido en el lado del chip con acoplamiento AC; valor entre 10 y 50 Ω, a elegir midiendo | Descartado (2026-11-10) |
+| 2026-11-07 | Plan B si el TDS 220 no tiene módulo: CPA con un ChipWhisperer-Nano del laboratorio y TDS 220 para SPA y caracterización de la fuga, más un CPA manual de un byte con promediado | Sustituido por el plan principal (2026-11-10) |
+| 2026-11-10 | Se captura con un **ChipWhisperer-Nano** (capturador y víctima STM32F030 en la misma placa) y se dejan el TDS 220 y el montaje DIY con el ATmega328P. El material comprado para ellos se puede devolver (ver [`hardware/README.md`](hardware/README.md)) | Decidido; **placa aún sin conectar** |
+| 2026-11-10 | Víctima: `simpleserial-aes` de NewAE con `CRYPTO_TARGET=TINYAES128C`, compilado con `firmware/build.sh` desde el commit `c5e8151` de newaetech/chipwhisperer. No hay firmware propio salvo para la contramedida opcional | Hecho (compilado, sin probar en placa) |
+| 2026-11-10 | `chipwhisperer` desde la rama `develop` fijada al mismo commit, en el grupo `captura` de `pyproject.toml`: la 6.0.0 de PyPI exige `numpy<=1.26.4` | Hecho |
+| 2026-11-10 | `captura/cw.py` compara cada texto cifrado del target con `analisis/aes.py` y guarda las campañas en `datos/brutos/`; `analisis/real.py` hace el CPA de una campaña con estadísticos acumulados (rango frente a N en una pasada) | Hecho (probado con `--simular`) |
 | — | Herramienta para la presentación (ver [`presentacion/por-decidir.md`](presentacion/por-decidir.md)) | Pendiente |
 
 ## Estructura del repositorio
@@ -67,8 +71,10 @@ memoria/
   latexmkrc            XeLaTeX + biber, salida en memoria/build/
   template/            plantilla UMA (estilo, fuentes Malacitana y logos); no tocar
 presentacion/          por decidir
-hardware/              montaje, material y puntos a revisar
-analisis/              CPA, DPA, simulación de trazas y generación de figuras
+hardware/              ChipWhisperer-Nano: puesta en marcha y puntos a revisar
+firmware/              build.sh compila la víctima de NewAE; los .hex van a firmware/build/ (ignorado)
+captura/               captura con el ChipWhisperer (cw.py) y formato de campaña (campana.py)
+analisis/              CPA, DPA, simulación de trazas, CPA de campañas reales (real.py) y figuras
   salida/              resultados numéricos de una ejecución (ignorado por git)
 figuras/               figuras generadas por scripts, compartidas por memoria y presentación
 web/                   web explicativa (GitHub Pages): index.html, js/, tests/, spec/ y harness
@@ -77,8 +83,6 @@ web/                   web explicativa (GitHub Pages): index.html, js/, tests/, 
 
 Directorios previstos que se crean cuando haya contenido:
 
-- `firmware/`: AES-128 para ATmega328P, protocolo serie y GPIO de trigger.
-- `captura/`: scripts de Python que controlan la placa y el osciloscopio y guardan trazas.
 - `datos/`: trazas de respaldo comprimidas. Las trazas en bruto van en `datos/brutos/`, que está ignorado.
 
 ## Flujo de trabajo
@@ -133,7 +137,7 @@ Detalles en [`web/README.md`](web/README.md). El workflow `Web` ejecuta `npm run
 
 ### Python
 
-`uv` con un único `pyproject.toml` en la raíz para `captura/` y `analisis/`, con Python 3.11 o superior. Dependencias actuales: `numpy` y `matplotlib`; cuando llegue la captura se añadirán `pyserial` y el driver del osciloscopio que se elija.
+`uv` con un único `pyproject.toml` en la raíz para `captura/` y `analisis/`, con Python 3.11 o superior. Dependencias: `numpy` y `matplotlib`, y en el grupo `captura` (`uv sync --group captura`), `chipwhisperer`, que solo hace falta en el portátil conectado a la placa.
 
 Los resultados numéricos van a `analisis/salida/`, que está ignorado por git: se regeneran con `uv run python -m analisis.run_all` a partir de la semilla fija. Las trazas sintéticas no se guardan; si alguna vez hace falta conservar una campaña, se usa el formato de trazas de las convenciones (`.npz` + `.json`) y se marca como simulada dentro del propio JSON.
 
@@ -143,13 +147,13 @@ Los resultados numéricos van a `analisis/salida/`, que está ignorado por git: 
 - **Memoria:** un capítulo por archivo en `memoria/capitulos/`, con el orden y los títulos del enunciado. Cada capítulo tiene `\label{cap:...}` y se referencia con `\cref`. Registro formal e impersonal. Antes de entregar, el texto se revisa con Trinka.
 - **Citas:** IEEE mediante biblatex. Claves con el formato `apellidoAñoPalabra` (`brier2004cpa`). Las fuentes web llevan `urldate`. Ejemplos de la UMA: <https://biblioguias.uma.es/citasybibliografia/ejemplosIEEE>.
 - **Figuras:** las de datos se generan con scripts de `analisis/` y se guardan en `figuras/` como PDF vectorial. No se retocan a mano. En el `.tex`, un comentario junto a cada figura indica el script que la produce. Los esquemas y fotos del montaje también van en `figuras/`.
-- **Formato de trazas (propuesta):** un `.npz` por campaña con `traces` (N×S, `float32`), `plaintexts` y `ciphertexts` (N×16, `uint8`) y `key` (16, `uint8`), más un `.json` de metadatos con la frecuencia de muestreo, el reloj del MCU, el shunt, el osciloscopio, la fecha y el commit del firmware.
+- **Formato de trazas (propuesta):** un `.npz` por campaña con `traces` (N×S, `float32`), `plaintexts` y `ciphertexts` (N×16, `uint8`) y `key` (16, `uint8`), más un `.json` de metadatos con el instrumento, la frecuencia del ADC, el reloj del target, el SHA-256 del firmware, la fecha, el commit del repo y `"simulada"`. Implementado en `captura/campana.py`.
 
 ## Reglas para agentes
 
 1. **No inventar resultados.** El capítulo de Resultados y sus figuras solo pueden salir de datos reales de `datos/` o de simulaciones marcadas como tales. Si faltan datos, se deja un `% TODO` y no se escribe texto plausible.
 2. **No inventar referencias.** Cada entrada de `referencias.bib` debe estar comprobada contra su DOI, arXiv o URL oficial. Si una afirmación no tiene fuente, se marca con `% TODO: fuente`.
-3. **No dar por hecho que el montaje funciona.** Que un tutorial recupere la clave con pocas trazas no implica que nuestro montaje lo consiga. Las afirmaciones sobre el hardware se tratan como hipótesis hasta que haya medidas.
+3. **No dar por hecho que el montaje funciona.** Que un tutorial de NewAE recupere la clave con pocas trazas no implica que nuestra placa y nuestra captura lo consigan. Las afirmaciones sobre el hardware se tratan como hipótesis hasta que haya medidas.
 4. **Precios y especificaciones** de componentes siempre con enlace y fecha de consulta. Los de `docs/contexto-inicial.md` están sin verificar.
 5. **Las mitigaciones no son garantías absolutas**, y el código de tiempo constante no protege por sí solo frente al análisis de consumo.
 6. **Mantener este archivo al día:** cada decisión nueva va a la tabla de decisiones y los avances, al plan de trabajo. `docs/contexto-inicial.md` es histórico y no se edita.
@@ -159,13 +163,13 @@ Los resultados numéricos van a `analisis/salida/`, que está ignorado por git: 
 
 - [x] **0. Organización:** repositorio, plantilla, CI y este archivo.
 - [x] **1. Análisis validado en simulación:** CPA (y DPA como comparación) sobre trazas sintéticas con fuga HW y ruido gaussiano. Resultado: con 4000 trazas y SNR = 0,1 se recuperan los 128 bits; el barrido de ruido da las trazas necesarias por nivel (578 para el 90 % de los ensayos con SNR = 0,1) y el DPA de un bit se queda entre 7 y 15 de 16 bytes donde el CPA acierta los 16. Figuras y texto en `figuras/` y la sección 4.1 de la memoria.
-- [ ] **2. Instrumental:** osciloscopio confirmado (TDS 220 prestado) y material de la placa comprado el 2026-11-07 (47,45 €, detalle en `hardware/README.md`). Falta: saber si el TDS 220 tiene módulo, comprobar los componentes del kit propio y confirmar las sesiones de laboratorio (se piden el martes 10 de 10:45 a 14:30, con huelga ese día, y el jueves 12).
-- [ ] **3. Firmware:** AES-128 en el ATmega328P verificado con los vectores de prueba de FIPS-197, protocolo serie y trigger por GPIO.
-- [ ] **4. Captura:** primera traza real, rondas visibles (SPA), alineación con el trigger y captura automatizada de miles de trazas.
-- [ ] **5. Ataque real:** CPA sobre las trazas medidas, métricas y figuras definitivas. Guardar una campaña de respaldo en `datos/`.
-- [ ] **6. (Opcional) Contramedida:** p. ej., *shuffling* o retardos aleatorios en el firmware, y medir cómo se degrada el ataque. Alimenta Mitigaciones y Resultados.
+- [ ] **2. Instrumental:** ChipWhisperer-Nano (2026-11-10). Software listo y probado sin placa: reglas udev, `uv sync --group captura` y `python -m captura.cw info` (ver `hardware/README.md`). Falta conectarlo y, si lo pide, actualizar su firmware. Devolver el RS-232, el null-modem y los cristales.
+- [ ] **3. Firmware:** `simpleserial-aes` con TINYAES128C compilado para el Nano (`firmware/build.sh`). Falta programarlo y comprobar los textos cifrados contra `analisis/aes.py` (lo hace `captura.cw capturar`).
+- [ ] **4. Captura:** primera traza real, primera ronda localizada en la traza media (SPA) y campaña de miles de trazas con `captura.cw capturar`.
+- [ ] **5. Ataque real:** `python -m analisis.real` sobre las trazas medidas, métricas y figuras definitivas. Guardar una campaña de respaldo en `datos/`.
+- [ ] **6. (Opcional) Contramedida:** p. ej., *shuffling* o retardos aleatorios en el firmware, y medir cómo se degrada el ataque. `simpleserial-aes` ya trae un retardo aleatorio opcional (`ADD_JITTER` en `simpleserial-aes.c`) y TINYAES tiene `JITTER_2` en `SubBytes`, sin probar. Alimenta Mitigaciones y Resultados.
 - [x] **Web explicativa:** `web/` con `<cpa-live>` (CPA en directo con SNR, N, byte, semilla y clave), `<cpa-leak>` (de dónde sale la fuga) y `<cpa-sbox>` (AddRoundKey y SubBytes con un byte, y por qué atacar `p ⊕ k` empata con el complementario), tests de los modelos, claims en navegador y auditoría visual (`cd web && npm run check`). Se publica en <https://r0zh.github.io/vul-hw-grupal/> desde `main`. Pendiente: Manim, `<cpa-dpa>` y `<cpa-shuffle>` (opcionales) y cargar trazas reales en la fase 5.
-- [ ] **7. Entregables:** redacción de la memoria, revisión con Trinka, presentación y ensayo de la demo con el plan B. Capítulos 1 a 3 en borrador (2026-10-19); la sección 2.5 describe el montaje previsto y deja `% TODO` en lo que depende del instrumental, el firmware y la captura.
+- [ ] **7. Entregables:** redacción de la memoria, revisión con Trinka, presentación y ensayo de la demo con el plan B. Capítulos 1 a 3 en borrador (2026-10-19); la sección 2.5 se reescribió el 2026-11-10 para el ChipWhisperer-Nano y deja `% TODO` en lo que depende de las medidas (alineación, criptogramas en la placa, esquema o foto). En el portátil del Nano no hay LaTeX: la memoria se compila en la CI.
 
 ## Fuentes
 
