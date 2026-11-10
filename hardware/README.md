@@ -1,6 +1,6 @@
 # Hardware: ChipWhisperer-Nano
 
-**Estado (2026-11-10):** se usa un **ChipWhisperer-Nano** (NewAE CW1101) para capturar y como víctima. El software está preparado y probado sin hardware (`captura/`, `firmware/` y `analisis/real.py`), pero **todavía no se ha conectado ninguna placa**. Se descartan el osciloscopio TDS 220 y el montaje DIY con el ATmega328P; el plan anterior queda en el historial de git (commit `1402b04`).
+**Estado (2026-11-10):** se usa un **ChipWhisperer-Nano** (NewAE CW1101) para capturar y como víctima. El software está preparado y probado sin hardware (`captura/`, `firmware/` y `analisis/real.py`), pero **todavía no se ha conectado ninguna placa**, y falta confirmar que sea un Nano de NewAE y no otro modelo o un clon. Se descartan el osciloscopio TDS 220 y el montaje DIY con el ATmega328P; el plan anterior queda en el historial de git (commit `1402b04`).
 
 ## Qué es
 

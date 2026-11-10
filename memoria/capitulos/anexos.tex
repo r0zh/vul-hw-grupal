@@ -1,10 +1,132 @@
 %────────────────────── Anexos ─────────────────────────────────────────
 % Información adicional y bibliografía recomendada.
 \umaappendix{Detalles del montaje y del código}
-% TODO: versión de la biblioteca de NewAE y del firmware del Nano, compilación
-% de simpleserial-aes (firmware/build.sh), protocolo SimpleSerial, órdenes de
-% captura (captura/README.md) y fragmentos relevantes de los scripts de análisis.
+\label{anx:codigo}
+
+Todo el código está en el repositorio público del trabajo,
+\url{https://github.com/r0zh/vul-hw-grupal}. Este anexo resume cómo se
+reproducen la captura y el análisis y recoge los fragmentos más relevantes.
+
+\section{Software y versiones}
+
+\begin{itemize}
+  \item Python 3.11 o superior, con \texttt{uv} y un único
+    \texttt{pyproject.toml}. El análisis solo depende de \texttt{numpy} y
+    \texttt{matplotlib}.
+  \item La captura usa la biblioteca \texttt{chipwhisperer} de NewAE
+    \cite{cw-repo}, de la rama \texttt{develop} fijada al commit
+    \texttt{c5e8151}, porque la versión 6.0.0 publicada exige una versión de
+    \texttt{numpy} anterior a la 2.0. Se instala aparte con
+    \texttt{uv sync --group captura}.
+  \item El firmware víctima es \texttt{simpleserial-aes} del mismo commit,
+    compilado con \texttt{arm-none-eabi-gcc} mediante
+    \texttt{firmware/build.sh} con \texttt{PLATFORM=CWNANO},
+    \texttt{CRYPTO\_TARGET=TINYAES128C} y \texttt{SS\_VER=SS\_VER\_1\_1}.
+\end{itemize}
+% TODO: versión del firmware del ChipWhisperer-Nano (antes y después de
+% actualizar, si hace falta) y SHA-256 del .hex usado en la campaña final.
+
+\section{Protocolo con la víctima}
+
+El firmware habla SimpleSerial 1.1, un protocolo de texto por la UART: cada
+orden es una letra seguida de los datos en hexadecimal y un salto de línea. Las
+que se usan son \texttt{k}, que carga los 16 bytes de la clave, y \texttt{p},
+que recibe un texto claro, sube la señal de disparo, cifra, la baja y responde
+con \texttt{r} seguida del criptograma. Cada orden se confirma con un mensaje
+\texttt{z} y un código de estado.
+
+\section{Reproducir la captura y el ataque}
+
+\begin{lstlisting}[style=bash]
+uv sync --group captura
+firmware/build.sh CWNANO
+uv run python -m captura.cw info
+uv run python -m captura.cw programar
+uv run python -m captura.cw capturar -n 3000 --nombre campana
+uv run python -m analisis.real datos/brutos/<fecha>-campana
+\end{lstlisting}
+
+La orden \texttt{capturar} guarda un \texttt{.npz} con las trazas, los textos
+claros, los criptogramas y la clave, y un \texttt{.json} con los metadatos de
+la campaña. La simulación del \cref{cap:resultados} se reproduce con
+\texttt{uv run python -m analisis.run\_all}.
+
+\section{Comprobación de cada cifrado}
+
+La captura no se fía del dispositivo: cada criptograma se compara con el de la
+implementación de referencia del análisis, verificada con el FIPS-197, y la
+campaña se detiene si alguno no coincide. El fragmento está simplificado a
+partir de \texttt{captura/cw.py}.
+
+\begin{lstlisting}[style=python]
+trace = cw.capture_trace(scope, target, pt, bytearray(key), as_int=False)
+expected = aes.encrypt_block(bytes(pt), round_keys)
+if bytes(trace.textout) != expected:
+    sys.exit(f"trace {i}: target returned {bytes(trace.textout).hex()}")
+traces[i] = trace.wave[:n_samples]
+\end{lstlisting}
+
+\section{CPA en una pasada}
+
+Para la curva de rango frente al número de trazas no se repite el ataque desde
+cero en cada punto. Se acumulan las sumas de las hipótesis $h$, de las trazas
+$T$, de sus cuadrados y del producto $h^\top T$, y en cada punto se obtiene la
+correlación de la \cref{eq:cpa} a partir de ellas (\texttt{analisis/real.py}).
+El resultado coincide con el del cálculo directo hasta el error de redondeo.
+El fragmento está simplificado: el código completo evita las divisiones por
+cero.
+
+\begin{lstlisting}[style=python]
+for i, step in enumerate(steps):
+    h, t = levels[done:step], traces[done:step]   # (n, 4096) y (n, S)
+    sum_h += h.sum(axis=0);  sum_h2 += (h * h).sum(axis=0)
+    sum_t += t.sum(axis=0);  sum_t2 += (t * t).sum(axis=0)
+    sum_ht += h.T @ t
+    done = step
+    cov = sum_ht - np.outer(sum_h, sum_t) / step
+    var_h = sum_h2 - sum_h**2 / step
+    var_t = sum_t2 - sum_t**2 / step
+    rho = cov / np.sqrt(np.outer(var_h, var_t))   # (4096, S)
+    ranks[i] = statistics.ranks_of(rho.reshape(16, 256, -1), key)
+\end{lstlisting}
 
 \umaappendix{Bibliografía recomendada}
-% TODO: lecturas comentadas para profundizar \cite{mangard2007power}
-% y tutoriales de ChipWhisperer \cite{cw-lab-dpa,cw-lab-cpa}.
+\label{anx:bibliografia}
+
+Las lecturas se ordenan de lo general a lo específico.
+
+\begin{description}
+  \item[Para situarse.] La revisión de Mishra y Sahay
+    \cite{mishra2025modern} recorre los ataques hardware y sus contramedidas;
+    las secciones II.B, III.C y III.D son las que corresponden a este trabajo.
+    La introducción de Kocher, Jaffe, Jun y Rohatgi \cite{kocher2011intro} la
+    escriben los autores del DPA y explica sus fundamentos con más calma que el
+    artículo original.
+  \item[Los ataques originales.] Kocher \cite{kocher1996timing} presenta los
+    ataques de tiempo, el precedente de todos los canales laterales. Kocher,
+    Jaffe y Jun \cite{kocher1999dpa} presentan el SPA y el DPA sobre DES.
+    Brier, Clavier y Olivier \cite{brier2004cpa} sustituyen la diferencia de
+    medias por la correlación con un modelo de fuga, que es el ataque de este
+    trabajo.
+  \item[El libro de referencia.] Mangard, Oswald y Popp
+    \cite{mangard2007power} tratan en un solo volumen la medida del consumo,
+    los modelos de fuga, el SPA, el DPA y el CPA, y las contramedidas de
+    ocultamiento y enmascaramiento con los ataques contra ellas. Es la lectura
+    para profundizar en cualquier parte de este trabajo.
+  \item[AES.] El FIPS-197 \cite{nist2023fips197} define el algoritmo e
+    incluye ejemplos completos, con los valores intermedios de cada ronda, que
+    sirven para comprobar una implementación.
+  \item[Contramedidas.] Chari et al.\ \cite{chari1999masking} formalizan el
+    enmascaramiento, y Messerges \cite{messerges2000second} muestra su límite
+    con el DPA de segundo orden. Clavier, Coron y Dabbous
+    \cite{clavier2000countermeasures} analizan los retardos aleatorios y cómo
+    atacarlos. Herbst, Oswald y Mangard \cite{herbst2006aes} combinan
+    enmascaramiento y \emph{shuffling} en un AES para tarjeta inteligente.
+    Tiri y Verbauwhede \cite{tiri2004wddl} proponen la lógica WDDL, y Medwed
+    et al.\ \cite{medwed2010fresh}, la renovación de claves en cada sesión.
+  \item[Práctica.] Los laboratorios SCA101 de NewAE
+    \cite{cw-lab-dpa,cw-lab-cpa} hacen el DPA y el CPA sobre un AES en
+    firmware con un ChipWhisperer-Nano, y su documentación
+    \cite{cw-getting-started,cw-analyzer-api,cw-nano-docs} explica la
+    instalación, la API de análisis y la placa.
+\end{description}
