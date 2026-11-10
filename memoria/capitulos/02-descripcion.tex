@@ -71,8 +71,8 @@ Un AES software bien escrito ejecuta las mismas instrucciones sea cual sea la
 clave, así que el SPA no basta para atacarlo. En este trabajo sirve para otra
 cosa: localizar la primera ronda dentro de la traza, para capturar solo esa
 ventana y no buscar a ciegas, y comprobar que el montaje funciona. Que se
-distingan las diez rondas en una traza es el primer criterio de validación de la
-captura, y todavía no se ha comprobado.
+reconozca la estructura de las rondas en la traza es el primer criterio de
+validación de la captura, y todavía no se ha comprobado.
 % TODO: traza real con las rondas marcadas cuando el montaje funcione (fase 4).
 
 \section{Análisis diferencial de consumo (DPA)}
@@ -168,6 +168,7 @@ corregirá con las medidas del \cref{cap:resultados}.
 
 \subsection{Arquitectura}
 
+% TODO: confirmar fabricante y modelo al conectar la placa (puede ser un clon).
 Se usa un ChipWhisperer-Nano de NewAE \cite{cw-nano,cw-nano-docs}, una placa
 que reúne en la misma PCB el capturador y el microcontrolador atacado y que se
 conecta al PC por USB. Es la plataforma de los laboratorios de análisis de

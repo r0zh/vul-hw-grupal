@@ -3,8 +3,104 @@
 \chapter{Conclusiones}
 \label{cap:conclusiones}
 
+El análisis de consumo por correlación extrae la clave de un AES-128 sin
+atacar el algoritmo: aprovecha que una implementación concreta consume de forma
+distinta según los datos que procesa. Este capítulo resume qué hace fuerte a
+esa vulnerabilidad, qué necesita el atacante para explotarla y qué queda
+abierto.
+% TODO: añadir el resultado real en una frase (bytes recuperados y trazas
+% necesarias) cuando exista la campaña de la fase 5.
+
 \section{Puntos fuertes del ataque}
+\label{sec:puntos-fuertes}
+
+\begin{itemize}
+  \item \textbf{Divide la clave.} El valor intermedio
+    $\mathrm{SBox}(p_j \oplus k_j)$ depende de un solo byte de clave, así que
+    la búsqueda de $2^{128}$ claves se reduce a $16 \times 256 = 4096$
+    hipótesis que se comprueban por separado (\cref{sec:aes}). La seguridad
+    matemática de AES no interviene.
+  \item \textbf{Solo necesita textos claros y trazas.} El atacante no lee la
+    memoria ni modifica el software, y el dispositivo cifra con normalidad
+    mientras se mide. Basta conocer los textos claros, o los criptogramas si
+    se ataca la última ronda.
+  \item \textbf{Aprovecha toda la fuga del byte.} Frente al DPA de un bit, el
+    CPA usa los ocho bits del valor intermedio y no obliga a adivinar qué bit
+    filtra más \cite{brier2004cpa}. En la simulación, con 2000 trazas y
+    $\mathrm{SNR} = 0{,}1$, el CPA recupera los 16 bytes y el DPA, entre 7 y 15
+    según el bit (\cref{sec:validacion-simulada}; datos simulados).
+  \item \textbf{Escala de forma predecible con el ruido.} Como el ruido que no
+    depende de los datos se promedia, el número de trazas crece
+    aproximadamente como $1/\mathrm{SNR}$ (\cref{tab:sim-ruido}; datos
+    simulados). Más ruido encarece el ataque, pero no lo impide.
+  \item \textbf{El código de tiempo constante no lo frena.} Un AES que ejecuta
+    siempre las mismas instrucciones produce trazas alineadas, que es justo lo
+    que el CPA necesita (\cref{sec:tiempo-constante}).
+  \item \textbf{Equipo asequible.} Existen plataformas de bajo coste pensadas
+    para enseñar estos ataques, como el ChipWhisperer-Nano que se usa en este
+    trabajo \cite{cw-nano-docs}, y el cálculo cabe en un portátil.
+  \item \textbf{Es general.} El mismo procedimiento sirve para cualquier
+    cifrado en el que un paso no lineal mezcle el dato conocido con una parte
+    pequeña de la clave \cite{mangard2007power}.
+\end{itemize}
 
 \section{Puntos débiles y requisitos}
+\label{sec:puntos-debiles}
+
+\begin{itemize}
+  \item \textbf{Acceso físico.} Hay que medir el consumo del chip, lo que en un
+    dispositivo real supone intervenir en su alimentación o acercar una sonda
+    electromagnética. Es un ataque a dispositivos que el atacante tiene en la
+    mano, no a distancia.
+  \item \textbf{Muchas ejecuciones con la misma clave.} El CPA necesita cientos
+    o miles de cifrados con la misma clave y textos conocidos. Un protocolo que
+    renueve la clave antes de ese umbral lo deja sin datos
+    (\cref{sec:rekeying}).
+  \item \textbf{Sincronización.} El CPA compara las trazas instante a instante.
+    En el laboratorio el propio firmware da la señal de disparo; un atacante
+    real tiene que encontrar el cifrado en la traza y alinear las trazas por su
+    cuenta, y los retardos aleatorios o el \emph{shuffling} empeoran ese
+    problema a propósito (\cref{sec:shuffling}).
+  \item \textbf{Un modelo de fuga adecuado.} El peso de Hamming es una
+    aproximación. Si el dispositivo filtra sobre todo la distancia de Hamming
+    entre valores consecutivos, el modelo pierde correlación y hacen falta más
+    trazas, o un modelo distinto \cite{brier2004cpa}.
+  \item \textbf{Las contramedidas funcionan.} Un enmascaramiento correcto anula
+    el CPA de primer orden sea cual sea el número de trazas, y obliga a ataques
+    de orden superior, bastante más caros (\cref{sec:masking}).
+  \item \textbf{Condiciones favorables en este trabajo.} La clave y el firmware
+    los elige el grupo, la señal de disparo la da el firmware y el capturador
+    comparte reloj con el microcontrolador. Son las condiciones de un
+    laboratorio de enseñanza, no las de un ataque a un producto, y los números
+    que se obtengan no se pueden trasladar sin más a otro dispositivo.
+\end{itemize}
+% TODO: completar con lo observado en las medidas (trazas necesarias reales,
+% ruido, problemas de captura) en la fase 5.
 
 \section{Trabajo futuro}
+\label{sec:trabajo-futuro}
+
+\begin{itemize}
+  \item \textbf{Medir una contramedida.} Añadir al firmware un \emph{shuffling}
+    de los 16 bytes o retardos aleatorios y medir cuántas trazas más necesita
+    el ataque, para contrastar la estimación de la \cref{sec:shuffling}. Los
+    retardos que trae el firmware de ejemplo dependen del texto claro y no son
+    aleatorios, así que haría falta un generador pseudoaleatorio en el
+    dispositivo.
+  \item \textbf{Otros modelos y objetivos.} Atacar la última ronda sobre trazas
+    reales y comparar el peso de Hamming con la distancia de Hamming.
+  \item \textbf{Ataques de orden superior.} Repetir el experimento contra una
+    implementación enmascarada y probar un DPA de segundo orden
+    \cite{messerges2000second}.
+  \item \textbf{Ataques de plantillas.} Caracterizar la fuga con un dispositivo
+    controlado para atacar otro con muy pocas trazas
+    \cite[sec.~II.B.4]{mishra2025modern}.
+  \item \textbf{Un montaje propio.} Repetir la medida con un microcontrolador
+    comercial y un \emph{shunt} en su alimentación, sin una plataforma pensada
+    para el ataque, como el ATmega328P en placa de prototipos que se planteó al
+    principio del trabajo.
+  \item \textbf{Canal electromagnético.} Medir la radiación del chip con una
+    sonda de campo cercano en lugar del consumo en la alimentación
+    \cite[sec.~II.B]{mishra2025modern}, lo que puede evitar tener que
+    intervenir en la placa.
+\end{itemize}

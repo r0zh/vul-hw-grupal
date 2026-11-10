@@ -266,4 +266,48 @@ puestos.
 % la clave recuperada con la de laboratorio. (Con trazas reales, fase 5.)
 
 \section{Limitaciones}
-% TODO: qué condiciones del montaje favorecen o dificultan el ataque.
+\label{sec:limitaciones}
+
+\subsection{De la simulación}
+
+El modelo de la \cref{sec:validacion-simulada} es deliberadamente simple, y sus
+números describen ese modelo, no un dispositivo:
+
+\begin{itemize}
+  \item La fuga es exactamente el peso de Hamming del valor intermedio, con la
+    misma amplitud en los 16 bytes. En un microcontrolador real el consumo
+    depende también de valores anteriores de los registros y de los buses, de
+    las instrucciones que rodean a la S-box y de la posición del byte.
+  \item Cada operación ocupa siempre las mismas muestras. No hay desalineación
+    entre trazas ni variación del reloj, que en una medida real diluyen el
+    pico de correlación.
+  \item El ruido es gaussiano e independiente entre trazas, salvo el
+    desplazamiento y la deriva modelados. No hay interferencias periódicas,
+    cuantificación del convertidor ni saturación.
+  \item Solo filtran la primera y la última ronda. El resto del cifrado no
+    añade consumo correlacionado con las hipótesis que pudiera confundir al
+    ataque.
+\end{itemize}
+
+Por eso la simulación valida el código y da un orden de magnitud, pero no
+predice cuántas trazas harán falta con la placa.
+
+\subsection{Del montaje}
+
+El ChipWhisperer-Nano está diseñado para estos ataques, y eso favorece al
+atacante:
+
+\begin{itemize}
+  \item La señal de disparo la genera el propio firmware justo antes del
+    cifrado, y el capturador comparte reloj con el microcontrolador. Un
+    atacante real no tendría ninguna de las dos cosas.
+  \item La clave, el firmware y los textos claros los controla el grupo, y
+    se usa una sola placa con una sola clave.
+\end{itemize}
+
+También tiene límites propios: el convertidor es de 8 bits, la entrada tiene
+una ganancia fija y cada captura admite como mucho \num{50000} muestras
+\cite{cw-nano-docs}, lo que acota la resolución de la medida y la parte del
+cifrado que cabe en una traza.
+% TODO: completar con lo observado en las medidas (fase 5): ruido, ventana
+% necesaria, saturación, alineación y si el peso de Hamming encaja con la fuga.
