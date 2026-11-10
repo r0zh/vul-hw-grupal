@@ -160,75 +160,78 @@ guardar las trazas; así lo hace la web explicativa del proyecto.
 \section{Implementación experimental}
 \label{sec:implementacion}
 
-Esta sección describe el montaje previsto. El análisis ya está implementado y
-validado en simulación, pero el instrumental está pendiente de confirmar y el
-firmware y la captura todavía no existen. Lo que se dice aquí sobre el
-hardware es un diseño, no un resultado: se confirmará o se corregirá con las
-medidas del \cref{cap:resultados}.
+Esta sección describe el montaje con el que se van a medir las trazas. El
+análisis ya está implementado y validado en simulación, y el firmware y la
+captura están preparados, pero todavía no se ha medido ninguna traza. Lo que se
+dice aquí sobre el hardware es un diseño, no un resultado: se confirmará o se
+corregirá con las medidas del \cref{cap:resultados}.
 
 \subsection{Arquitectura}
 
-El montaje sigue el esquema habitual de los laboratorios de análisis de consumo
-sobre firmware, como los de ChipWhisperer \cite{cw-lab-dpa,cw-lab-cpa}, pero con
-componentes de propósito general:
+Se usa un ChipWhisperer-Nano de NewAE \cite{cw-nano,cw-nano-docs}, una placa
+que reúne en la misma PCB el capturador y el microcontrolador atacado y que se
+conecta al PC por USB. Es la plataforma de los laboratorios de análisis de
+consumo sobre firmware de NewAE \cite{cw-lab-dpa,cw-lab-cpa}. Cada cifrado
+sigue estos pasos:
 
 \begin{enumerate}
-  \item El PC envía por serie un texto claro aleatorio de 16 bytes al
-    microcontrolador.
+  \item El PC envía al microcontrolador, por un puerto serie que pasa por el
+    Nano, un texto claro aleatorio de 16 bytes.
   \item El firmware activa una salida digital de disparo, cifra con la clave de
     laboratorio, desactiva el disparo y devuelve el criptograma.
-  \item Un osciloscopio mide en un canal la caída de tensión en una resistencia
-    de \emph{shunt} en serie con la alimentación del microcontrolador, que es
-    proporcional a su corriente, y en otro la señal de disparo.
+  \item El flanco de subida del disparo arranca el convertidor analógico-digital
+    del Nano, que muestrea el consumo del microcontrolador durante un número
+    fijo de muestras.
   \item El PC comprueba el criptograma con su propia implementación de AES y
     guarda la terna (texto claro, criptograma, traza).
 \end{enumerate}
 
 Se repite el proceso miles de veces y las trazas se atacan con el mismo código
 que se ha validado en simulación.
-% TODO: esquema del montaje en figuras/ cuando esté decidido.
+% TODO: esquema o foto del montaje en figuras/ cuando esté conectado.
+
+Al ser una plataforma diseñada para enseñar análisis de consumo, el Nano
+representa un caso favorable para el atacante: la medida está integrada en la
+placa y el muestreo puede ir sincronizado con el reloj del microcontrolador. Los
+resultados que se obtengan no se pueden extrapolar sin más a un dispositivo
+comercial, en el que el atacante tendría que montar la medida por su cuenta.
 
 \subsection{Microcontrolador y firmware}
 
-El dispositivo atacado es un ATmega328P, el microcontrolador de 8 bits del
-Arduino Nano. Está por decidir si se usa la placa o el chip suelto en una placa
-de prototipos. En la placa, el regulador, el conversor USB-serie y los
-condensadores de desacoplo comparten alimentación con el microcontrolador, y es
-difícil medir solo su corriente; el chip suelto, con su cristal y sus
-condensadores, permite colocar el \emph{shunt} solo en su línea de alimentación
-o de masa, con el mismo firmware.
-% TODO: decisión Nano / chip suelto (AGENTS.md, hardware/README.md).
+El dispositivo atacado es el STM32F030 que lleva el propio Nano, un
+microcontrolador de 32 bits con núcleo Cortex-M0, que se programa desde el
+propio Nano \cite{cw-nano-docs}.
 
-El firmware implementará un AES-128 software sin protecciones, con
-\texttt{SubBytes} como una consulta a tabla byte a byte. Ese recorrido secuencial
-del estado es el que hace que cada byte del valor intermedio se procese en su
-propia ventana temporal, que es la hipótesis del modelo de trazas simuladas. Se
-verificará con los ejemplos del FIPS-197 \cite{nist2023fips197} antes de medir.
-% TODO: fase 3. Protocolo serie, velocidad, pin de disparo y commit del
-% firmware cuando existan.
+No se escribe un firmware propio, sino que se usa \texttt{simpleserial-aes}
+de los ejemplos de NewAE \cite{cw-repo} compilado con
+\texttt{CRYPTO\_TARGET=TINYAES128C}: un AES-128 en C sin protecciones, con
+\texttt{SubBytes} como una consulta a tabla byte a byte. Ese recorrido
+secuencial del estado es el que hace que cada byte del valor intermedio se
+procese en su propia ventana temporal, que es la hipótesis del modelo de trazas
+simuladas. El firmware habla el protocolo SimpleSerial 1.1: una orden carga la
+clave y otra cifra un bloque y devuelve el criptograma. El script de captura
+compara cada criptograma con la implementación de AES del análisis, verificada
+con los ejemplos del FIPS-197 \cite{nist2023fips197}, y se detiene si alguno no
+coincide.
+% TODO: fase 3. Confirmar en la placa que los criptogramas coinciden y anotar
+% el SHA-256 del .hex (queda en el JSON de cada campaña).
 
 \subsection{Medida del consumo}
 
-La corriente del microcontrolador se convierte en tensión con una resistencia
-de \emph{shunt} de bajo valor. Si se coloca en la línea de masa, la caída se
-puede medir respecto a masa con una sonda normal, aunque hay que vigilar los
-bucles de masa entre el PC, la placa y el osciloscopio. Los condensadores de
-desacoplo filtran precisamente las variaciones rápidas de corriente que se
-quieren medir, así que su posición respecto al \emph{shunt} es una decisión del
-diseño.
-% TODO: valor del shunt, posición y necesidad de amplificador (preguntas 3 y 4
-% de docs/reunion-2026-10-19.md).
+El Nano digitaliza el consumo del STM32F030 con un convertidor de 8 bits de
+hasta 20 millones de muestras por segundo, con la entrada acoplada en alterna y
+una ganancia fija de unos \qty{10}{\deci\bel}, y guarda hasta \num{50000} muestras por
+captura \cite{cw-nano-docs}. No hay que cablear sondas ni elegir el valor de
+una resistencia de \emph{shunt}.
+% TODO: fuente: punto de medida del consumo en el esquema del CW-Nano.
 
-El osciloscopio puede ser uno del laboratorio de la universidad o uno USB
-comprado; está pendiente de que lo confirme un profesor. Tiene que cumplir tres
-requisitos: muestrear lo bastante rápido para resolver la actividad de cada
-instrucción, disparar con la señal del firmware o capturarla en un segundo canal
-para alinear las trazas después, y poder controlarse desde Python en Linux para
-automatizar la campaña. Si el reloj del microcontrolador es demasiado rápido
-para el muestreo disponible, se puede reducir, a costa de reajustar la velocidad
-del puerto serie.
-% TODO: modelo de osciloscopio, frecuencia de muestreo y reloj del MCU, con
-% enlace y fecha de consulta de las especificaciones.
+La configuración por defecto de la biblioteca de NewAE pone el reloj del
+microcontrolador y el del convertidor a \qty{7,5}{\mega\hertz}, de modo que se toma una
+muestra por ciclo de reloj y siempre en la misma fase. Como la captura empieza
+en el primer ciclo tras el disparo, las trazas deberían salir alineadas sin
+procesado posterior, lo que resuelve el problema de sincronización que
+plantearía un osciloscopio con su propio reloj de muestreo.
+% TODO: comprobar con las trazas reales que salen alineadas (fase 4).
 
 \subsection{Procesamiento de las trazas}
 
@@ -243,10 +246,14 @@ número de trazas) y el generador de trazas sintéticas de la
 \cref{sec:validacion-simulada}. Con una semilla fija, la salida es idéntica
 entre ejecuciones, y la integración continua lo comprueba en cada cambio.
 
-Las trazas reales se guardarán en un fichero \texttt{.npz} por campaña con las
-trazas, los textos claros, los criptogramas y la clave, más un \texttt{.json}
-de metadatos con la frecuencia de muestreo, el reloj del microcontrolador, el
-\emph{shunt}, el osciloscopio, la fecha y la versión del firmware. Antes del
-ataque habrá que alinear las trazas con la señal de disparo y, si es necesario,
-recortarlas a la ventana de la primera ronda que se identifique por SPA.
+La captura está en \texttt{captura/}, y usa la biblioteca de Python de NewAE
+para controlar el Nano. Las trazas reales se guardan en un fichero \texttt{.npz}
+por campaña con las trazas, los textos claros, los criptogramas y la clave, más
+un \texttt{.json} de metadatos con el instrumento, la frecuencia del
+convertidor, el reloj del microcontrolador, la huella del firmware, la fecha y
+la versión del código. Antes del ataque, si es necesario, las trazas se
+recortan a la ventana de la primera ronda que se identifique por SPA. El ataque
+sobre una campaña calcula la correlación acumulando sumas parciales, de modo
+que el puesto de la clave correcta frente al número de trazas sale de una sola
+pasada sobre los datos.
 % TODO: alineación y preprocesado reales cuando haya trazas (fase 4).

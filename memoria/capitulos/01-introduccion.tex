@@ -67,19 +67,20 @@ tiene acceso físico, no sería vulnerable de la misma forma.
 \label{sec:objetivos}
 
 El objetivo del trabajo es demostrar un ataque CPA sobre un AES-128 software sin
-protecciones que se ejecuta en un microcontrolador ATmega328P, y recuperar la
-clave a partir de trazas de consumo medidas con un montaje construido por el
-propio grupo. En concreto, se plantean estos objetivos:
+protecciones que se ejecuta en un microcontrolador STM32F030, y recuperar la
+clave a partir de trazas de consumo capturadas por el propio grupo con un
+ChipWhisperer-Nano. En concreto, se plantean estos objetivos:
 
 \begin{enumerate}
   \item Implementar el ataque (CPA, y DPA como comparación) y validarlo sobre
     trazas simuladas, para saber que el código es correcto y qué cabe esperar
     de él antes de medir nada.
-  \item Programar el AES-128 en el microcontrolador, verificado con los vectores
-    de la norma, con un protocolo serie para recibir textos claros y una señal
-    de disparo que marque el inicio del cifrado.
-  \item Medir el consumo del microcontrolador con una resistencia de
-    \emph{shunt} y un osciloscopio, y automatizar la captura de miles de trazas.
+  \item Cargar en el microcontrolador un AES-128 sin protecciones, con un
+    protocolo serie para recibir textos claros y una señal de disparo que
+    marque el inicio del cifrado, y comprobar que sus criptogramas coinciden con
+    una implementación de referencia verificada con los vectores de la norma.
+  \item Medir el consumo del microcontrolador con el ChipWhisperer-Nano y
+    automatizar la captura de miles de trazas.
   \item Atacar las trazas reales y medir cuántas hacen falta para recuperar cada
     byte de la clave.
   \item Revisar las contramedidas existentes y, si da tiempo, medir cómo una de
@@ -89,10 +90,10 @@ propio grupo. En concreto, se plantean estos objetivos:
 Quedan fuera del alcance las implementaciones protegidas (salvo la contramedida
 opcional del último punto), los AES en hardware, los ataques electromagnéticos,
 los ataques de plantillas y la inyección de fallos. Todo el experimento se hace
-sobre hardware y firmware propios, con una clave de laboratorio que no protege
-nada real. El éxito no está garantizado: depende del ruido del montaje, de la
-sincronización de las trazas, de la frecuencia de muestreo y de la propia
-implementación.
+sobre una placa de laboratorio controlada por el grupo, con una clave que no
+protege nada real. El éxito no está garantizado: depende del ruido de la
+medida, de la sincronización de las trazas, de la frecuencia de muestreo y de la
+propia implementación.
 
 \section{Estructura del documento}
 \label{sec:estructura}
