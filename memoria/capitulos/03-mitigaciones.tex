@@ -51,12 +51,16 @@ dependencia con la clave: es el DPA de segundo orden, que Messerges ya aplicó e
 2000 contra software enmascarado \cite{messerges2000second}, y al que Mangard
 et al.\ dedican un capítulo entero \cite[cap.~10]{mangard2007power}. Más partes elevan
 el orden del ataque necesario, y con ruido suficiente su coste, pero también el
-del cifrado. Además, la protección depende de que las partes no se combinen
-nunca en el hardware sin querer, por ejemplo al sobrescribir un registro que
-contenía una con la otra, y eso es difícil de garantizar en un procesador real.
-% TODO: fuente concreta para la combinación involuntaria de partes en el
-% hardware (sobrescritura de registros). El cap. 10 de Mangard et al. cubre los
-% ataques de segundo orden, pero no se ha comprobado que trate este caso.
+del cifrado. Además, la protección supone que lo que filtra cada parte es
+independiente de lo que filtran las demás, y en un procesador real eso no
+siempre se cumple. Si un registro o una posición de memoria que contenía una
+parte se sobrescribe con otra, el consumo depende de la transición entre las
+dos, su distancia de Hamming, que ya las combina. Balasch et al.\ demuestran
+que, con este tipo de fuga, un enmascaramiento seguro de orden $d$ solo
+garantiza el orden $\lfloor d/2 \rfloor$, y lo comprueban en dos
+microcontroladores: con dos partes, el código enmascarado presenta fuga de
+primer orden; con tres, un test de detección de fugas no la encuentra a primer
+orden ni con \num{10000} trazas \cite{balasch2014lazy}.
 
 Contra el ataque de este trabajo, una implementación enmascarada correcta haría
 fallar el CPA de primer orden tal como está escrito, independientemente del
