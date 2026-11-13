@@ -14,7 +14,7 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 
 ## Qué se demuestra
 
-- **Objetivo:** recuperar la clave de laboratorio de un AES-128 software sin protecciones que se ejecuta en el STM32F030 del ChipWhisperer-Nano, a partir de trazas de consumo capturadas con el propio Nano.
+- **Objetivo:** recuperar la clave de laboratorio de un AES-128 software sin protecciones que se ejecuta en el STM32F0 (modelo exacto por confirmar) del ChipWhisperer-Nano, a partir de trazas de consumo capturadas con el propio Nano.
 - **Valor intermedio atacado:** salida de la S-box de la primera ronda, `SBox(p ⊕ k)`, para cada byte de clave por separado (16 × 256 candidatos).
 - **Modelo de fuga:** peso de Hamming. Para cada candidato `k` y cada instante `t` se calcula la correlación de Pearson `ρ(k, t) = corr(HW(SBox(p_i ⊕ k)), T_i[t])` sobre las `N` trazas. Se elige el `k` con mayor `max_t |ρ(k, t)|`.
 - **SPA** sirve para localizar las rondas en la traza; **DPA** (diferencia de medias por partición) se explica como antecedente; **CPA** es el ataque principal de la demo.

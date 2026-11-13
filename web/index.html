@@ -11,7 +11,7 @@
     addEventListener('unhandledrejection', (e) => fail(e.reason));
   </script>
   <title>Leer una clave AES en el consumo: el ataque CPA, desde cero</title>
-  <meta name="description" content="Explicación interactiva del análisis de consumo por correlación (CPA) sobre AES-128 en un microcontrolador STM32F030, medido con un ChipWhisperer-Nano. Trabajo de Vulnerabilidades Hardware, ETSI Informática, Universidad de Málaga.">
+  <meta name="description" content="Explicación interactiva del análisis de consumo por correlación (CPA) sobre AES-128 en un microcontrolador STM32F0, medido con un ChipWhisperer-Nano. Trabajo de Vulnerabilidades Hardware, ETSI Informática, Universidad de Málaga.">
   <link rel="stylesheet" href="./css/notes.css">
   <script type="module" src="./js/components/cpa-leak.js"></script>
   <script type="module" src="./js/components/cpa-live.js"></script>
@@ -43,7 +43,7 @@
   </nav>
 
   <h2 id="que">1. Qué vamos a hacer</h2>
-  <p>El objetivo es recuperar la clave de un AES-128 que se ejecuta en un microcontrolador STM32F030, sin tocar
+  <p>El objetivo es recuperar la clave de un AES-128 que se ejecuta en un microcontrolador STM32F0, sin tocar
   su memoria ni su software: solo midiendo cuánta corriente consume mientras cifra. Es uno de los ataques de canal
   lateral que recoge el artículo base del trabajo <span class="cite">[1]</span>.</p>
   <p>Conviene dejar claras dos cosas desde el principio. La primera: <b>AES no se rompe</b>. El algoritmo sigue

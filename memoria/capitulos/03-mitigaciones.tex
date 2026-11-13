@@ -48,13 +48,15 @@ El límite principal es que el enmascaramiento de primer orden solo protege
 frente a ataques que miran un instante. Un atacante que combina las muestras de
 dos instantes ---el de la máscara y el del valor enmascarado--- recupera una
 dependencia con la clave: es el DPA de segundo orden, que Messerges ya aplicó en
-2000 contra software enmascarado \cite{messerges2000second}. Más partes elevan
+2000 contra software enmascarado \cite{messerges2000second}, y al que Mangard
+et al.\ dedican un capítulo entero \cite[cap.~10]{mangard2007power}. Más partes elevan
 el orden del ataque necesario, y con ruido suficiente su coste, pero también el
 del cifrado. Además, la protección depende de que las partes no se combinen
 nunca en el hardware sin querer, por ejemplo al sobrescribir un registro que
 contenía una con la otra, y eso es difícil de garantizar en un procesador real.
-% TODO: fuente concreta (capítulo de Mangard et al. sobre ataques a
-% implementaciones enmascaradas, o artículo específico).
+% TODO: fuente concreta para la combinación involuntaria de partes en el
+% hardware (sobrescritura de registros). El cap. 10 de Mangard et al. cubre los
+% ataques de segundo orden, pero no se ha comprobado que trate este caso.
 
 Contra el ataque de este trabajo, una implementación enmascarada correcta haría
 fallar el CPA de primer orden tal como está escrito, independientemente del
@@ -123,11 +125,10 @@ El coste es alto: se duplican las señales y se añade la fase de precarga, lo q
 aumenta el área, el consumo y el tiempo de cada operación. El límite es que el
 equilibrio nunca es perfecto, porque las dos líneas de cada par no tienen
 exactamente la misma capacidad tras el rutado, y esa diferencia residual
-vuelve a depender del dato \cite{mangard2007power}.
-% TODO: fuente: precisar el capítulo de Mangard et al. (ocultamiento).
+vuelve a depender del dato \cite[caps.~7 y~8]{mangard2007power}.
 
 Esta contramedida se decide al diseñar el circuito. En un microcontrolador
-comercial como el STM32F030 que se ataca en este trabajo, que no la incorpora,
+comercial como el STM32F0 que se ataca en este trabajo, que no la incorpora,
 no se puede aplicar desde el firmware.
 
 \section{Inyección de ruido}
