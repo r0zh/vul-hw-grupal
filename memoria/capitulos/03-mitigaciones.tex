@@ -175,9 +175,12 @@ trazas, como los de plantillas \cite[sec.~II.B.4]{mishra2025modern}.
 
 En el modelo simulado, con una relación señal-ruido de 0,1, la mediana de
 trazas para recuperar la clave completa está entre 296 y 413
-(\cref{tab:sim-ruido}). Una clave que se renovara cada pocas decenas de
-cifrados quedaría fuera del alcance de ese ataque, pero el umbral real depende
-del montaje y no se conoce hasta medir.
+(\cref{tab:sim-ruido}). En la placa hacen falta menos: con unas pocas decenas
+de trazas, ninguna de las ordenaciones de la campaña medida recupera la clave
+completa, y con \realTracesAll{} la recuperan todas (\cref{fig:real-rango}).
+Una clave que se renovara cada pocas decenas de cifrados dejaría fuera de
+alcance este ataque concreto, aunque no necesariamente uno mejor preparado,
+como un ataque de plantillas.
 
 \section{Tiempo constante no es protección frente al consumo}
 \label{sec:tiempo-constante}
@@ -189,7 +192,9 @@ ejecución, pero no frente al DPA ni al CPA: el consumo de cada instrucción sig
 dependiendo de los valores que manipula. De hecho, un código de tiempo constante
 favorece al atacante de consumo, porque produce trazas perfectamente alineadas.
 Es exactamente la situación del modelo simulado de la
-\cref{sec:validacion-simulada}, en el que el CPA recupera la clave.
+\cref{sec:validacion-simulada}, en el que el CPA recupera la clave, y también
+la del firmware atacado, cuyas trazas salen alineadas al ciclo sin ningún
+procesado (\cref{sec:calidad-captura}).
 
 \section{Resumen}
 \label{sec:resumen-mitigaciones}

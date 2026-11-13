@@ -9,9 +9,10 @@ distinta según los datos que procesa. Este capítulo resume qué hace fuerte a
 esa vulnerabilidad, qué necesita el atacante para explotarla y qué queda
 abierto. En este trabajo se recorre el camino completo con trazas medidas: en
 un ChipWhisperer-Nano, con una clave de laboratorio y el AES de NewAE sin
-protecciones, el CPA recupera los 16 bytes con \num{1000} trazas, y el 90~\% de
-las ordenaciones aleatorias de esa campaña lo consigue con \num{112}
-(\cref{cap:resultados}). La contramedida de la fase 6 muestra el otro lado: el
+protecciones, el CPA recupera los 16 bytes con \realAttackTraces{} trazas, y el
+90~\% de las ordenaciones aleatorias de esa campaña lo consigue con
+\realTracesNinety{} (\cref{cap:resultados}). Las contramedidas medidas en la
+misma placa muestran el otro lado: el
 barajado encarece el ataque pero no lo impide, y los retardos aleatorios lo
 tumban tal como está escrito, aunque un atacante dispuesto a preprocesar las
 trazas recupera parte de la clave.
@@ -57,10 +58,11 @@ trazas recupera parte de la clave.
     dispositivo real supone intervenir en su alimentación o acercar una sonda
     electromagnética. Es un ataque a dispositivos que el atacante tiene en la
     mano, no a distancia.
-  \item \textbf{Muchas ejecuciones con la misma clave.} El CPA necesita cientos
-    o miles de cifrados con la misma clave y textos conocidos. Un protocolo que
-    renueve la clave antes de ese umbral lo deja sin datos
-    (\cref{sec:rekeying}).
+  \item \textbf{Muchas ejecuciones con la misma clave.} El CPA necesita muchos
+    cifrados con la misma clave y textos conocidos: en la placa de este
+    trabajo, del orden de cien (\cref{sec:recuperacion-clave}), y más cuanto
+    mayor es el ruido. Un protocolo que renueve la clave antes de ese umbral lo
+    deja sin datos (\cref{sec:rekeying}).
   \item \textbf{Sincronización.} El CPA compara las trazas instante a instante.
     En el laboratorio el propio firmware da la señal de disparo; un atacante
     real tiene que encontrar el cifrado en la traza y alinear las trazas por su
@@ -77,15 +79,14 @@ trazas recupera parte de la clave.
     los elige el grupo, la señal de disparo la da el firmware y el capturador
     comparte reloj con el microcontrolador. Son las condiciones de un
     laboratorio de enseñanza, no las de un ataque a un producto, y los números
-    que se obtengan no se pueden trasladar sin más a otro dispositivo.
+    obtenidos no se pueden trasladar sin más a otro dispositivo.
 \end{itemize}
 En la placa, el ruido de la medida resultó ser del orden de un escalón del
 convertidor y las trazas salieron alineadas al ciclo sin procesado, así que
 ninguno de los problemas habituales de una captura real ha estorbado
-(\cref{sec:calidad-captura}). Las \num{112} trazas para el 90~\% de los ensayos
-están dentro de lo que predecía el modelo simulado para la relación
-señal-ruido medida, del lado bueno: la fuga real aparece en más muestras que en
-la simulación, y eso también ayuda al atacante.
+(\cref{sec:calidad-captura}). Las \realTracesNinety{} trazas para el 90~\% de
+los ensayos caen dentro del intervalo que predecía el modelo simulado para la
+relación señal-ruido medida (\cref{sec:recuperacion-clave}).
 
 \section{Trabajo futuro}
 \label{sec:trabajo-futuro}

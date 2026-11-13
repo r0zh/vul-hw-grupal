@@ -52,6 +52,10 @@
 \crefname{uma@appendix}{apéndice}{apéndices}  % contador de \appendixchapter de la plantilla
 \Crefname{uma@appendix}{Apéndice}{Apéndices}
 
+% biblatex-ieee antepone a la serie de las actas (LNCS) la abreviatura
+% «jourser», que en español es «ép.» (época). En IEEE es «ser.».
+\DefineBibliographyStrings{spanish}{jourser = {{serie}{ser\adddot}}}
+
 %======================================================================
 \begin{document}
 
