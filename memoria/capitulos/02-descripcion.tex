@@ -212,8 +212,31 @@ que se ha validado en simulación. La placa se identifica por USB como
 \emph{ChipWhisperer Nano} de \emph{NewAE Technology Inc.} (identificadores
 \texttt{2b3e:ace0}) y la biblioteca de NewAE la reconoce como tal, con la
 versión 0.65 del firmware del capturador, la más reciente que trae la
-biblioteca usada.
-% TODO: esquema o foto del montaje en figuras/ cuando esté conectado.
+biblioteca usada. La serigrafía del reverso dice \texttt{NAE-CW1101-05}: un
+ChipWhisperer-Nano (CW1101) de la revisión 05, de producción; los problemas que
+la documentación atribuye a las primeras versiones de prueba afectan a las
+revisiones 01 y 02 \cite{cw-nano-docs}.
+
+La \cref{fig:nano} muestra las dos caras de la placa. A la izquierda queda la
+parte víctima, con el STM32F0, sus dos LED y la tira de pines de sus señales
+(alimentación, reloj, \emph{reset}, disparo y puerto serie), separable del
+resto por la línea de taladros \cite{cw-nano-target}. El resto es el
+capturador, con el microcontrolador Atmel SAM3U, que ejecuta el firmware del
+capturador \cite{cw-nano-docs}, y el conector USB a la derecha.
+
+\begin{figure}[htbp]
+  \centering
+  % Fotos de la placa usada (13-11-2026), recortadas y giradas; sin retoques.
+  \includegraphics[width=\textwidth]{nano-componentes.jpg}\\[0.6em]
+  \includegraphics[width=0.93\textwidth]{nano-reverso.jpg}
+  \caption{El ChipWhisperer-Nano usado en el trabajo. Arriba, la cara de los
+    componentes: a la izquierda, la parte víctima con el STM32F0 (el circuito
+    de 20 patillas) y sus LED; a la derecha, el capturador, con el
+    microcontrolador Atmel SAM3U y el conector USB. Abajo, el reverso, con la
+    serigrafía \texttt{NAE-CW1101-05} y los nombres de las señales de la parte
+    víctima.}
+  \label{fig:nano}
+\end{figure}
 
 Al ser una plataforma diseñada para enseñar análisis de consumo, el Nano
 representa un caso favorable para el atacante: la medida está integrada en la
@@ -233,7 +256,7 @@ a la familia STM32F04x \cite{cw-repo}, y su registro de tamaño de flash indica
 modelo exacto queda pendiente de leer en la serigrafía del chip. Para el ataque
 no cambia nada: el firmware compilado para el Nano funciona sin cambios y todo
 lo que sigue está medido en esta placa.
-% TODO: modelo exacto del chip víctima (serigrafía) y foto de la PCB.
+% TODO: modelo exacto del chip víctima (serigrafía; ilegible en las fotos de la fig. nano).
 
 No se escribe un firmware propio, sino que se usa \texttt{simpleserial-aes}
 de los ejemplos de NewAE \cite{cw-repo} compilado con
@@ -255,11 +278,11 @@ El Nano digitaliza el consumo del STM32F0 con un convertidor de 8 bits de
 hasta 20 millones de muestras por segundo, con la entrada acoplada en alterna y
 una ganancia fija de unos \qty{10}{\deci\bel}, y guarda hasta \num{50000} muestras por
 captura \cite{cw-nano-docs}. No hay que cablear sondas ni elegir el valor de
-una resistencia de \emph{shunt}: según la documentación, un puente de
-soldadura une el STM32F0 a la etapa de entrada del amplificador, y se
-recomienda abrirlo para reducir el ruido cuando se mide otro dispositivo por el
-puerto \emph{Measure} \cite{cw-nano-docs}.
-% TODO: fuente: punto de medida exacto (shunt) en el esquema del CW-Nano.
+una resistencia de \emph{shunt}: la parte víctima ya lleva una de
+\qty{27}{\ohm} \cite{cw-nano-target}, y un puente de soldadura une el STM32F0
+a la etapa de entrada del amplificador. La documentación recomienda abrir ese
+puente para reducir el ruido cuando se mide otro dispositivo por el puerto
+\emph{Measure} \cite{cw-nano-docs}.
 
 La configuración por defecto de la biblioteca de NewAE pone el reloj del
 microcontrolador y el del convertidor a \qty{7,5}{\mega\hertz}, de modo que se toma una
