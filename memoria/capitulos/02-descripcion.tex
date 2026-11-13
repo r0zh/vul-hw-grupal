@@ -221,8 +221,9 @@ La \cref{fig:nano} muestra las dos caras de la placa. A la izquierda queda la
 parte víctima, con el STM32F0, sus dos LED y la tira de pines de sus señales
 (alimentación, reloj, \emph{reset}, disparo y puerto serie), separable del
 resto por la línea de taladros \cite{cw-nano-target}. El resto es el
-capturador, con el microcontrolador Atmel SAM3U, que ejecuta el firmware del
-capturador \cite{cw-nano-docs}, y el conector USB a la derecha.
+capturador, con el microcontrolador Atmel ATSAM4S16B, que ejecuta el firmware
+del capturador y genera los relojes del convertidor y de la víctima
+\cite{cw-nano-docs}, y el conector USB a la derecha.
 
 \begin{figure}[htbp]
   \centering
@@ -230,9 +231,9 @@ capturador \cite{cw-nano-docs}, y el conector USB a la derecha.
   \includegraphics[width=\textwidth]{nano-componentes.jpg}\\[0.6em]
   \includegraphics[width=0.93\textwidth]{nano-reverso.jpg}
   \caption{El ChipWhisperer-Nano usado en el trabajo. Arriba, la cara de los
-    componentes: a la izquierda, la parte víctima con el STM32F0 (el circuito
+    componentes: a la izquierda, la parte víctima con el STM32F042 (el circuito
     de 20 patillas) y sus LED; a la derecha, el capturador, con el
-    microcontrolador Atmel SAM3U y el conector USB. Abajo, el reverso, con la
+    microcontrolador Atmel ATSAM4S16B y el conector USB. Abajo, el reverso, con la
     serigrafía \texttt{NAE-CW1101-05} y los nombres de las señales de la parte
     víctima.}
   \label{fig:nano}
@@ -249,14 +250,25 @@ comercial, en el que el atacante tendría que montar la medida por su cuenta.
 El dispositivo atacado es el microcontrolador STM32F0 que lleva el propio
 Nano, de 32 bits y con núcleo Cortex-M0, que se programa desde el propio Nano
 por su cargador de arranque serie. La documentación de NewAE indica un
-STM32F030 \cite{cw-nano-docs}, pero el cargador de nuestra placa responde con
-el identificador de producto \texttt{0x445}, que la biblioteca de NewAE asocia
-a la familia STM32F04x \cite{cw-repo}, y su registro de tamaño de flash indica
-32~KB, el doble que el STM32F030F4 de la documentación. El
-modelo exacto queda pendiente de leer en la serigrafía del chip. Para el ataque
-no cambia nada: el firmware compilado para el Nano funciona sin cambios y todo
-lo que sigue está medido en esta placa.
-% TODO: modelo exacto del chip víctima (serigrafía; ilegible en las fotos de la fig. nano).
+STM32F030F4P6 \cite{cw-nano-docs,cw-nano-target}, pero la serigrafía del chip
+de nuestra placa dice \texttt{32F042F6P6} (\cref{fig:nano-victima}): es un
+STM32F042F6P6, de la misma familia y con el mismo encapsulado de 20 patillas.
+Lo confirman dos lecturas hechas desde el PC: el cargador responde con el
+identificador de producto \texttt{0x445}, que la biblioteca de NewAE asocia a
+la familia STM32F04x \cite{cw-repo}, y el registro de tamaño de flash indica
+32~KB, el doble que el STM32F030F4 de la documentación. Para el ataque no
+cambia nada: el firmware compilado para el Nano funciona sin cambios y todo lo
+que sigue está medido en esta placa.
+
+\begin{figure}[htbp]
+  \centering
+  % Foto de la placa usada (13-11-2026), recortada y girada 180°; sin retoques.
+  \includegraphics[width=0.42\textwidth]{nano-victima.jpg}
+  \caption{El microcontrolador víctima del Nano usado, con la serigrafía
+    \texttt{32F042F6P6} (STM32F042F6P6). A la izquierda, la tira de pines de
+    la parte víctima.}
+  \label{fig:nano-victima}
+\end{figure}
 
 No se escribe un firmware propio, sino que se usa \texttt{simpleserial-aes}
 de los ejemplos de NewAE \cite{cw-repo} compilado con
