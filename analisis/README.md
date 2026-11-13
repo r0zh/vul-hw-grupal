@@ -1,9 +1,10 @@
 # Análisis del ataque (fase 1: validación en simulación)
 
-Código del análisis CPA/DPA sobre AES-128. **Todo lo que produce este paquete
-son datos simulados**: trazas sintéticas generadas con el modelo de fuga del
-peso de Hamming y ruido gaussiano. No hay ninguna medida real todavía (eso son
-las fases 2 a 5 del plan de `AGENTS.md`).
+Código del análisis CPA/DPA sobre AES-128. `run_all.py` y sus figuras `sim-*`
+trabajan con **datos simulados** (trazas sintéticas con fuga del peso de
+Hamming y ruido gaussiano). `real.py` y `reales.py` trabajan con **medidas
+reales** del ChipWhisperer-Nano (desde el 2026-11-13), y sus figuras son las
+`real-*`.
 
 ## Qué hay aquí
 
@@ -18,6 +19,7 @@ las fases 2 a 5 del plan de `AGENTS.md`).
 | `config.py` | Todos los parámetros de la simulación y de los experimentos |
 | `run_all.py` | Regenera los resultados y todas las figuras |
 | `demo.py` | Demo en vivo: la clave aparece byte a byte al crecer N (no escribe ficheros) |
+| `reales.py` | Figuras `real-*` de la memoria, números en `analisis/salida/reales.json` y datos de la web (`web/data/`), a partir de las campañas versionadas en `datos/` |
 | `real.py` | CPA de una campaña guardada (`datos/brutos/`, del ChipWhisperer o `--simular`): clave, rangos, trazas necesarias y figuras en `analisis/salida/<campaña>/` |
 | `tests.py` | Comprobaciones rápidas (AES, ataque sin ruido, utilidades) |
 
@@ -67,6 +69,37 @@ figuras.
 
 Lo único que cambia entre ejecuciones es el campo `seconds` del JSON (y los
 `seconds` por ataque), que es el tiempo que ha tardado cada parte.
+
+## Las medidas reales
+
+`reales.py` no es parte de la simulación: genera las figuras `real-*` y los
+números del capítulo 4 de la memoria a partir de las campañas **medidas** que
+están versionadas en [`datos/`](../datos/). Las que usa están en la constante
+`CAMPAIGNS`; todas son recortes de las de `datos/brutos/` (ver
+[`hardware/README.md`](../hardware/README.md)), hechos con
+`python -m captura.campana`.
+
+```sh
+uv run python -m analisis.reales              # 100 ordenaciones, unos 25 minutos
+uv run python -m analisis.reales --rapido     # 10 ordenaciones, para probar
+```
+
+Las curvas de éxito frente a `N` no salen de una sola ordenación de las trazas:
+se repite el CPA sobre 100 permutaciones aleatorias (semilla fija) de cada
+campaña y se cuenta en cuántas queda la clave completa en primer puesto. Los
+ensayos comparten trazas, así que no son independientes; es la forma habitual
+de estimar la tasa de éxito con una sola campaña. Por eso las cifras de la
+memoria son cotas y no el mínimo exacto.
+
+Los puntos de la campaña con retardos se calculan sobre el recorte versionado;
+si además está la campaña completa de 20 000 trazas en `datos/brutos/`, se
+ataca entera (0 de 16 bytes) y se prueba a compensar los retardos sumando
+ventanas de 100 y 300 muestras antes de correlar (`delay_integration`).
+
+Los números de las secciones 4.2 a 4.4 de la memoria están escritos a mano a
+partir de `reales.json`: si se regenera el JSON y algún número cambia, hay que
+actualizarlo también en `memoria/capitulos/04-resultados.tex`. Las figuras sí
+se sustituyen solas.
 
 ## Demo en vivo
 

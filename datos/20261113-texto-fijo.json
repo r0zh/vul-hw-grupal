@@ -1,0 +1,34 @@
+{
+  "instrumento": {
+    "tipo": "CWNano",
+    "serie": "53333200524b34533230313131313039",
+    "firmware_scope": "0.65.0",
+    "adc_muestras": 5000,
+    "adc_hz": 7500000.0,
+    "reloj_target_hz": 7500000.0,
+    "ganancia_db": null
+  },
+  "plataforma": "CWNANO",
+  "segundos": 27.0,
+  "fecha": "2026-11-13T18:20:31+01:00",
+  "commit": "33edffa03525-dirty",
+  "semilla_textos": null,
+  "texto_fijo_hex": "3243f6a8885a308d313198a2e0370734",
+  "clave_hex": "2b7e151628aed2a6abf7158809cf4f3c",
+  "firmware_fuente": "newaetech/chipwhisperer simpleserial-aes, CRYPTO_TARGET=TINYAES128C",
+  "notas": "texto claro fijo (FIPS-197 apéndice B) para estimar ruido y alineación",
+  "simulada": false,
+  "n_traces": 500,
+  "n_samples": 1500,
+  "recorte": {
+    "origen": "20261113-182031-texto-fijo",
+    "trazas": [
+      0,
+      500
+    ],
+    "muestras": [
+      0,
+      1500
+    ]
+  }
+}

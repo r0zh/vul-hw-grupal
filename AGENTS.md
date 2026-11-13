@@ -45,10 +45,17 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 | 2026-11-07 | ATmega328P suelto en protoboard con cristal de 16 MHz, programado con una Kuman UNO R3 propia (chip DIP, Optiboot comprobado) que, sin el chip, hace de puente USB-serie. Se descarta el Nano porque su regulador y su conversor USB-serie comparten alimentación con el MCU | Descartado (2026-11-10) |
 | 2026-11-07 | Shunt en VCC (como el CW304 NOTDuino de NewAE), medido en el lado del chip con acoplamiento AC; valor entre 10 y 50 Ω, a elegir midiendo | Descartado (2026-11-10) |
 | 2026-11-07 | Plan B si el TDS 220 no tiene módulo: CPA con un ChipWhisperer-Nano del laboratorio y TDS 220 para SPA y caracterización de la fuga, más un CPA manual de un byte con promediado | Sustituido por el plan principal (2026-11-10) |
-| 2026-11-10 | Se captura con un **ChipWhisperer-Nano** (capturador y víctima STM32F030 en la misma placa) y se dejan el TDS 220 y el montaje DIY con el ATmega328P. El material comprado para ellos se puede devolver (ver [`hardware/README.md`](hardware/README.md)) | Decidido; **placa aún sin conectar**, fabricante y modelo sin confirmar (puede ser un clon) |
+| 2026-11-10 | Se captura con un **ChipWhisperer-Nano** (capturador y víctima STM32F030 en la misma placa) y se dejan el TDS 220 y el montaje DIY con el ATmega328P. El material comprado para ellos se puede devolver (ver [`hardware/README.md`](hardware/README.md)) | Hecho (placa conectada el 2026-11-13) |
 | 2026-11-10 | Víctima: `simpleserial-aes` de NewAE con `CRYPTO_TARGET=TINYAES128C`, compilado con `firmware/build.sh` desde el commit `c5e8151` de newaetech/chipwhisperer. No hay firmware propio salvo para la contramedida opcional | Hecho (compilado, sin probar en placa) |
 | 2026-11-10 | `chipwhisperer` desde la rama `develop` fijada al mismo commit, en el grupo `captura` de `pyproject.toml`: la 6.0.0 de PyPI exige `numpy<=1.26.4` | Hecho |
 | 2026-11-10 | `captura/cw.py` compara cada texto cifrado del target con `analisis/aes.py` y guarda las campañas en `datos/brutos/`; `analisis/real.py` hace el CPA de una campaña con estadísticos acumulados (rango frente a N en una pasada) | Hecho (probado con `--simular`) |
+| 2026-11-13 | Placa confirmada por USB como **ChipWhisperer-Nano de NewAE** (`2b3e:ace0`, serie `5333…3039`, firmware del scope 0.65.0, el último de la biblioteca). El bootloader del chip víctima responde con el ID `0x445` (`STM32F04xxx` según NewAE), no `0x444` (STM32F030): falta leer la serigrafía. Detalles en [`hardware/README.md`](hardware/README.md) | Hecho; chip víctima por confirmar |
+| 2026-11-13 | `captura/cw.py` lee `TraceContainer.trace` y `.ciphertext`: en la biblioteca 7.0 `capture_trace` ya no devuelve `.wave` ni `.textout` | Hecho |
+| 2026-11-13 | Campaña de respaldo en `datos/20261113-nano-tinyaes-respaldo` (1000 trazas, muestras 0 a 1500, 1,4 MB), recortada de la de 3000 trazas | Hecho |
+| 2026-11-13 | Las campañas versionadas de `datos/` son recortes de las de `datos/brutos/` hechos con `python -m captura.campana`: víctima sin proteger (1000×1500), SPA del cifrado completo (100×11 000), 500 trazas de texto fijo para ruido y alineación y las tres variantes de la contramedida (base 1000×1500, barajado 2000×1500, retardos 2000×2000). Total, ~9 MB | Hecho |
+| 2026-11-13 | `analisis/reales.py` genera las figuras `real-*`, los números de `analisis/salida/reales.json` y los datos de la web a partir de `datos/`. Las curvas de éxito se estiman con 100 permutaciones de la misma campaña (10 con `--rapido`), no con campañas independientes | Hecho |
+| 2026-11-13 | Contramedida de la fase 6 en `firmware/contramedida/aes-cm.c`: AES propio con la estructura de tiny-AES que sustituye a la biblioteca de NewAE y se compila con el mismo `simpleserial-aes.c`. Variantes `base` (referencia), `retardos` (`CM_DELAY`, 0 a 15 vueltas antes de cada byte de SubBytes, de cada columna de MixColumns y de cada ronda) y `barajado` (`CM_SHUFFLE`, SubBytes en orden aleatorio). Generador xorshift32 con semilla fija: sirve para medir, **no es una contramedida utilizable tal cual** | Hecho |
+| 2026-11-13 | Resultado de la fase 6: el barajado de SubBytes solo multiplica por 3,6 las trazas necesarias (n90: 475 frente a 132), muy por debajo de las m² = 256 del modelo, porque ShiftRows y MixColumns siguen cargando los mismos bytes en las mismas muestras. Los retardos tumban el CPA sin preprocesado incluso con 20 000 trazas; integrando ventanas de 300 muestras antes de correlar se recuperan 7 de 16 bytes | Hecho |
 | — | Herramienta para la presentación (ver [`presentacion/por-decidir.md`](presentacion/por-decidir.md)) | Pendiente |
 
 ## Estructura del repositorio
@@ -62,6 +69,7 @@ docs/
   enunciado.md         enunciado del trabajo y rúbrica de la presentación
   contexto-inicial.md  instantánea del contexto de partida (no se actualiza)
   reunion-*.md         preguntas y respuestas de las reuniones con el profesor
+  handoff-*.md         estado y cifras al cerrar una sesión de trabajo
   referencias/         PDF de terceros (artículo, rúbrica); ignorado por git
 memoria/
   main.tex             documento raíz; solo estructura e \input de capítulos
@@ -73,17 +81,20 @@ memoria/
 presentacion/          por decidir
 hardware/              ChipWhisperer-Nano: puesta en marcha y puntos a revisar
 firmware/              build.sh compila la víctima de NewAE; los .hex van a firmware/build/ (ignorado)
+  contramedida/        AES propio con CM_DELAY o CM_SHUFFLE para la fase 6, con su build.sh
 captura/               captura con el ChipWhisperer (cw.py) y formato de campaña (campana.py)
-analisis/              CPA, DPA, simulación de trazas, CPA de campañas reales (real.py) y figuras
+analisis/              CPA, DPA, simulación de trazas, CPA de campañas reales (real.py),
+                       figuras de las medidas (reales.py) y figuras
   salida/              resultados numéricos de una ejecución (ignorado por git)
 figuras/               figuras generadas por scripts, compartidas por memoria y presentación
 web/                   web explicativa (GitHub Pages): index.html, js/, tests/, spec/ y harness
+  data/                campaña medida y PNG de la traza real; los genera analisis/reales.py
 .github/workflows/     CI de la memoria (memoria.yml), del análisis (analisis.yml) y de la web (web.yml)
 ```
 
-Directorios previstos que se crean cuando haya contenido:
+Directorios con datos:
 
-- `datos/`: trazas de respaldo comprimidas. Las trazas en bruto van en `datos/brutos/`, que está ignorado.
+- `datos/`: campañas recortadas y versionadas que usan la memoria y `analisis/reales.py` (un `.npz` y un `.json` por campaña, ~9 MB). Las trazas en bruto van en `datos/brutos/`, que está ignorado; los recortes se rehacen con `uv run python -m captura.campana ORIGEN DESTINO -n N --muestras 0:1500`.
 
 ## Flujo de trabajo
 
@@ -115,9 +126,11 @@ uv run python -m analisis.tests              # comprobaciones rápidas
 uv run python -m analisis.run_all            # fase 1 completa y figuras (~4 min)
 uv run python -m analisis.run_all --fast     # versión de humo
 uv run python -m analisis.demo               # demo en vivo del CPA (simulada, no escribe nada)
+uv run python -m analisis.reales             # figuras real-* y números de las medidas (~25 min)
+uv run python -m analisis.reales --rapido    # 10 ordenaciones en vez de 100 (~3 min, para probar)
 ```
 
-Detalles en [`analisis/README.md`](analisis/README.md). El workflow `Análisis` ejecuta las comprobaciones y el análisis reducido **dos veces** en cada push que toque `analisis/`, para comprobar que los resultados y las figuras son deterministas.
+Detalles en [`analisis/README.md`](analisis/README.md). El workflow `Análisis` ejecuta las comprobaciones y el análisis reducido **dos veces** en cada push que toque `analisis/`, para comprobar que los resultados y las figuras son deterministas. `analisis.reales` no entra en la CI: tarda demasiado y necesita las campañas de `datos/`, que sí están versionadas (la campaña completa con retardos, no: si falta, se omiten esas claves del JSON).
 
 ### Probar la web
 
@@ -163,13 +176,13 @@ Los resultados numéricos van a `analisis/salida/`, que está ignorado por git: 
 
 - [x] **0. Organización:** repositorio, plantilla, CI y este archivo.
 - [x] **1. Análisis validado en simulación:** CPA (y DPA como comparación) sobre trazas sintéticas con fuga HW y ruido gaussiano. Resultado: con 4000 trazas y SNR = 0,1 se recuperan los 128 bits; el barrido de ruido da las trazas necesarias por nivel (578 para el 90 % de los ensayos con SNR = 0,1) y el DPA de un bit se queda entre 7 y 15 de 16 bytes donde el CPA acierta los 16. Figuras y texto en `figuras/` y la sección 4.1 de la memoria.
-- [ ] **2. Instrumental:** ChipWhisperer-Nano (2026-11-10). Software listo y probado sin placa: reglas udev, `uv sync --group captura` y `python -m captura.cw info` (ver `hardware/README.md`). Falta conectarlo y, si lo pide, actualizar su firmware. Devolver el RS-232, el null-modem y los cristales.
-- [ ] **3. Firmware:** `simpleserial-aes` con TINYAES128C compilado para el Nano (`firmware/build.sh`). Falta programarlo y comprobar los textos cifrados contra `analisis/aes.py` (lo hace `captura.cw capturar`).
-- [ ] **4. Captura:** primera traza real, primera ronda localizada en la traza media (SPA) y campaña de miles de trazas con `captura.cw capturar`.
-- [ ] **5. Ataque real:** `python -m analisis.real` sobre las trazas medidas, métricas y figuras definitivas. Guardar una campaña de respaldo en `datos/`.
-- [ ] **6. (Opcional) Contramedida:** p. ej., *shuffling* o retardos aleatorios en el firmware, y medir cómo se degrada el ataque. `simpleserial-aes` trae `ADD_JITTER` y TINYAES, `JITTER_2` en `SubBytes`, pero **no son aleatorios**: el retardo depende del texto claro (`pt[0] & 0x0F`) o del estado, así que el atacante puede deshacerlo. Una contramedida real necesita un generador pseudoaleatorio en el firmware. Alimenta Mitigaciones y Resultados.
-- [x] **Web explicativa:** `web/` con `<cpa-live>` (CPA en directo con SNR, N, byte, semilla y clave), `<cpa-leak>` (de dónde sale la fuga) y `<cpa-sbox>` (AddRoundKey y SubBytes con un byte, y por qué atacar `p ⊕ k` empata con el complementario), tests de los modelos, claims en navegador y auditoría visual (`cd web && npm run check`). Se publica en <https://r0zh.github.io/vul-hw-grupal/> desde `main`. Pendiente: Manim, `<cpa-dpa>` y `<cpa-shuffle>` (opcionales) y cargar trazas reales en la fase 5.
-- [ ] **7. Entregables:** redacción de la memoria, revisión con Trinka, presentación y ensayo de la demo con el plan B. Capítulos 1 a 3 en borrador (2026-10-19). El 2026-11-10 se escriben las Conclusiones, la sección 4.4 (Limitaciones) y los dos anexos, con `% TODO` donde hacen falta datos reales; la sección 2.5 se reescribió el 2026-11-10 para el ChipWhisperer-Nano y deja `% TODO` en lo que depende de las medidas (alineación, criptogramas en la placa, esquema o foto). En el portátil del Nano no hay LaTeX: la memoria se compila en la CI.
+- [x] **2. Instrumental:** ChipWhisperer-Nano conectado el 2026-11-13; firmware del scope al día (0.65.0). Pendiente: foto de la PCB y serigrafía del chip víctima. Devolver el RS-232, el null-modem y los cristales.
+- [x] **3. Firmware:** `simpleserial-aes` con TINYAES128C programado en el Nano el 2026-11-13 (SHA-256 del `.hex` en `hardware/README.md`). Los textos cifrados de las 3050 trazas capturadas coinciden con `analisis/aes.py`.
+- [x] **4. Captura:** 2026-11-13. A 18,6 trazas/s, trazas alineadas sin procesar (dispersión entre trazas del orden de un escalón del ADC), saturación despreciable y primera ronda entre las muestras ~450 y ~700. Campaña `20261113-180036-nano-tinyaes` de 3000 trazas en `datos/brutos/`.
+- [x] **5. Ataque real:** 2026-11-13: con 3000 trazas se recuperan los 16 bytes (|ρ| ≈ 0,6; rango 1 estable entre 24 y 90 trazas según el byte) y hay una campaña de respaldo en `datos/`. Figuras definitivas `real-*` generadas por `analisis/reales.py` y secciones 4.2 y 4.3 de la memoria escritas con esos números.
+- [x] **6. (Opcional) Contramedida:** `firmware/contramedida/` con tres variantes (base, barajado de SubBytes y retardos aleatorios de 0 a 15 vueltas), medidas con el mismo CPA. El barajado sigue recuperando los 16 bytes con 3,6 veces más trazas; los retardos lo tumban incluso con 20 000 trazas, y solo integrando ventanas de 300 muestras se recuperan 7 de 16 bytes. Sección 4.4 de la memoria y, del lado de la teoría, la sección 3.
+- [x] **Web explicativa:** `web/` con `<cpa-live>` (CPA en directo con SNR, N, byte, semilla y clave y, desde 2026-11-13, `#cpa-real` con 400 trazas medidas), `<cpa-leak>` (de dónde sale la fuga) y `<cpa-sbox>` (AddRoundKey y SubBytes con un byte, y por qué atacar `p ⊕ k` empata con el complementario), tests de los modelos, claims en navegador y auditoría visual (`cd web && npm run check`), más `tests/real.test.js`, que exige que el CPA de la web recupere los 16 bytes con las trazas medidas. Se publica en <https://r0zh.github.io/vul-hw-grupal/> desde `main`. Pendiente: Manim, `<cpa-dpa>` y `<cpa-shuffle>` (opcionales).
+- [ ] **7. Entregables:** redacción de la memoria, revisión con Trinka, presentación y ensayo de la demo con el plan B. Capítulos 1 a 5 escritos con los resultados reales (2026-11-13); quedan los `% TODO` de la serigrafía y la foto del chip, alguna fuente de la sección 3 y la revisión de estilo. En el portátil del Nano no hay LaTeX: la memoria se compila en la CI o en un contenedor (`docker run --rm -v "$PWD":/repo -w /repo/memoria danteev/texlive latexmk`).
 
 ## Fuentes
 

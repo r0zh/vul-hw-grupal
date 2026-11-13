@@ -89,9 +89,15 @@ atacante puede compensarlo en parte sumando las $m$ ventanas posibles antes de
 correlar, como proponen Clavier et al.\ frente a los retardos aleatorios
 \cite{clavier2000countermeasures}; si el ruido de las ventanas es independiente,
 la correlación queda en torno a $\rho/\sqrt{m}$ y el factor baja a unas $m$
-veces. Estas estimaciones salen de un modelo simple y no se han comprobado
-sobre trazas: medirlas es el objetivo de la fase opcional de contramedidas.
-% TODO: si se hace la fase 6, comparar con las trazas necesarias medidas.
+veces. Estas estimaciones salen de un modelo simple. Con trazas medidas, el
+resultado depende de la contramedida (\cref{sec:contramedidas-medidas}): el
+barajado de \texttt{SubBytes} solo multiplica por 3,6 las trazas necesarias
+para el 90~\% de los ensayos, muy por debajo de las $m^2 = 256$ que preveía el
+modelo, porque \texttt{ShiftRows} y \texttt{MixColumns} siguen cargando los
+mismos bytes en las mismas muestras; los retardos aleatorios, en cambio,
+desplazan el cifrado de cada traza y tumban el CPA tal como está escrito,
+aunque un atacante que integre ventanas de muestras antes de correlar recupera
+parte de los bytes.
 
 El límite de la aleatorización es que no elimina la fuga, solo la diluye: con
 suficientes trazas, el ataque vuelve a funcionar. Por eso se combina con el
@@ -183,9 +189,10 @@ Es exactamente la situación del modelo simulado de la
 \section{Resumen}
 \label{sec:resumen-mitigaciones}
 
-La \cref{tab:mitigaciones} resume las contramedidas. Su coste y su eficacia
-se indican de forma cualitativa, porque dependen de la implementación y no se
-han medido en este trabajo.
+La \cref{tab:mitigaciones} resume las contramedidas. Su coste y su eficacia se
+indican de forma cualitativa, porque dependen de la implementación; de todas
+ellas, solo el \emph{shuffling} y los retardos aleatorios se han medido, y sus
+cifras están en la \cref{sec:contramedidas-medidas}.
 
 \begin{table}[htbp]
   \centering

@@ -4,8 +4,11 @@ Página que explica desde cero el ataque CPA sobre AES-128, con figuras interact
 Se publica con GitHub Pages en <https://r0zh.github.io/vul-hw-grupal/> desde `main`
 (workflow [`web.yml`](../.github/workflows/web.yml)).
 
-**Todas las figuras usan trazas simuladas** con el modelo de `analisis/simulate.py`, y lo
-indican con la etiqueta «Datos simulados». No hay medidas del montaje todavía.
+Las figuras interactivas usan trazas simuladas con el modelo de `analisis/simulate.py` y lo
+indican con la etiqueta «Datos simulados», salvo `<cpa-live id="cpa-real">` y la traza de la
+sección 5, que son **medidas reales** del ChipWhisperer-Nano. Sus ficheros, en `data/`, los
+genera `uv run python -m analisis.reales` a partir de las campañas de `datos/`: no se editan a
+mano.
 
 HTML, CSS y módulos ES, sin dependencias ni paso de build. Todas las rutas son relativas,
 porque Pages sirve el sitio bajo `/vul-hw-grupal/` y no en la raíz.
@@ -77,3 +80,13 @@ El núcleo de `js/kit/`, `css/notes.css`, `scripts/` y `spec/helpers.mjs` vienen
 `interactive-notes`, código propio del autor del repositorio (`artifact-kit/src/` es una
 reimplementación *clean-room*). No se ha copiado nada de `artifact-kit/vendor/` ni de
 `artifact-kit/from-source/`, ni nada que dependa de ellos.
+
+## Las trazas medidas
+
+`data/nano-tinyaes.json` es una campaña real del ChipWhisperer-Nano: 400 trazas, las
+muestras 440 a 740 (la primera ronda) y la clave de laboratorio. La genera
+`uv run python -m analisis.reales` desde `datos/20261113-nano-tinyaes-respaldo`, junto con
+`data/real-spa.png`, la traza media del cifrado completo de la sección 5. Las trazas van como
+códigos enteros del convertidor: la correlación no cambia con una transformación afín y el
+fichero ocupa la cuarta parte. `tests/real.test.js` los carga con el mismo código que la
+página y exige que el CPA en JavaScript recupere los 16 bytes.

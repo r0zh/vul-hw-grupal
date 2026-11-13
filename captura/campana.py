@@ -78,3 +78,42 @@ def load(path: Path) -> Campaign:
     meta = base.with_suffix(".json")
     metadata = json.loads(meta.read_text()) if meta.exists() else {}
     return Campaign(metadata=metadata, **arrays)
+
+
+def trim(source: Path, target: Path, n_traces: int | None = None,
+         start: int = 0, stop: int | None = None, extra: dict | None = None) -> tuple[Path, Path]:
+    """Guarda una versión recortada de una campaña (para versionarla en `datos/`).
+
+    Se queda con las `n_traces` primeras trazas y las muestras `start:stop`, y
+    anota el origen del recorte en el JSON.
+    """
+    campaign = load(source)
+    n_traces = n_traces or len(campaign.traces)
+    metadata = dict(campaign.metadata)
+    metadata["recorte"] = {
+        "origen": _base(source).name,
+        "trazas": [0, int(n_traces)],
+        "muestras": [int(start), int(stop if stop is not None else campaign.traces.shape[1])],
+    }
+    metadata.update(extra or {})
+    return save(target, Campaign(
+        traces=campaign.traces[:n_traces, start:stop],
+        plaintexts=campaign.plaintexts[:n_traces],
+        ciphertexts=campaign.ciphertexts[:n_traces],
+        key=campaign.key,
+        metadata=metadata,
+    ))
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Recorta una campaña: python -m captura.campana ORIGEN DESTINO")
+    parser.add_argument("origen", type=Path)
+    parser.add_argument("destino", type=Path)
+    parser.add_argument("-n", type=int, help="número de trazas (por defecto, todas)")
+    parser.add_argument("--muestras", default=":", help="ventana start:stop (por defecto, todas)")
+    args = parser.parse_args()
+    lo, hi = (int(x) if x else None for x in args.muestras.split(":"))
+    for path in trim(args.origen, args.destino, args.n, lo or 0, hi):
+        print(path)

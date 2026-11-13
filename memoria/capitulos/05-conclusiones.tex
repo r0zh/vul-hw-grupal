@@ -7,9 +7,14 @@ El análisis de consumo por correlación extrae la clave de un AES-128 sin
 atacar el algoritmo: aprovecha que una implementación concreta consume de forma
 distinta según los datos que procesa. Este capítulo resume qué hace fuerte a
 esa vulnerabilidad, qué necesita el atacante para explotarla y qué queda
-abierto.
-% TODO: añadir el resultado real en una frase (bytes recuperados y trazas
-% necesarias) cuando exista la campaña de la fase 5.
+abierto. En este trabajo se recorre el camino completo con trazas medidas: en
+un ChipWhisperer-Nano, con una clave de laboratorio y el AES de NewAE sin
+protecciones, el CPA recupera los 16 bytes con \num{1000} trazas, y el 90~\% de
+las ordenaciones aleatorias de esa campaña lo consigue con \num{112}
+(\cref{cap:resultados}). La contramedida de la fase 6 muestra el otro lado: el
+barajado encarece el ataque pero no lo impide, y los retardos aleatorios lo
+tumban tal como está escrito, aunque un atacante dispuesto a preprocesar las
+trazas recupera parte de la clave.
 
 \section{Puntos fuertes del ataque}
 \label{sec:puntos-fuertes}
@@ -74,19 +79,26 @@ abierto.
     laboratorio de enseñanza, no las de un ataque a un producto, y los números
     que se obtengan no se pueden trasladar sin más a otro dispositivo.
 \end{itemize}
-% TODO: completar con lo observado en las medidas (trazas necesarias reales,
-% ruido, problemas de captura) en la fase 5.
+En la placa, el ruido de la medida resultó ser del orden de un escalón del
+convertidor y las trazas salieron alineadas al ciclo sin procesado, así que
+ninguno de los problemas habituales de una captura real ha estorbado
+(\cref{sec:calidad-captura}). Las \num{112} trazas para el 90~\% de los ensayos
+están dentro de lo que predecía el modelo simulado para la relación
+señal-ruido medida, del lado bueno: la fuga real aparece en más muestras que en
+la simulación, y eso también ayuda al atacante.
 
 \section{Trabajo futuro}
 \label{sec:trabajo-futuro}
 
 \begin{itemize}
-  \item \textbf{Medir una contramedida.} Añadir al firmware un \emph{shuffling}
-    de los 16 bytes o retardos aleatorios y medir cuántas trazas más necesita
-    el ataque, para contrastar la estimación de la \cref{sec:shuffling}. Los
-    retardos que trae el firmware de ejemplo dependen del texto claro y no son
-    aleatorios, así que haría falta un generador pseudoaleatorio en el
-    dispositivo.
+  \item \textbf{Completar la contramedida.} Las variantes medidas usan un
+    generador xorshift32 con semilla fija, que un atacante que conozca el
+    código puede predecir (\cref{sec:contramedidas-medidas}). Haría falta un
+    generador realmente aleatorio en el dispositivo, y un enmascaramiento, que
+    es la única contramedida de las estudiadas que anula el CPA de primer
+    orden. Del lado del atacante, queda por escribir un ataque completo de
+    realineado contra los retardos, que en este trabajo se ha compensado solo
+    con ventanas de integración.
   \item \textbf{Otros modelos y objetivos.} Atacar la última ronda sobre trazas
     reales y comparar el peso de Hamming con la distancia de Hamming.
   \item \textbf{Ataques de orden superior.} Repetir el experimento contra una

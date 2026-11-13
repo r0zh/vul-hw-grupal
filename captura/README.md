@@ -14,9 +14,17 @@ uv run python -m analisis.real datos/brutos/<fecha>-prueba
 
 Opciones de `capturar`: `-n` (trazas), `--samples` (5000; el Nano llega a
 50 000), `--key` (por defecto la clave de laboratorio de `analisis/config.py`),
-`--seed` (textos claros), `--programar` (programa antes de capturar) y
-`--notas` (texto libre al JSON). Con un Lite o un Husky hay que añadir
-`--platform CWLITEARM` o `--platform CWLITEXMEGA` antes del subcomando.
+`--seed` (textos claros), `--texto-fijo HEX` (el mismo texto claro en todas las
+trazas, para medir el ruido y la alineación), `--programar` (programa antes de
+capturar), `--fuente` (descripción del firmware para el JSON) y `--notas`
+(texto libre al JSON). El firmware se elige con `--firmware RUTA.hex` antes del
+subcomando. Con un Lite o un Husky hay que añadir `--platform CWLITEARM` o
+`--platform CWLITEXMEGA`, también antes del subcomando.
+
+**Recortes para el repositorio:** `datos/brutos/` está ignorado. Las campañas
+que usan la memoria y la web se recortan a `datos/` con
+`uv run python -m captura.campana ORIGEN DESTINO -n 1000 --muestras 0:1500`,
+que anota el origen del recorte en el JSON.
 
 Cada texto cifrado que devuelve el target se compara con `analisis/aes.py`: si
 no coincide, la captura se para.

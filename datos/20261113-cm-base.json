@@ -1,0 +1,38 @@
+{
+  "instrumento": {
+    "tipo": "CWNano",
+    "serie": "53333200524b34533230313131313039",
+    "firmware_scope": "0.65.0",
+    "adc_muestras": 5000,
+    "adc_hz": 7500000.0,
+    "reloj_target_hz": 7500000.0,
+    "ganancia_db": null
+  },
+  "plataforma": "CWNANO",
+  "segundos": 160.2,
+  "firmware": {
+    "fichero": "simpleserial-aes-cm-base-CWNANO.hex",
+    "sha256": "377dcf9d604a90fb718c77c1e7f4e619a4140f04dd2fc8cd6330308dbea35df4"
+  },
+  "fecha": "2026-11-13T18:25:31+01:00",
+  "commit": "33edffa03525-dirty",
+  "semilla_textos": 20261110,
+  "texto_fijo_hex": null,
+  "clave_hex": "2b7e151628aed2a6abf7158809cf4f3c",
+  "firmware_fuente": "firmware/contramedida/aes-cm.c sin contramedidas (variante base)",
+  "notas": "fase 6: referencia con el mismo código que las contramedidas",
+  "simulada": false,
+  "n_traces": 1000,
+  "n_samples": 1500,
+  "recorte": {
+    "origen": "20261113-182531-cm-base",
+    "trazas": [
+      0,
+      1000
+    ],
+    "muestras": [
+      0,
+      1500
+    ]
+  }
+}

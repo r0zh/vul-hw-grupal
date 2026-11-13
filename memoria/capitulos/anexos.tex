@@ -19,12 +19,24 @@ reproducen la captura y el análisis y recoge los fragmentos más relevantes.
     \texttt{numpy} anterior a la 2.0. Se instala aparte con
     \texttt{uv sync --group captura}.
   \item El firmware víctima es \texttt{simpleserial-aes} del mismo commit,
-    compilado con \texttt{arm-none-eabi-gcc} mediante
-    \texttt{firmware/build.sh} con \texttt{PLATFORM=CWNANO},
-    \texttt{CRYPTO\_TARGET=TINYAES128C} y \texttt{SS\_VER=SS\_VER\_1\_1}.
+    compilado con \texttt{arm-}\allowbreak\texttt{none-}\allowbreak\texttt{eabi-gcc} mediante
+    \texttt{firmware/}\allowbreak\texttt{build.sh} con \texttt{PLATFORM=CWNANO},
+    \texttt{CRYPTO\_TARGET=}\allowbreak\texttt{TINYAES128C} y
+    \texttt{SS\_VER=SS\_VER\_1\_1}.
+    El fichero \texttt{simpleserial-aes-}\allowbreak\texttt{CWNANO.hex} de las
+    campañas tiene la
+    huella SHA-256
+    \texttt{b37e4342027c41fd}\allowbreak\texttt{46f61906cbd516ed}\allowbreak
+    \texttt{c37a68ec0ed7b8b4}\allowbreak\texttt{8948c768f8f01711}.
+  \item Las variantes con contramedidas de la \cref{sec:contramedidas-medidas}
+    se compilan con \texttt{firmware/}\allowbreak\texttt{contramedida/}\allowbreak
+    \texttt{build.sh}, que usa el mismo \texttt{simpleserial-aes.c} con un AES
+    propio (\texttt{firmware/}\allowbreak\texttt{contramedida/}\allowbreak\texttt{aes-cm.c}). Sus huellas quedan en el
+    \texttt{.json} de cada campaña.
+  \item El ChipWhisperer-Nano tenía la versión 0.65 del firmware del
+    capturador, la más reciente que incluye la biblioteca usada, así que no se
+    actualizó.
 \end{itemize}
-% TODO: versión del firmware del ChipWhisperer-Nano (antes y después de
-% actualizar, si hace falta) y SHA-256 del .hex usado en la campaña final.
 
 \section{Protocolo con la víctima}
 
@@ -44,6 +56,7 @@ uv run python -m captura.cw info
 uv run python -m captura.cw programar
 uv run python -m captura.cw capturar -n 3000 --nombre campana
 uv run python -m analisis.real datos/brutos/<fecha>-campana
+uv run python -m analisis.reales   # figuras y números del capítulo 4
 \end{lstlisting}
 
 La orden \texttt{capturar} guarda un \texttt{.npz} con las trazas, los textos
@@ -61,9 +74,9 @@ partir de \texttt{captura/cw.py}.
 \begin{lstlisting}[style=python]
 trace = cw.capture_trace(scope, target, pt, bytearray(key), as_int=False)
 expected = aes.encrypt_block(bytes(pt), round_keys)
-if bytes(trace.textout) != expected:
-    sys.exit(f"trace {i}: target returned {bytes(trace.textout).hex()}")
-traces[i] = trace.wave[:n_samples]
+if bytes(trace.ciphertext) != expected:
+    sys.exit(f"trace {i}: target returned {bytes(trace.ciphertext).hex()}")
+traces[i] = trace.trace[:n_samples]
 \end{lstlisting}
 
 \section{CPA en una pasada}
