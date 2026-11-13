@@ -19,7 +19,7 @@ reales** del ChipWhisperer-Nano (desde el 2026-11-13), y sus figuras son las
 | `config.py` | Todos los parámetros de la simulación y de los experimentos |
 | `run_all.py` | Regenera los resultados y todas las figuras |
 | `demo.py` | Demo en vivo: la clave aparece byte a byte al crecer N (no escribe ficheros) |
-| `reales.py` | Figuras `real-*` de la memoria, números en `analisis/salida/reales.json` y datos de la web (`web/data/`), a partir de las campañas versionadas en `datos/` |
+| `reales.py` | Figuras `real-*` de la memoria, números en `analisis/salida/reales.json`, macros de LaTeX en `memoria/capitulos/generado/reales.tex` y datos de la web (`web/data/`), a partir de las campañas versionadas en `datos/` |
 | `real.py` | CPA de una campaña guardada (`datos/brutos/`, del ChipWhisperer o `--simular`): clave, rangos, trazas necesarias y figuras en `analisis/salida/<campaña>/` |
 | `tests.py` | Comprobaciones rápidas (AES, ataque sin ruido, utilidades) |
 
@@ -96,10 +96,22 @@ si además está la campaña completa de 20 000 trazas en `datos/brutos/`, se
 ataca entera (0 de 16 bytes) y se prueba a compensar los retardos sumando
 ventanas de 100 y 300 muestras antes de correlar (`delay_integration`).
 
-Los números de las secciones 4.2 a 4.4 de la memoria están escritos a mano a
-partir de `reales.json`: si se regenera el JSON y algún número cambia, hay que
-actualizarlo también en `memoria/capitulos/04-resultados.tex`. Las figuras sí
-se sustituyen solas.
+Los números de las secciones 4.2 a 4.4 de la memoria no se escriben a mano.
+El análisis deja `memoria/capitulos/generado/reales.tex`, con una macro de LaTeX
+por cada número (`\realRhoCorrectMin`, `\realTracesNinety`…), y la memoria la
+incluye con `\input`. El fichero se versiona porque la CI compila sin ejecutar
+el análisis. Para rehacerlo sin repetir el cálculo, a partir del `reales.json`
+que ya hay:
+
+```sh
+uv run python -m analisis.reales --solo-tex
+```
+
+Si el texto necesita un número nuevo, se añade primero a `tex_macros()` en
+`reales.py` y después se cita en `04-resultados.tex`; los nombres van en inglés
+y solo con letras. Si al JSON le falta la campaña completa con retardos, las
+macros no se tocan, para no dejar la memoria a medio actualizar: el análisis
+completo lo avisa y termina igual, y `--solo-tex` acaba con error.
 
 ## Demo en vivo
 

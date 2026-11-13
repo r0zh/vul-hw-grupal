@@ -56,6 +56,7 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 | 2026-11-13 | `analisis/reales.py` genera las figuras `real-*`, los números de `analisis/salida/reales.json` y los datos de la web a partir de `datos/`. Las curvas de éxito se estiman con 100 permutaciones de la misma campaña (10 con `--rapido`), no con campañas independientes | Hecho |
 | 2026-11-13 | Contramedida de la fase 6 en `firmware/contramedida/aes-cm.c`: AES propio con la estructura de tiny-AES que sustituye a la biblioteca de NewAE y se compila con el mismo `simpleserial-aes.c`. Variantes `base` (referencia), `retardos` (`CM_DELAY`, 0 a 15 vueltas antes de cada byte de SubBytes, de cada columna de MixColumns y de cada ronda) y `barajado` (`CM_SHUFFLE`, SubBytes en orden aleatorio). Generador xorshift32 con semilla fija: sirve para medir, **no es una contramedida utilizable tal cual** | Hecho |
 | 2026-11-13 | Resultado de la fase 6: el barajado de SubBytes solo multiplica por 3,6 las trazas necesarias (n90: 475 frente a 132), muy por debajo de las m² = 256 del modelo, porque ShiftRows y MixColumns siguen cargando los mismos bytes en las mismas muestras. Los retardos tumban el CPA sin preprocesado incluso con 20 000 trazas; integrando ventanas de 300 muestras antes de correlar se recuperan 7 de 16 bytes | Hecho |
+| 2026-11-13 | Los números de las medidas del capítulo 4 no se escriben a mano: `analisis/reales.py` deja `memoria/capitulos/generado/reales.tex` con una macro de LaTeX por número (`\realRhoCorrectMin`, `\realTracesNinety`…) y la memoria la incluye con `\input`. El fichero se versiona porque la CI compila sin ejecutar el análisis, y `--solo-tex` lo rehace desde el JSON en segundos | Hecho |
 | — | Herramienta para la presentación (ver [`presentacion/por-decidir.md`](presentacion/por-decidir.md)) | Pendiente |
 
 ## Estructura del repositorio
@@ -75,6 +76,7 @@ memoria/
   main.tex             documento raíz; solo estructura e \input de capítulos
   portada.tex          portada con el estilo de la plantilla, adaptada al trabajo
   capitulos/           un .tex por capítulo del esquema TFG + anexos
+    generado/          números de las medidas (reales.tex); los genera analisis/reales.py
   referencias.bib      bibliografía compartida con la presentación
   latexmkrc            XeLaTeX + biber, salida en memoria/build/
   template/            plantilla UMA (estilo, fuentes Malacitana y logos); no tocar
@@ -128,6 +130,7 @@ uv run python -m analisis.run_all --fast     # versión de humo
 uv run python -m analisis.demo               # demo en vivo del CPA (simulada, no escribe nada)
 uv run python -m analisis.reales             # figuras real-* y números de las medidas (~25 min)
 uv run python -m analisis.reales --rapido    # 10 ordenaciones en vez de 100 (~3 min, para probar)
+uv run python -m analisis.reales --solo-tex  # solo las macros de la memoria, desde el JSON (segundos)
 ```
 
 Detalles en [`analisis/README.md`](analisis/README.md). El workflow `Análisis` ejecuta las comprobaciones y el análisis reducido **dos veces** en cada push que toque `analisis/`, para comprobar que los resultados y las figuras son deterministas. `analisis.reales` no entra en la CI: tarda demasiado y necesita las campañas de `datos/`, que sí están versionadas (la campaña completa con retardos, no: si falta, se omiten esas claves del JSON).

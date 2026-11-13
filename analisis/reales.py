@@ -11,6 +11,11 @@ excepción es la campaña completa con retardos, que no cabe en el repositorio:
 si está en `datos/brutos/`, se ataca entera y se anota en el JSON; si no, esas
 claves se omiten y el resto sale igual.
 
+Además del JSON y las figuras, deja `memoria/capitulos/generado/reales.tex`, con
+una macro de LaTeX por cada número que cita el capítulo 4 de la memoria; así el
+texto no se desfasa cuando se repite el análisis. Con `--solo-tex` se rehace ese
+fichero a partir del JSON, sin recalcular nada.
+
 Las curvas de éxito frente a N no salen de una sola ordenación de las trazas:
 se repite el CPA sobre `--ordenaciones` permutaciones aleatorias (semilla fija)
 de cada campaña y se cuenta en cuántas queda la clave completa en rango 1.
@@ -378,6 +383,143 @@ def export_web(data: campana.Campaign, web_dir: Path, n: int = 400,
     return path
 
 
+# ─────────────────────────────── Macros de LaTeX ────────────────────────
+# La memoria no escribe los números de las medidas a mano: el capítulo 4 cita
+# estas macros, que salen de `analisis/salida/reales.json`. El fichero se
+# versiona porque la CI compila la memoria sin ejecutar este módulo.
+
+#: Fichero que `\input` la memoria con los números del capítulo 4.
+TEX_MACROS = REPO / "memoria" / "capitulos" / "generado" / "reales.tex"
+
+#: Cabecera del fichero generado: dice de dónde sale y cómo se regenera.
+TEX_HEADER = """\
+% ──────────────────────────────────────────────────────────────────────
+% Números reales del capítulo 4 (secciones 4.2, 4.3 y 4.4).
+% GENERADO POR analisis/reales.py (write_tex_macros): no se edita a mano.
+% Se regenera con:
+%     uv run python -m analisis.reales              (todo, ~25 minutos)
+%     uv run python -m analisis.reales --solo-tex   (solo este fichero, a
+%                                                    partir de reales.json)
+% Se versiona en el repositorio porque la CI compila la memoria sin ejecutar
+% el análisis.
+% ──────────────────────────────────────────────────────────────────────
+"""
+
+
+def _tex_number(value: float, digits: int | None = None) -> str:
+    """Número para LaTeX con la coma decimal y los decimales de la memoria."""
+    if digits is None:
+        return f"\\num{{{int(value)}}}"
+    return "\\num{" + f"{value:.{digits}f}".replace(".", ",") + "}"
+
+
+def _tex_span(values) -> tuple[str, str]:
+    """Mínimo y máximo de una lista de números, con tres decimales."""
+    values = [float(v) for v in values]
+    return _tex_number(min(values), 3), _tex_number(max(values), 3)
+
+
+def tex_macros(results: dict) -> list[tuple[str, str]]:
+    """Pares (nombre de la macro, valor en LaTeX) del capítulo 4.
+
+    El formato es el que ya usaba el texto a mano: `\\num{0,586}`, con coma
+    decimal y el mismo número de decimales. Las secciones de la memoria que
+    usan cada grupo van indicadas en los comentarios del código.
+    """
+    tiny = results["tinyaes"]
+    curve = tiny["curva"]
+    noise = results["ruido_texto_fijo"]
+    saturation = results["saturacion"]
+    base = results["cm-base"]
+    shuffled = results["cm-barajado"]
+    delays = results["cm-retardos"]
+    full = results.get("cm-retardos-completa")
+    if full is None:
+        raise ValueError(
+            "No se pueden escribir las macros de la memoria: al JSON le faltan "
+            "las claves de la campaña completa con retardos "
+            f"(datos/brutos/{FULL_DELAY_CAMPAIGN}). Copia esa campaña al "
+            "repositorio o usa el reales.json de un portátil que la tenga."
+        )
+
+    # Las cifras son cotas, no el mínimo exacto: el texto dice «entre X y N»,
+    # donde X es el punto de control anterior más uno (en ese punto todavía no
+    # se llegaba al 90 %), la misma convención que la tabla de la simulación.
+    ninety = curve["n_90"]
+    lower = max([step for step in curve["pasos"] if step < ninety],
+                default=curve["pasos"][0] - 1) + 1
+    rho_correct_min, rho_correct_max = _tex_span(tiny["pico_correcto"])
+    rho_wrong_min, rho_wrong_max = _tex_span(tiny["mejor_falso"])
+    snr_min, snr_max = _tex_span(tiny["snr_equivalente"])
+    base_min, base_max = _tex_span(base["pico_correcto"])
+    shuffled_min, shuffled_max = _tex_span(shuffled["pico_correcto"])
+    delay_min, delay_max = _tex_span(delays["pico_correcto"])
+    delay_wrong_min, delay_wrong_max = _tex_span(delays["mejor_falso"])
+    windows = full["ventanas"]
+
+    return [
+        # §4.2 Calidad de la captura
+        ("realFixedTextTraces", _tex_number(noise["n_traces"])),
+        ("realAlignmentCentred", _tex_number(noise["desplazamientos"].get("0", 0))),
+        ("realNoiseMedian", _tex_number(noise["desviacion_mediana"], 4)),
+        ("realNoiseTail", _tex_number(noise["desviacion_p99"], 4)),
+        ("realAttackTraces", _tex_number(tiny["n_traces"])),
+        ("realAdcMax", _tex_number(saturation["maximo"], 3)),
+        ("realSaturatedSamples", _tex_number(saturation["muestras_en_el_minimo"])),
+        ("realTotalSamples", _tex_number(saturation["muestras_totales"])),
+        # §4.3 Recuperación de la clave
+        ("realRhoCorrectMin", rho_correct_min),
+        ("realRhoCorrectMax", rho_correct_max),
+        ("realRhoWrongMin", rho_wrong_min),
+        ("realRhoWrongMax", rho_wrong_max),
+        ("realOrderings", _tex_number(curve["ordenaciones"])),
+        ("realTracesHalf", _tex_number(curve["n_50"])),
+        ("realTracesNinety", _tex_number(ninety)),
+        ("realTracesAll", _tex_number(curve["n_100"])),
+        ("realTracesNinetyLower", _tex_number(lower)),
+        ("realSnrMin", snr_min),
+        ("realSnrMax", snr_max),
+        # §4.4 Contramedidas medidas
+        ("realBaseTraces", _tex_number(base["n_traces"])),
+        ("realBaseBytes", _tex_number(base["bytes_correctos"])),
+        ("realBaseRhoMin", base_min),
+        ("realBaseRhoMax", base_max),
+        ("realBaseTracesNinety", _tex_number(base["curva"]["n_90"])),
+        ("realShuffleTraces", _tex_number(shuffled["n_traces"])),
+        ("realShuffleBytes", _tex_number(shuffled["bytes_correctos"])),
+        ("realShuffleRhoMin", shuffled_min),
+        ("realShuffleRhoMax", shuffled_max),
+        ("realShuffleTracesNinety", _tex_number(shuffled["curva"]["n_90"])),
+        ("realDelayTraces", _tex_number(delays["n_traces"])),
+        ("realDelayBytes", _tex_number(delays["bytes_correctos"])),
+        ("realDelayRhoMin", delay_min),
+        ("realDelayRhoMax", delay_max),
+        ("realDelayRhoWrongMin", delay_wrong_min),
+        ("realDelayRhoWrongMax", delay_wrong_max),
+        ("realShuffleFactor",
+         _tex_number(shuffled["curva"]["n_90"] / base["curva"]["n_90"], 1)),
+        ("realDelayFullTraces", _tex_number(full["n_traces"])),
+        ("realDelayFullRho", _tex_number(max(full["pico_correcto"]), 3)),
+        ("realWindowNarrow", _tex_number(windows["100"]["ancho"])),
+        ("realWindowNarrowBytes", _tex_number(windows["100"]["bytes_correctos"])),
+        ("realWindowWide", _tex_number(windows["300"]["ancho"])),
+        ("realWindowWideBytes", _tex_number(windows["300"]["bytes_correctos"])),
+    ]
+
+
+def write_tex_macros(results: dict, path: Path) -> None:
+    """Escribe `path` con un `\\newcommand` por número del capítulo 4.
+
+    Lo genera `python -m analisis.reales` al final del análisis; con
+    `--solo-tex` se rehace a partir del JSON, sin recalcular nada.
+    """
+    lines = [TEX_HEADER]
+    for name, value in tex_macros(results):
+        lines.append(f"\\newcommand{{\\{name}}}{{{value}}}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n")
+
+
 # ──────────────────────────────── Programa ───────────────────────────────
 
 def _geometric_steps(n: int, start: int = 5, count: int = 24) -> list[int]:
@@ -390,9 +532,26 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--resultados", type=Path, default=REPO / "analisis" / "salida" / "reales.json")
     parser.add_argument("--web", type=Path, default=REPO / "web" / "data",
                         help="dónde dejar el JSON y el PNG de la web")
+    parser.add_argument("--macros", type=Path, default=TEX_MACROS,
+                        help="fichero de macros de LaTeX que cita la memoria")
     parser.add_argument("--ordenaciones", type=int, default=100)
     parser.add_argument("--rapido", action="store_true", help="10 ordenaciones")
+    parser.add_argument("--solo-tex", action="store_true",
+                        help="solo escribe el .tex de macros, a partir del JSON existente")
     args = parser.parse_args(argv)
+
+    # Regenerar solo las macros: lee el JSON ya calculado (el análisis completo
+    # tarda unos 25 minutos y no hace falta si no han cambiado las campañas).
+    if args.solo_tex:
+        if not args.resultados.exists():
+            raise SystemExit(f"No existe {args.resultados}: ejecuta antes el análisis completo")
+        try:
+            write_tex_macros(json.loads(args.resultados.read_text()), args.macros)
+        except ValueError as error:
+            raise SystemExit(str(error)) from None
+        print(f"Macros: {args.macros}")
+        return 0
+
     orderings = 10 if args.rapido else args.ordenaciones
 
     results: dict = {"semilla": SEED, "campanas": CAMPAIGNS}
@@ -457,9 +616,15 @@ def main(argv: list[str] | None = None) -> int:
 
     args.resultados.parent.mkdir(parents=True, exist_ok=True)
     args.resultados.write_text(json.dumps(results, indent=2, ensure_ascii=False) + "\n")
+    try:
+        write_tex_macros(results, args.macros)
+    except ValueError as error:
+        # El JSON y las figuras ya están escritos: no se pierde el cálculo.
+        print(f"Aviso: no se actualizan las macros de la memoria. {error}")
     for path in written:
         print(f"Figura: {path}")
     print(f"Resultados: {args.resultados}")
+    print(f"Macros: {args.macros}")
     return 0
 
 
