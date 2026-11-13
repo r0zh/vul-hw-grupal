@@ -29,10 +29,11 @@ reproducen la captura y el análisis y recoge los fragmentos más relevantes.
     \texttt{b37e4342027c41fd}\allowbreak\texttt{46f61906cbd516ed}\allowbreak
     \texttt{c37a68ec0ed7b8b4}\allowbreak\texttt{8948c768f8f01711}.
   \item Las variantes con contramedidas de la \cref{sec:contramedidas-medidas}
-    se compilan con \texttt{firmware/}\allowbreak\texttt{contramedida/}\allowbreak
-    \texttt{build.sh}, que usa el mismo \texttt{simpleserial-aes.c} con un AES
-    propio (\texttt{firmware/}\allowbreak\texttt{contramedida/}\allowbreak\texttt{aes-cm.c}). Sus huellas quedan en el
-    \texttt{.json} de cada campaña.
+    se compilan con el \texttt{build.sh} del directorio
+    \texttt{firmware/}\allowbreak\texttt{contramedida/}, que usa el mismo
+    \texttt{simpleserial-aes.c} con un AES propio (\texttt{aes-cm.c}, en el
+    mismo directorio). Sus huellas quedan en el \texttt{.json} de cada
+    campaña.
   \item El ChipWhisperer-Nano tenía la versión 0.65 del firmware del
     capturador, la más reciente que incluye la biblioteca usada, así que no se
     actualizó.
@@ -55,7 +56,7 @@ firmware/build.sh CWNANO
 uv run python -m captura.cw info
 uv run python -m captura.cw programar
 uv run python -m captura.cw capturar -n 3000 --nombre campana
-uv run python -m analisis.real datos/brutos/<fecha>-campana
+uv run python -m analisis.real datos/brutos/<fecha>-<hora>-campana
 uv run python -m analisis.reales   # figuras y números del capítulo 4
 \end{lstlisting}
 

@@ -83,17 +83,18 @@ ChipWhisperer-Nano. En concreto, se plantean estos objetivos:
     automatizar la captura de miles de trazas.
   \item Atacar las trazas reales y medir cuántas hacen falta para recuperar cada
     byte de la clave.
-  \item Revisar las contramedidas existentes y, si da tiempo, medir cómo una de
-    ellas degrada el ataque.
+  \item Revisar las contramedidas existentes y, como objetivo opcional, medir
+    cómo degradan el ataque algunas de ellas.
 \end{enumerate}
 
-Quedan fuera del alcance las implementaciones protegidas (salvo la contramedida
-opcional del último punto), los AES en hardware, los ataques electromagnéticos,
+Quedan fuera del alcance las implementaciones protegidas (salvo las variantes
+con contramedidas del último punto), los AES en hardware, los ataques electromagnéticos,
 los ataques de plantillas y la inyección de fallos. Todo el experimento se hace
 sobre una placa de laboratorio controlada por el grupo, con una clave que no
-protege nada real. El éxito no está garantizado: depende del ruido de la
-medida, de la sincronización de las trazas, de la frecuencia de muestreo y de la
-propia implementación.
+protege nada real. El éxito no estaba garantizado de antemano: dependía del
+ruido de la medida, de la sincronización de las trazas, de la frecuencia de
+muestreo y de la propia implementación, y por eso el ataque se valida primero
+en simulación.
 
 \section{Estructura del documento}
 \label{sec:estructura}

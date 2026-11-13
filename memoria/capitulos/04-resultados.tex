@@ -17,8 +17,9 @@ Antes de medir nada conviene comprobar que el ataque está bien implementado y
 saber qué cabe esperar de él. Para eso se generan \emph{trazas sintéticas} con
 un modelo de fuga de peso de Hamming más ruido gaussiano y se atacan con el
 mismo código que después se aplicará a las trazas medidas. \textbf{Todo lo que
-aparece en esta sección es simulación}: no son medidas de ningún montaje y no
-dicen nada sobre el microcontrolador, que todavía no se ha instrumentado.
+aparece en esta sección es simulación}: no son medidas de ningún montaje y se
+hicieron antes de instrumentar el microcontrolador. Las medidas reales empiezan
+en la \cref{sec:calidad-captura}.
 
 \subsection{Modelo de las trazas simuladas}
 
@@ -226,9 +227,8 @@ con $\mathrm{SNR} = 0{,}01$ ya no basta el tope de 3000. Es lo esperable: para
 que el máximo de los falsos, del orden de $1/\sqrt{N}$, quede por debajo de
 $\rho \approx \sqrt{\mathrm{SNR}}$, hace falta $N$ del orden de
 $1/\mathrm{SNR}$. Hay que insistir en que estos números son propiedad del
-\emph{modelo}, no del montaje: fijan el orden de magnitud que habrá que
-comparar con las medidas reales, y solo entonces se podrá decir si el montaje
-se parece a la simulación.
+\emph{modelo}, no del montaje: dan el orden de magnitud con el que se
+comparan las medidas reales en la \cref{sec:recuperacion-clave}.
 
 \subsection{Comparación con el DPA}
 
@@ -367,10 +367,9 @@ $\sqrt{\mathrm{SNR}/(1+\mathrm{SNR})}$ (\cref{eq:rho-teorica}). Si se despeja
 la SNR a partir de los picos medidos, sale entre \realSnrMin{} y
 \realSnrMax{} según el byte, y la \cref{tab:sim-ruido} predice para ese
 intervalo entre \num{77} y \num{151} trazas para el 90~\% de los ensayos. Las
-\realTracesNinety{} medidas caen dentro de ese orden de magnitud, del lado bueno: la
-fuga real no se limita a una ventana por byte y el ruido no es gaussiano puro,
-así que el modelo de la simulación no la describe exactamente, pero sitúa las
-cifras en el mismo rango.
+\realTracesNinety{} medidas caen dentro. El modelo no describe la placa
+exactamente ---la fuga real no se limita a una ventana por byte y el ruido no
+es gaussiano puro---, pero sitúa las cifras en el rango correcto.
 
 \section{Contramedidas medidas}
 \label{sec:contramedidas-medidas}
@@ -386,9 +385,9 @@ variantes se diferencien solo en la contramedida. Las otras dos añaden
 \emph{shuffling} de \texttt{SubBytes} o retardos aleatorios de 0 a 15 vueltas
 de un bucle antes de cada byte de \texttt{SubBytes}, de cada columna de
 \texttt{MixColumns} y al empezar cada ronda. El generador es un xorshift32 con
-semilla fija, porque el microcontrolador de la placa no tiene generador
-aleatorio por hardware: sirve para medir el efecto de la aleatorización, pero
-con el código y la semilla públicos no es una contramedida utilizable tal cual.
+semilla fija y sin ninguna fuente de entropía: sirve para medir el efecto de la
+aleatorización, pero con el código y la semilla públicos se pueden predecir
+los retardos y el orden, así que no es una contramedida utilizable tal cual.
 
 \begin{table}[htbp]
   \centering
@@ -433,8 +432,8 @@ muestra, no encuentra la posición de cada byte: con la campaña recortada de
 correcto (entre \realDelayRhoMin{} y \realDelayRhoMax) está al nivel del mejor
 falso (entre \realDelayRhoWrongMin{} y \realDelayRhoWrongMax), como si no
 hubiera fuga. Con la campaña completa de \realDelayFullTraces{} trazas tampoco
-recupera ninguno, y el pico no sube de \realDelayFullRho, muy por debajo de los
-\realRhoCorrectMin{} de la víctima sin proteger. El CPA no falla porque la fuga
+recupera ninguno, y el pico no sube de \realDelayFullRho, muy por debajo del
+mínimo de \realBaseRhoMin{} de la variante sin contramedida. El CPA no falla porque la fuga
 desaparezca, sino porque deja de estar en una muestra fija.
 
 \paragraph{El atacante puede compensarlo, con trabajo.} Una primera forma de

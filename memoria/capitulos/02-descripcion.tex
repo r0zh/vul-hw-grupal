@@ -140,8 +140,8 @@ Brier et al.\ proponen en general la distancia de Hamming entre el valor y un
 estado de referencia ---el contenido previo del registro o del bus---, del que
 el peso de Hamming es el caso con referencia nula. Aquí se usa el peso de
 Hamming porque no se conoce qué valor ocupaba antes el registro en el
-microcontrolador. Es una hipótesis de trabajo: si las medidas encajan mejor con
-otro modelo, se cambiará.
+microcontrolador. Es una hipótesis de trabajo, y las medidas la respaldan: con
+ella se recuperan los 16 bytes (\cref{sec:recuperacion-clave}).
 
 Para cada byte $j$, cada candidato $k$ y cada instante $t$ se calcula la
 correlación entre la fuga predicha $h_i = \operatorname{HW}(\mathrm{SBox}(p_{i,j}
@@ -247,9 +247,9 @@ comercial, en el que el atacante tendría que montar la medida por su cuenta.
 
 \subsection{Microcontrolador y firmware}
 
-El dispositivo atacado es el microcontrolador STM32F0 que lleva el propio
-Nano, de 32 bits y con núcleo Cortex-M0, que se programa desde el propio Nano
-por su cargador de arranque serie. La documentación de NewAE indica un
+El dispositivo atacado es el microcontrolador STM32F0 de la parte víctima del
+Nano, de 32 bits y con núcleo Cortex-M0, que se programa desde el propio
+capturador por su cargador de arranque serie. La documentación de NewAE indica un
 STM32F030F4P6 \cite{cw-nano-docs,cw-nano-target}, pero la serigrafía del chip
 de nuestra placa dice \texttt{32F042F6P6} (\cref{fig:nano-victima}): es un
 STM32F042F6P6, de la misma familia y con el mismo encapsulado de 20 patillas.
@@ -298,7 +298,11 @@ puente para reducir el ruido cuando se mide otro dispositivo por el puerto
 
 La configuración por defecto de la biblioteca de NewAE pone el reloj del
 microcontrolador y el del convertidor a \qty{7,5}{\mega\hertz}, de modo que se toma una
-muestra por ciclo de reloj y siempre en la misma fase. Como la captura empieza
+muestra por ciclo de reloj, con un desfase fijo entre los dos relojes mientras
+la placa no se reinicia. Ese desfase cambia en cada arranque, y la
+documentación advierte de que con algunos valores las trazas se recortan
+\cite{cw-nano-docs}; en las medidas de este trabajo no ha ocurrido
+(\cref{sec:calidad-captura}). Como la captura empieza
 en el primer ciclo tras el disparo, las trazas salen alineadas sin procesado
 posterior, lo que resuelve el problema de sincronización que plantearía un
 osciloscopio con su propio reloj de muestreo. Se ha comprobado con 500 trazas
@@ -316,7 +320,8 @@ candidatos y todas las muestras; las métricas que se reportan (correlación
 frente al tiempo, pico por candidato, puesto de la clave correcta frente al
 número de trazas) y el generador de trazas sintéticas de la
 \cref{sec:validacion-simulada}. Con una semilla fija, la salida es idéntica
-entre ejecuciones, y la integración continua lo comprueba en cada cambio.
+entre ejecuciones, y la integración continua lo comprueba en cada cambio del
+análisis.
 
 La captura está en \texttt{captura/}, y usa la biblioteca de Python de NewAE
 para controlar el Nano. Las trazas reales se guardan en un fichero \texttt{.npz}
@@ -329,6 +334,7 @@ sobre una campaña calcula la correlación acumulando sumas parciales, de modo
 que el puesto de la clave correcta frente al número de trazas sale de una sola
 pasada sobre los datos. Con la placa no ha hecho falta ningún otro
 preprocesado: ni alinear, ni filtrar, ni promediar. Las campañas que usa la
-memoria se guardan en el repositorio recortadas a las primeras \num{1500}
-muestras, que contienen la primera ronda, y las figuras del
+memoria se guardan en el repositorio recortadas a las muestras que hacen falta
+(en general, las \num{1500} primeras, que contienen la primera ronda), y las
+figuras del
 \cref{cap:resultados} salen de ellas con \texttt{analisis/reales.py}.

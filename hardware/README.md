@@ -68,7 +68,7 @@ Primera conexión, en el portátil del equipo (Arch Linux, `chipwhisperer` 7.0.0
 **Calidad de la captura** (campaña `20261113-180036-nano-tinyaes`, 3000 trazas):
 
 - **Velocidad:** 18,6 trazas/s (3000 trazas en 161 s).
-- **SPA:** la traza media muestra bloques que se repiten cada ~950 muestras; los picos de correlación del CPA caen en el primero (muestras 462 a 676), así que la primera ronda entra de sobra en las 5000 muestras. El JSON no trae `trig_count_mediana`: el Nano no expone el contador de trigger.
+- **SPA:** la traza media muestra un patrón que se repite cada 1014 muestras (autocorrelación de la media de la campaña `20261113-spa`; sección 2.2 de la memoria); los picos de correlación del CPA caen en el primero (muestras 462 a 676), así que la primera ronda entra de sobra en las 5000 muestras. El JSON no trae `trig_count_mediana`: el Nano no expone el contador de trigger.
 - **Alineación:** la desviación típica entre trazas, muestra a muestra, tiene una mediana de 0,005, del orden de un escalón del ADC (1/256 ≈ 0,0039), con textos claros aleatorios. Las trazas salen alineadas sin procesar.
 - **Saturación:** 184 de 15 millones de muestras tocan el mínimo del ADC (−0,5), como mucho una por traza y ninguna entre las muestras 450 y 700. El resto de la traza queda entre −0,5 y 0,03.
 
