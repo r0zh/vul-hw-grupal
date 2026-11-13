@@ -1,6 +1,6 @@
 # Hardware: ChipWhisperer-Nano
 
-**Estado (2026-11-13):** se usa un **ChipWhisperer-Nano** para capturar y como víctima. La placa se conectó el 2026-11-13: se identifica por USB como un Nano de NewAE, el firmware víctima cifra bien y una campaña de 3000 trazas recupera los 16 bytes de la clave (ver [Medidas](#medidas-del-2026-11-13)). Queda pendiente confirmar el chip víctima, que no responde como el STM32F030 que documenta NewAE. Se descartan el osciloscopio TDS 220 y el montaje DIY con el ATmega328P; el plan anterior queda en el historial de git (commit `1402b04`).
+**Estado (2026-11-13):** se usa un **ChipWhisperer-Nano** para capturar y como víctima. La placa se conectó el 2026-11-13: se identifica por USB como un Nano de NewAE, el firmware víctima cifra bien y una campaña de 3000 trazas recupera los 16 bytes de la clave (ver [Medidas](#medidas-del-2026-11-13)). El chip víctima es un STM32F042F6P6 (serigrafía), no el STM32F030 que documenta NewAE. Se descartan el osciloscopio TDS 220 y el montaje DIY con el ATmega328P; el plan anterior queda en el historial de git (commit `1402b04`).
 
 ## Qué es
 
@@ -8,7 +8,8 @@ Placa de NewAE con el capturador y el chip víctima en la misma PCB, conectada a
 
 | | |
 |---|---|
-| Víctima | STM32F030 (Cortex-M0), programable desde el propio Nano por UART |
+| Víctima | STM32F030 (Cortex-M0), programable desde el propio Nano por UART. En nuestra placa es un STM32F042F6P6 (ver [Medidas](#medidas-del-2026-11-13)) |
+| Capturador | SAM4S, que genera con divisores los relojes del ADC y del target (sección *Errata*). En nuestra placa, ATSAM4S16B. La página también habla de «SAM3U» en un título, pero es una errata suya |
 | ADC | 8 bits, hasta 20 MS/s, con reloj interno síncrono con el del target o reloj externo |
 | Entrada analógica | Acoplada en AC, ganancia fija de unos 10 dB |
 | Buffer | 50 000 muestras por captura, sin *presampling* ni *streaming* |
@@ -58,7 +59,9 @@ Primera conexión, en el portátil del equipo (Arch Linux, `chipwhisperer` 7.0.0
 | `captura.cw info` | `tipo: CWNano`, plataforma `CWNANO` |
 | Firmware del scope | 0.65.0, el más reciente que trae la biblioteca (`scope.latest_fw`): no se actualizó |
 | Relojes | ADC y target a 7,5 MHz (`clk_src = int`), 5000 muestras por traza |
-| Chip víctima | El bootloader serie del STM32 (versión 3.1) responde con el ID `0x445`, que la biblioteca de NewAE etiqueta como `STM32F04xxx`, y el registro de tamaño de flash (`0x1FFFF7CC`) dice 32 KB. NewAE documenta un STM32F030F4P6 (ID `0x444`, 16 KB), así que no es ese. **Falta leer la serigrafía del chip** para saber el modelo exacto: en las fotos del 2026-11-13 no se distingue |
+| Chip víctima | El bootloader serie del STM32 (versión 3.1) responde con el ID `0x445`, que la biblioteca de NewAE etiqueta como `STM32F04xxx`, y el registro de tamaño de flash (`0x1FFFF7CC`) dice 32 KB. NewAE documenta un STM32F030F4P6 (ID `0x444`, 16 KB), así que no es ese. La serigrafía (foto de cerca en `figuras/nano-victima.jpg`) dice `32F042F6P6` con el logo de ST: es un **STM32F042F6P6**, coherente con el ID y la flash |
+| Capturador | Serigrafía `ATSAM4S16B` (Atmel) |
+| ADC | Serigrafía `ADC1173CIMTC`. Sus especificaciones no se han comprobado contra la hoja de datos |
 
 **Firmware víctima:** `simpleserial-aes-CWNANO.hex`, SHA-256 `b37e4342027c41fd46f61906cbd516edc37a68ec0ed7b8b48948c768f8f01711` (5719 bytes de flash, verificados por el programador). Los textos cifrados de las 3050 trazas capturadas coinciden con `analisis/aes.py`.
 
@@ -75,7 +78,7 @@ Primera conexión, en el portátil del equipo (Arch Linux, `chipwhisperer` 7.0.0
 
 ## Puntos a revisar
 
-1. **Chip víctima.** Ver la tabla de arriba: falta una foto de cerca, enfocada, del circuito de 20 patillas de la parte víctima. La memoria dice «STM32F0» y explica la discrepancia (sección 2.5).
+1. **Recorte por la fase de los relojes.** Según la errata de NewAE, el SAM4S no sincroniza los relojes del ADC y del target, así que su desfase cambia en cada arranque y con algunos desfases las trazas se recortan. Si al reconectar la placa (por ejemplo, el día de la demo) aparece mucha saturación, NewAE recomienda `scope.reset_clock_phase()` hasta que deje de pasar. En las campañas del 2026-11-13 no hizo falta (ver *Saturación* arriba).
 2. **Firmware del Nano.** Los textos cifrados de todas las campañas (también las de contramedidas, con firmware propio) se comprobaron contra `analisis/aes.py`.
 
 ## Otras campañas del 2026-11-13
