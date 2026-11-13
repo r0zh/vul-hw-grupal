@@ -1,4 +1,4 @@
-"""Comprobaciones rápidas de la fase 1, sin dependencias de pytest.
+"""Comprobaciones rápidas del análisis, sin dependencias de pytest.
 
 Se ejecutan con:
 
@@ -17,13 +17,25 @@ Cubren lo que puede invalidar el análisis en silencio:
 4. Robustez del CPA: una ganancia y un offset comunes a todas las trazas no
    cambian la correlación, y un offset por traza no impide el ataque.
 5. Coherencia de las utilidades estadísticas (rango, margen, error típico).
+6. El CPA incremental de `real.py`: mismos resultados que el CPA completo y
+   rango 1 en los 16 bytes sin ruido.
+7. La curva de rango estable de `real.py` y la curva de éxito de `reales.py`.
+8. El análisis de desalineación y la correlación de la hipótesis correcta de
+   `reales.py`, que son las que dan los números de las medidas.
+9. La ida y vuelta y el recorte del formato de campaña de `captura/campana.py`.
 """
 
 from __future__ import annotations
 
+import json
+import tempfile
+from pathlib import Path
+
 import numpy as np
 
-from . import aes, attacks, simulate, statistics
+from captura import campana
+
+from . import aes, attacks, real, reales, simulate, statistics
 from .config import SimulationConfig
 
 
@@ -221,6 +233,273 @@ def test_statistics_helpers() -> None:
     identical = np.tile(score[None, :, :], (16, 1, 1))
     assert np.array_equal(statistics.ranks_of(identical, np.full(16, 7)),
                           np.ones(16, dtype=int))
+
+
+def test_incremental_cpa_matches_full_cpa() -> None:
+    """El CPA incremental da las mismas puntuaciones que el CPA completo.
+
+    Los estadísticos acumulados de `real.incremental_cpa` tienen que llegar al
+    mismo resultado que `attacks.cpa_scores` sobre las mismas trazas, y sin
+    ruido dejar el rango de la clave correcta en 1 en los 16 bytes.
+    """
+    config = SimulationConfig(
+        n_traces=150,
+        snr=1e6,                     # ruido despreciable: el rango tiene que ser 1
+        trace_offset_ratio=0.0,
+        trace_drift_ratio=0.0,
+    )
+    campaign = simulate.simulate_traces(config)
+    traces = campaign.traces.astype(np.float64)
+    key = campaign.key.astype(np.intp)
+    steps = [10, 30, 75, len(traces)]
+    scores, ranks = real.incremental_cpa(traces, campaign.plaintexts, key, steps)
+    assert scores.shape == (16, 256, traces.shape[1]), (
+        f"forma de las puntuaciones inesperada: {scores.shape}"
+    )
+    assert ranks.shape == (len(steps), 16), (
+        f"forma de los rangos inesperada: {ranks.shape}"
+    )
+    # Las puntuaciones devueltas son las del último paso, es decir, las de las
+    # primeras `steps[-1]` trazas (aquí, todas).
+    reference = attacks.cpa_scores(
+        traces[:steps[-1]], campaign.plaintexts[:steps[-1]]
+    )
+    assert np.allclose(scores, reference, rtol=0.0, atol=1e-9), (
+        "el CPA incremental no coincide con el completo: diferencia máxima "
+        f"{np.abs(scores - reference).max():.3e}"
+    )
+    assert np.array_equal(ranks[-1], np.ones(16, dtype=int)), (
+        f"sin ruido el rango final no es 1 en los 16 bytes: {ranks[-1]}"
+    )
+    assert np.array_equal(attacks.winning_key(scores), campaign.key), (
+        "el CPA incremental no recupera la clave sin ruido"
+    )
+
+
+def test_stable_traces() -> None:
+    """`stable_traces` da el primer N con rango 1 hasta el final, o `None`.
+
+    Se construyen los rangos a mano: lo que se comprueba es la definición
+    («rango 1 desde ese N hasta el final»), no el CPA que los produce.
+    """
+    steps = [10, 25, 50, 100]
+    ranks = np.ones((len(steps), 16), dtype=int)
+    # Byte 0: siempre en rango 1, así que está estable desde el primer paso.
+    # Byte 1: se estabiliza a mitad (desde N = 50 ya no vuelve a fallar).
+    ranks[:, 1] = [4, 2, 1, 1]
+    # Byte 2: nunca llega a rango 1 en el último paso.
+    ranks[:, 2] = [3, 2, 4, 2]
+    # Byte 3: falla una vez después de haber estado bien; cuenta el último fallo.
+    ranks[:, 3] = [1, 5, 1, 1]
+    # Byte 4: se estabiliza justo en el último paso.
+    ranks[:, 4] = [2, 2, 2, 1]
+
+    needed = real.stable_traces(ranks, steps)
+    assert len(needed) == 16, f"se esperaban 16 valores, no {len(needed)}"
+    assert needed[0] == steps[0], (
+        f"un byte siempre en rango 1 debería estabilizarse en {steps[0]}, "
+        f"no en {needed[0]}"
+    )
+    assert needed[1] == steps[2], (
+        f"el byte que se estabiliza a mitad debería dar {steps[2]}, no {needed[1]}"
+    )
+    assert needed[2] is None, (
+        f"un byte que no llega a rango 1 al final debería dar None, no {needed[2]}"
+    )
+    assert needed[3] == steps[2], (
+        "el byte que vuelve a rango 1 tras fallar debería contar el último "
+        f"fallo ({steps[2]}), no {needed[3]}"
+    )
+    assert needed[4] == steps[-1], (
+        f"el byte que se estabiliza en el último paso debería dar {steps[-1]}, "
+        f"no {needed[4]}"
+    )
+    assert needed[5:] == [steps[0]] * 11, (
+        f"los bytes siempre en rango 1 no dan {steps[0]}: {needed[5:]}"
+    )
+
+
+def test_alignment_shifts() -> None:
+    """`alignment_shifts` recupera el desplazamiento de cada traza frente a la media.
+
+    El signo es el de `np.roll`: el valor devuelto `s` es el que habría que
+    aplicar a la traza para alinearla, `np.roll(traza, s)`. Por eso una traza
+    retardada `k` muestras (`np.roll(base, k)`) aparece como `-k`, y una
+    adelantada, como `+k`. Las claves del diccionario son texto (`"-3"`) y los
+    valores, cuántas trazas tienen ese desplazamiento.
+    """
+    rng = np.random.default_rng(23)
+    n_samples, n_traces = 64, 10
+    base = rng.normal(size=n_samples)
+    # Trazas iguales salvo un ruido pequeño: no hay nada que alinear.
+    traces = base[None, :] + rng.normal(0.0, 0.02, size=(n_traces, n_samples))
+    shifts = reales.alignment_shifts(traces)
+    assert shifts == {"0": n_traces}, (
+        f"trazas alineadas con ruido pequeño no dan todas 0: {shifts}"
+    )
+
+    # Una parte de las trazas se retrasa 3 muestras; el resto sigue alineado.
+    delayed = traces.copy()
+    delayed[[1, 4, 9]] = np.roll(traces[[1, 4, 9]], 3, axis=1)
+    shifts = reales.alignment_shifts(delayed)
+    assert shifts == {"-3": 3, "0": n_traces - 3}, (
+        f"un retraso de 3 muestras debería aparecer como -3: {shifts}"
+    )
+
+    # Y una parte se adelanta 2: el desplazamiento sale con el signo contrario.
+    advanced = traces.copy()
+    advanced[[0, 6]] = np.roll(traces[[0, 6]], -2, axis=1)
+    shifts = reales.alignment_shifts(advanced)
+    assert shifts == {"2": 2, "0": n_traces - 2}, (
+        f"un adelanto de 2 muestras debería aparecer como +2: {shifts}"
+    )
+
+
+def test_correct_correlation_matches_pearson() -> None:
+    """`_correct_correlation` es la correlación de Pearson, en valor absoluto.
+
+    La función de `reales.py` se usa para los números de las medidas, así que
+    tiene que coincidir con `statistics.pearson_correlation`, que es la que
+    valida el resto del análisis.
+    """
+    rng = np.random.default_rng(31)
+    n_traces, n_samples = 40, 6
+    traces = rng.normal(size=(n_traces, n_samples))
+    # Valores intermedios de los 16 bytes, con la forma (N, 16) que usa `reales.py`.
+    values = rng.integers(0, 256, size=(n_traces, 16), dtype=np.uint8)
+    rho = reales._correct_correlation(traces, values)
+    assert rho.shape == (16, n_samples), (
+        f"forma inesperada de la correlación: {rho.shape}"
+    )
+    byte = 3
+    samples = [0, 2, 5]
+    levels = simulate.hamming_weight(values[:, byte]).astype(np.float64)[:, None]
+    reference = np.abs(statistics.pearson_correlation(levels, traces)[0])
+    assert np.allclose(rho[byte, samples], reference[samples], rtol=0.0,
+                       atol=1e-12), (
+        "la correlación de la hipótesis correcta no coincide con la de "
+        f"Pearson: {rho[byte, samples]} frente a {reference[samples]}"
+    )
+
+
+def test_success_curve_reaches_full_key() -> None:
+    """Con SNR alta la tasa de éxito de la clave completa acaba en 1.
+
+    La curva se estima con 3 permutaciones de la misma campaña, como en
+    `reales.py`. Los valores de los pasos intermedios dependen del azar; lo
+    que se exige es que el último paso no empeore y que la clave entera quede
+    en rango 1, de modo que `n_100` exista.
+    """
+    config = SimulationConfig(
+        n_traces=120,
+        snr=10.0,
+        trace_offset_ratio=0.0,
+        trace_drift_ratio=0.0,
+    )
+    synthetic = simulate.simulate_traces(config)
+    data = campana.Campaign(
+        traces=synthetic.traces,
+        plaintexts=synthetic.plaintexts,
+        ciphertexts=synthetic.ciphertexts,
+        key=synthetic.key,
+    )
+    steps = [5, 10, 20, 120]
+    curve = reales.success_curve(data, steps, 3)
+    success = curve["exito_clave_completa"]
+    assert curve["pasos"] == steps, f"pasos inesperados: {curve['pasos']}"
+    assert curve["ordenaciones"] == 3, (
+        f"se esperaban 3 ordenaciones, no {curve['ordenaciones']}"
+    )
+    assert len(success) == len(steps), (
+        f"la curva de éxito tiene {len(success)} puntos y no {len(steps)}"
+    )
+    assert success[-1] >= success[-2], (
+        f"la tasa de éxito baja en el último paso: {success}"
+    )
+    assert success[-1] == 1.0, (
+        f"la clave completa no se recupera al final: {success}"
+    )
+    assert curve["n_100"] is not None, (
+        "no se anota el N con éxito total aunque la tasa final sea 1"
+    )
+    assert curve["n_100"] in steps, (
+        f"n_100 debería ser uno de los pasos, no {curve['n_100']}"
+    )
+
+
+def test_campaign_round_trip_and_trim() -> None:
+    """El formato de campaña conserva los arrays y el recorte queda anotado."""
+    rng = np.random.default_rng(41)
+    campaign = campana.Campaign(
+        traces=rng.normal(size=(8, 12)).astype(np.float32),
+        plaintexts=rng.integers(0, 256, size=(8, 16), dtype=np.uint8),
+        ciphertexts=rng.integers(0, 256, size=(8, 16), dtype=np.uint8),
+        key=rng.integers(0, 256, size=16, dtype=np.uint8),
+        metadata={
+            "simulada": True,
+            "instrumento": {"tipo": "simulada"},
+            "fecha": "2026-01-01",
+            "nota": "prueba de ida y vuelta",
+        },
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        npz, meta = campana.save(root / "origen", campaign)
+        assert npz.exists() and meta.exists(), "save no ha escrito los dos ficheros"
+
+        # La ida y vuelta es exacta: mismos dtypes, mismos valores y los
+        # metadatos originales más los dos campos que añade `save`.
+        loaded = campana.load(root / "origen")
+        for name in ("traces", "plaintexts", "ciphertexts", "key"):
+            original = getattr(campaign, name)
+            restored = getattr(loaded, name)
+            assert restored.dtype == original.dtype, (
+                f"{name} cambia de dtype al guardar: {restored.dtype}"
+            )
+            assert np.array_equal(restored, original), (
+                f"{name} no se recupera igual tras guardar y cargar"
+            )
+        expected = dict(campaign.metadata)
+        expected["n_traces"], expected["n_samples"] = 8, 12
+        assert loaded.metadata == expected, (
+            f"los metadatos no se recuperan igual: {loaded.metadata}"
+        )
+        assert loaded.simulated, "la marca de campaña simulada se pierde"
+        # Cargar con la extensión también vale (`_base` quita el sufijo).
+        assert np.array_equal(campana.load(npz).traces, campaign.traces), (
+            "cargar la ruta con extensión .npz da otra campaña"
+        )
+
+        # El recorte guarda las trazas y las muestras pedidas y anota el origen.
+        trimmed_npz, trimmed_meta = campana.trim(
+            root / "origen", root / "recorte", n_traces=5, start=2, stop=9,
+            extra={"uso": "prueba"},
+        )
+        assert trimmed_npz.exists() and trimmed_meta.exists(), (
+            "trim no ha escrito los dos ficheros"
+        )
+        trimmed = campana.load(root / "recorte")
+        assert np.array_equal(trimmed.traces, campaign.traces[:5, 2:9]), (
+            "trim no recorta las trazas como se le pide"
+        )
+        assert np.array_equal(trimmed.plaintexts, campaign.plaintexts[:5]), (
+            "trim no recorta los textos claros como se le pide"
+        )
+        assert np.array_equal(trimmed.ciphertexts, campaign.ciphertexts[:5]), (
+            "trim no recorta los criptogramas como se le pide"
+        )
+        assert np.array_equal(trimmed.key, campaign.key), (
+            "trim no conserva la clave"
+        )
+        on_disk = json.loads(trimmed_meta.read_text())
+        assert on_disk["recorte"] == {
+            "origen": "origen", "trazas": [0, 5], "muestras": [2, 9],
+        }, f"la anotación del recorte no es la esperada: {on_disk['recorte']}"
+        assert on_disk["uso"] == "prueba", "trim no añade los metadatos extra"
+        assert (on_disk["n_traces"], on_disk["n_samples"]) == (5, 7), (
+            "trim no actualiza el tamaño de la campaña recortada"
+        )
+        assert trimmed.simulated, "trim pierde la marca de campaña simulada"
 
 
 def main() -> None:
