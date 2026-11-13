@@ -39,6 +39,11 @@
 %───────── Template ────────────────────────────────────────────────────
 \usepackage{template/sty_files/template-TFGspanish-uma}
 
+% Deja estirar un poco las líneas antes que desbordar el margen: hay
+% identificadores y huellas largas (rutas, SHA-256, claves en hex) que no
+% caben en un renglón y, sin esto, se salen por la derecha.
+\setlength{\emergencystretch}{2em}
+
 % \cref en español con los mismos nombres que los títulos de la plantilla
 \crefname{table}{tabla}{tablas}
 \Crefname{table}{Tabla}{Tablas}

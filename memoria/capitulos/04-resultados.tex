@@ -257,13 +257,208 @@ puestos.
 \end{figure}
 
 \section{Calidad de la captura}
-% TODO: traza real, alineación con el trigger, ruido, frecuencia de
-% muestreo efectiva frente al reloj del microcontrolador.
+\label{sec:calidad-captura}
+% Números de: uv run python -m analisis.reales (analisis/salida/reales.json),
+% sobre las campañas recortadas de datos/. Las campañas completas están en
+% datos/brutos/ (no versionado) y se describen en hardware/README.md.
+
+Todas las medidas de este capítulo se tomaron el 13 de noviembre de 2026 con el
+ChipWhisperer-Nano y el firmware de la \cref{sec:implementacion}, con la
+configuración por defecto de la biblioteca de NewAE: microcontrolador y
+convertidor a \qty{7,5}{\mega\hertz}, una muestra por ciclo de reloj y
+\num{5000} muestras por traza (\qty{0,67}{\milli\second}). Se capturan unas
+\num{18,6} trazas por segundo, de modo que una campaña de \num{3000} trazas
+tarda menos de tres minutos. A diferencia de la \cref{sec:validacion-simulada},
+\textbf{todo lo que aparece desde aquí son medidas reales}.
+
+\paragraph{Estructura de la traza.} La primera ronda ocupa las primeras mil
+muestras, y el cifrado completo, unas \num{10000} (\cref{sec:spa},
+\cref{fig:real-spa}). Para el ataque basta con las \num{1500} primeras.
+
+\paragraph{Alineación.} Con 500 trazas de un mismo texto claro, el
+desplazamiento que mejor alinea cada traza con la media, buscado entre $-5$ y
+$+5$ muestras, es cero en las 500. El muestreo sincronizado con el reloj del
+microcontrolador y el disparo del firmware dan trazas alineadas al ciclo, sin
+ningún procesado.
+
+\paragraph{Ruido.} En esas 500 trazas la única variación es el ruido. Su
+desviación típica en cada muestra tiene una mediana de \num{0,0044} en unidades
+del convertidor, que cubre el intervalo $[-0{,}5,\ 0{,}5)$ con 256 niveles: es
+alrededor de un escalón de cuantificación ($1/256 \approx \num{0,0039}$). El
+percentil 99 es \num{0,0070}.
+
+\paragraph{Saturación.} En la campaña recortada de \num{1000} trazas, la señal
+va de $-0{,}5$ a \num{0,027} en esas mismas unidades. Tocan el mínimo del
+convertidor \num{91} de \num{1500000} muestras, como mucho una por traza y
+fuera de la zona en la que fuga la primera ronda, así que la saturación no
+afecta al ataque.
 
 \section{Recuperación de la clave}
-% TODO: correlación frente al tiempo, correlación máxima por candidato,
-% rango de la clave correcta frente al número de trazas y comparación de
-% la clave recuperada con la de laboratorio. (Con trazas reales, fase 5.)
+\label{sec:recuperacion-clave}
+% Figuras de analisis/reales.py sobre datos/20261113-nano-tinyaes-respaldo
+% (1000 trazas, muestras 0 a 1500, recortadas de la campaña de 3000).
+
+Se capturaron \num{3000} trazas con textos claros aleatorios y la clave de
+laboratorio
+\texttt{2b7e1516}\allowbreak\texttt{28aed2a6}\allowbreak\texttt{abf71588}\allowbreak\texttt{09cf4f3c}, la del ejemplo del
+FIPS-197 \cite{nist2023fips197}. El CPA de la \cref{sec:cpa}, con el peso de
+Hamming de la salida de la S-box como modelo, recupera los 16 bytes con la
+campaña completa y también con las \num{1000} primeras trazas, que son las que
+se conservan en el repositorio y las que usan las figuras. La clave obtenida
+coincide byte a byte con la programada.
+
+La \cref{fig:real-cpa-correlacion} muestra la correlación frente al tiempo. El
+candidato correcto de cada byte alcanza $|\rho|$ entre \num{0,586} y
+\num{0,645}, mientras que el mejor de los 255 falsos se queda entre
+\num{0,154} y \num{0,210}. Los picos aparecen en el orden en que
+\texttt{SubBytes} recorre el estado (bytes 0, 4, 8 y 12, después 1, 5, 9 y
+13\ldots), separados unos 11 ciclos. La correlación del candidato correcto no
+desaparece al acabar \texttt{SubBytes}: sigue alta hasta la muestra
+\num{1300}, aproximadamente, porque \texttt{ShiftRows} y \texttt{MixColumns}
+vuelven a cargar los mismos bytes. Es una diferencia con la simulación, en la
+que cada byte solo fugaba en una ventana, y explica el resultado del barajado
+de la \cref{sec:contramedidas-medidas}.
+
+\begin{figure}[htbp]
+  \centering
+  % Generada por analisis/reales.py::figure_correlation
+  \includegraphics[width=\textwidth]{real-cpa-correlacion.pdf}
+  \caption{CPA sobre \num{1000} trazas medidas. Arriba, la traza media. Abajo,
+    $|\rho|$ del candidato correcto de cada byte (azul) y el máximo de los 255
+    candidatos falsos de los 16 bytes (gris). \textbf{Medidas reales.}}
+  \label{fig:real-cpa-correlacion}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  % Generada por analisis/reales.py::figure_candidates
+  \includegraphics[width=\textwidth]{real-candidatos.pdf}
+  \caption{Pico de $|\rho|$ de los 256 candidatos de cada byte con \num{1000}
+    trazas medidas: el correcto (azul) queda separado de todos los falsos
+    (gris). \textbf{Medidas reales.}}
+  \label{fig:real-candidatos}
+\end{figure}
+
+Para saber cuántas trazas hacen falta no basta con una ordenación de la
+campaña: el resultado depende de qué trazas entren primero. Se repite el
+ataque sobre 100 permutaciones aleatorias de las \num{1000} trazas, con
+semilla fija, y se cuenta en cuántas queda la clave completa en primer puesto
+(\cref{fig:real-rango}). Con \num{95} trazas lo consigue la mitad de las
+ordenaciones, con \num{112}, el 90~\% y con \num{132}, todas. Las
+permutaciones comparten trazas, así que no son ensayos independientes como los
+de la simulación, pero dan una idea de la variabilidad. Los puntos de control
+van en progresión geométrica, de modo que cada cifra es una cota: por ejemplo,
+\num{112} significa «entre \num{95} y \num{112}».
+
+\begin{figure}[htbp]
+  \centering
+  % Generada por analisis/reales.py::figure_rank
+  \includegraphics[width=\textwidth]{real-rango.pdf}
+  \caption{Izquierda: puesto medio del byte correcto frente al número de
+    trazas. Derecha: fracción de las 100 ordenaciones de las \num{1000}
+    trazas en las que la clave completa queda en primer puesto (verde) y
+    fracción de bytes en primer puesto (azul). \textbf{Medidas reales.}}
+  \label{fig:real-rango}
+\end{figure}
+
+\paragraph{Comparación con la simulación.} En el modelo de la
+\cref{sec:validacion-simulada}, el pico del candidato correcto vale
+$\sqrt{\mathrm{SNR}/(1+\mathrm{SNR})}$ (\cref{eq:rho-teorica}). Si se despeja
+la SNR a partir de los picos medidos, sale entre \num{0,523} y
+\num{0,712} según el byte, y la \cref{tab:sim-ruido} predice para ese
+intervalo entre \num{77} y \num{151} trazas para el 90~\% de los ensayos. Las
+\num{112} medidas caen dentro de ese orden de magnitud, del lado bueno: la
+fuga real no se limita a una ventana por byte y el ruido no es gaussiano puro,
+así que el modelo de la simulación no la describe exactamente, pero sitúa las
+cifras en el mismo rango.
+
+\section{Contramedidas medidas}
+\label{sec:contramedidas-medidas}
+% Números de analisis/reales.py (claves cm-base, cm-barajado y cm-retardos de
+% analisis/salida/reales.json) sobre firmware/contramedida/.
+
+Las contramedidas de la \cref{sec:shuffling} se pueden medir con el mismo
+experimento: se compilan tres variantes del mismo AES y se atacan con el mismo
+CPA de la \cref{sec:cpa}, sin cambiar ni una línea del análisis. La referencia
+(\emph{base}) es un AES propio con la estructura de tiny-AES128-C, sin
+protecciones, que sustituye a la biblioteca de NewAE para que las tres
+variantes se diferencien solo en la contramedida. Las otras dos añaden
+\emph{shuffling} de \texttt{SubBytes} o retardos aleatorios de 0 a 15 vueltas
+de un bucle antes de cada byte de \texttt{SubBytes}, de cada columna de
+\texttt{MixColumns} y al empezar cada ronda. El generador es un xorshift32 con
+semilla fija, porque el microcontrolador de la placa no tiene generador
+aleatorio por hardware: sirve para medir el efecto de la aleatorización, pero
+con el código y la semilla públicos no es una contramedida utilizable tal cual.
+
+\begin{table}[htbp]
+  \centering
+  \caption{CPA sobre las tres variantes del mismo AES, medida con la misma
+    placa y la misma clave. «Trazas» es el tamaño de la campaña y «$N$ para el
+    90~\%» el primer punto de control en el que la clave completa queda en
+    primer puesto en el 90~\% de 100 ordenaciones aleatorias.
+    \textbf{Medidas reales.}}
+  \label{tab:contramedidas-medidas}
+  \small
+  \begin{tabular}{l S[table-format=5.0] c S[table-format=1.2]
+                  S[table-format=1.2] S[table-format=4.0]}
+    \toprule
+    Variante & {Trazas} & Bytes & {$|\rho|$ mín.} & {$|\rho|$ máx.} &
+      {$N$ para el 90~\%} \\
+    \midrule
+    Sin contramedida & 1000 & 16/16 & 0,328 & 0,719 &
+      132 \\
+    \emph{Shuffling} & 2000 & 16/16 & 0,276 & 0,629 &
+      475 \\
+    Retardos aleatorios & 2000 & 0/16 & 0,073 &
+      0,103 & {—} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Aleatorización: el ataque sigue funcionando.} El barajado no impide
+el ataque, como decía la \cref{sec:shuffling}: recupera los 16 bytes, pero
+necesita 3,6 veces más trazas para el 90~\% (475 frente a
+132). El factor es mucho menor que el $m^2$ del modelo simple, con
+$m = 16$, y tiene una explicación en las trazas: el barajado solo afecta a
+\texttt{SubBytes}, mientras que \texttt{ShiftRows} y \texttt{MixColumns}
+recorren el estado en orden fijo y vuelven a cargar los mismos bytes
+(\cref{fig:real-cpa-correlacion}), así que la fuga sigue apareciendo, en parte,
+en las mismas muestras de siempre. La estimación de la \cref{sec:shuffling}
+suponía que cada byte fugaba en una sola ventana; con trazas reales no es así.
+
+\paragraph{Retardos: el ataque ingenuo falla.} Los retardos son otra cosa. Cada
+traza empieza el cifrado en un instante distinto y el CPA, que compara muestra
+a muestra, no encuentra la posición de cada byte: con la campaña recortada de
+2000 trazas no acierta ningún byte y el pico del candidato correcto
+(entre 0,073 y 0,103) está al nivel del mejor falso (entre
+0,098 y 0,113), como si no hubiera fuga. Con la
+campaña completa de \num{20000} trazas tampoco recupera ninguno, y el pico no
+sube de 0,030, muy por debajo de los 0,586 de la víctima sin
+proteger. El CPA no falla porque la fuga desaparezca, sino porque deja de estar
+en una muestra fija.
+
+\paragraph{El atacante puede compensarlo, con trabajo.} Una primera forma de
+compensarlo es sumar ventanas de muestras antes de correlar, como proponen
+Clavier et al.\ frente a los retardos \cite{clavier2000countermeasures}. Con
+ventanas de 100 muestras, el CPA sobre la campaña completa recupera
+1 de los 16 bytes, y con ventanas de 300, 7 de 16. No se
+ha intentado un ataque
+completo ---realinear las trazas por su estructura de rondas y atacar después
+byte a byte---, así que no se puede decir cuántas trazas costaría, pero el
+resultado es el esperado: la aleatorización encarece el ataque y obliga a
+cambiar el preprocesado, y no lo impide. Por eso, en la práctica, se combina con
+el enmascaramiento y no se usa sola.
+
+\begin{figure}[htbp]
+  \centering
+  % Generada por analisis/reales.py::figure_countermeasures
+  \includegraphics[width=\textwidth]{real-contramedidas.pdf}
+  \caption{Izquierda: fracción de 100 ordenaciones en las que el CPA recupera
+    la clave completa, para las tres variantes. Derecha: $|\rho|$ del
+    candidato correcto de cada byte frente a la muestra, con \num{1000}
+    trazas. \textbf{Medidas reales.}}
+  \label{fig:real-contramedidas}
+\end{figure}
 
 \section{Limitaciones}
 \label{sec:limitaciones}
@@ -308,6 +503,15 @@ atacante:
 También tiene límites propios: el convertidor es de 8 bits, la entrada tiene
 una ganancia fija y cada captura admite como mucho \num{50000} muestras
 \cite{cw-nano-docs}, lo que acota la resolución de la medida y la parte del
-cifrado que cabe en una traza.
-% TODO: completar con lo observado en las medidas (fase 5): ruido, ventana
-% necesaria, saturación, alineación y si el peso de Hamming encaja con la fuga.
+cifrado que cabe en una traza. En la práctica, ninguno de esos límites ha
+estorbado al ataque (\cref{sec:calidad-captura}): el ruido es del orden de un
+escalón del convertidor, la saturación es anecdótica, la primera ronda cabe en
+las primeras mil muestras y las trazas salen alineadas al ciclo.
+
+Los números de este capítulo salen de una sola placa, una sola clave y una
+sola sesión de medida. Las curvas de éxito se estiman permutando una misma
+campaña, no con campañas independientes, y no se ha comprobado cuánto varían
+con otra placa del mismo modelo, otra clave o la temperatura. El peso de
+Hamming encaja con la fuga ($|\rho| \approx 0{,}6$ en los 16 bytes), pero no
+se ha comparado con otros modelos, como la distancia de Hamming, que podrían
+ajustarse mejor.

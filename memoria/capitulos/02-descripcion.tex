@@ -70,10 +70,33 @@ simple vista las 16 rondas de un DES en una sola traza \cite{kocher1999dpa}.
 Un AES software bien escrito ejecuta las mismas instrucciones sea cual sea la
 clave, así que el SPA no basta para atacarlo. En este trabajo sirve para otra
 cosa: localizar la primera ronda dentro de la traza, para capturar solo esa
-ventana y no buscar a ciegas, y comprobar que el montaje funciona. Que se
-reconozca la estructura de las rondas en la traza es el primer criterio de
-validación de la captura, y todavía no se ha comprobado.
-% TODO: traza real con las rondas marcadas cuando el montaje funcione (fase 4).
+ventana y no buscar a ciegas, y comprobar que el montaje funciona.
+
+La \cref{fig:real-spa} muestra la media de 100 trazas del cifrado completo en
+el microcontrolador atacado (\cref{sec:implementacion}). En la traza media se
+repite un mismo patrón cada \num{1014} muestras, que son ciclos de reloj
+porque se toma una muestra por ciclo. Para no fiarse solo del aspecto de la
+traza, se ha correlado cada muestra con el peso de Hamming de un valor de la
+primera ronda, la salida de la S-box, y con uno de la última, la entrada de la
+última suma de subclave ($c \oplus K_{10}$). La primera ronda supera
+$|\rho| = 0{,}6$ entre las muestras 463 y 730, y la última, entre la
+\num{9586} y la \num{10042}: el cifrado completo dura unos \num{10000}
+ciclos, unos \qty{1,3}{\milli\second} a \qty{7,5}{\mega\hertz}, y la
+primera ronda entra en las primeras mil muestras. Después del cifrado la traza
+sigue: es el firmware que prepara y envía el criptograma, y por eso esa parte
+correla con los bytes del criptograma pero no con los de la primera ronda.
+
+\begin{figure}[htbp]
+  \centering
+  % Generada por analisis/reales.py::figure_spa (datos/20261113-spa)
+  \includegraphics[width=\textwidth]{real-spa.pdf}
+  \caption{Arriba: media de 100 trazas medidas del cifrado completo. Abajo:
+    máximo sobre los 16 bytes de $|\rho|$ entre cada muestra y el peso de
+    Hamming de la salida de la S-box de la primera ronda (azul) y de
+    $c \oplus K_{10}$ en la última (verde), con la clave conocida. Marcan
+    dónde empieza y dónde acaba el cifrado. \textbf{Medidas reales.}}
+  \label{fig:real-spa}
+\end{figure}
 
 \section{Análisis diferencial de consumo (DPA)}
 \label{sec:dpa}
@@ -160,15 +183,12 @@ guardar las trazas; así lo hace la web explicativa del proyecto.
 \section{Implementación experimental}
 \label{sec:implementacion}
 
-Esta sección describe el montaje con el que se van a medir las trazas. El
-análisis ya está implementado y validado en simulación, y el firmware y la
-captura están preparados, pero todavía no se ha medido ninguna traza. Lo que se
-dice aquí sobre el hardware es un diseño, no un resultado: se confirmará o se
-corregirá con las medidas del \cref{cap:resultados}.
+Esta sección describe el montaje con el que se han medido las trazas del
+\cref{cap:resultados}, en una sesión del 13 de noviembre de 2026. Lo que aquí
+se da como comprobado lo está con esas medidas; lo demás se indica como tal.
 
 \subsection{Arquitectura}
 
-% TODO: confirmar fabricante y modelo al conectar la placa (puede ser un clon).
 Se usa un ChipWhisperer-Nano de NewAE \cite{cw-nano,cw-nano-docs}, una placa
 que reúne en la misma PCB el capturador y el microcontrolador atacado y que se
 conecta al PC por USB. Es la plataforma de los laboratorios de análisis de
@@ -188,7 +208,11 @@ sigue estos pasos:
 \end{enumerate}
 
 Se repite el proceso miles de veces y las trazas se atacan con el mismo código
-que se ha validado en simulación.
+que se ha validado en simulación. La placa se identifica por USB como
+\emph{ChipWhisperer Nano} de \emph{NewAE Technology Inc.} (identificadores
+\texttt{2b3e:ace0}) y la biblioteca de NewAE la reconoce como tal, con la
+versión 0.65 del firmware del capturador, la más reciente que trae la
+biblioteca usada.
 % TODO: esquema o foto del montaje en figuras/ cuando esté conectado.
 
 Al ser una plataforma diseñada para enseñar análisis de consumo, el Nano
@@ -199,9 +223,17 @@ comercial, en el que el atacante tendría que montar la medida por su cuenta.
 
 \subsection{Microcontrolador y firmware}
 
-El dispositivo atacado es el STM32F030 que lleva el propio Nano, un
-microcontrolador de 32 bits con núcleo Cortex-M0, que se programa desde el
-propio Nano \cite{cw-nano-docs}.
+El dispositivo atacado es el microcontrolador STM32F0 que lleva el propio
+Nano, de 32 bits y con núcleo Cortex-M0, que se programa desde el propio Nano
+por su cargador de arranque serie. La documentación de NewAE indica un
+STM32F030 \cite{cw-nano-docs}, pero el cargador de nuestra placa responde con
+el identificador de producto \texttt{0x445}, que la biblioteca de NewAE asocia
+a la familia STM32F04x \cite{cw-repo}, y su registro de tamaño de flash indica
+32~KB, el doble que el STM32F030F4 de la documentación. El
+modelo exacto queda pendiente de leer en la serigrafía del chip. Para el ataque
+no cambia nada: el firmware compilado para el Nano funciona sin cambios y todo
+lo que sigue está medido en esta placa.
+% TODO: modelo exacto del chip víctima (serigrafía) y foto de la PCB.
 
 No se escribe un firmware propio, sino que se usa \texttt{simpleserial-aes}
 de los ejemplos de NewAE \cite{cw-repo} compilado con
@@ -213,9 +245,9 @@ simuladas. El firmware habla el protocolo SimpleSerial 1.1: una orden carga la
 clave y otra cifra un bloque y devuelve el criptograma. El script de captura
 compara cada criptograma con la implementación de AES del análisis, verificada
 con los ejemplos del FIPS-197 \cite{nist2023fips197}, y se detiene si alguno no
-coincide.
-% TODO: fase 3. Confirmar en la placa que los criptogramas coinciden y anotar
-% el SHA-256 del .hex (queda en el JSON de cada campaña).
+coincide. En las campañas de este trabajo coincidieron todos los
+criptogramas, más de \num{3000} con este firmware, cuyo fichero
+\texttt{.hex} tiene la huella SHA-256 que recoge el \cref{anx:codigo}.
 
 \subsection{Medida del consumo}
 
@@ -229,10 +261,11 @@ una resistencia de \emph{shunt}.
 La configuración por defecto de la biblioteca de NewAE pone el reloj del
 microcontrolador y el del convertidor a \qty{7,5}{\mega\hertz}, de modo que se toma una
 muestra por ciclo de reloj y siempre en la misma fase. Como la captura empieza
-en el primer ciclo tras el disparo, las trazas deberían salir alineadas sin
-procesado posterior, lo que resuelve el problema de sincronización que
-plantearía un osciloscopio con su propio reloj de muestreo.
-% TODO: comprobar con las trazas reales que salen alineadas (fase 4).
+en el primer ciclo tras el disparo, las trazas salen alineadas sin procesado
+posterior, lo que resuelve el problema de sincronización que plantearía un
+osciloscopio con su propio reloj de muestreo. Se ha comprobado con 500 trazas
+del mismo texto claro: todas quedan a desplazamiento cero de la traza media
+(\cref{sec:calidad-captura}).
 
 \subsection{Procesamiento de las trazas}
 
@@ -256,5 +289,8 @@ la versión del código. Antes del ataque, si es necesario, las trazas se
 recortan a la ventana de la primera ronda que se identifique por SPA. El ataque
 sobre una campaña calcula la correlación acumulando sumas parciales, de modo
 que el puesto de la clave correcta frente al número de trazas sale de una sola
-pasada sobre los datos.
-% TODO: alineación y preprocesado reales cuando haya trazas (fase 4).
+pasada sobre los datos. Con la placa no ha hecho falta ningún otro
+preprocesado: ni alinear, ni filtrar, ni promediar. Las campañas que usa la
+memoria se guardan en el repositorio recortadas a las primeras \num{1500}
+muestras, que contienen la primera ronda, y las figuras del
+\cref{cap:resultados} salen de ellas con \texttt{analisis/reales.py}.

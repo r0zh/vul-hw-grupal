@@ -162,9 +162,18 @@
   En el artículo que presentó el DPA ya se ven a simple vista las 16 rondas de un DES (el estándar de cifrado anterior a AES) en una sola traza
   <span class="cite">[5]</span>. En nuestro caso sirve para saber dónde está la primera ronda y no buscar a ciegas en
   toda la traza.</p>
-  <!-- TODO (fase 4): traza real del STM32F030 (CW-Nano) con la primera ronda marcada. Sin medidas no se pone figura. -->
-  <p class="todo">Esta sección tendrá una traza real cuando se haya capturado la primera. Que se distinga la estructura
-  de AES en la traza media es el primer criterio de validación de la captura, y todavía no se ha comprobado.</p>
+  <figure class="photo">
+    <img src="./data/real-spa.png" width="945" height="540" loading="lazy"
+      alt="Traza media de 100 cifrados medidos en el ChipWhisperer-Nano y, debajo, la correlación con la primera y la última ronda">
+    <figcaption><span class="real-badge">Medida real</span> Arriba, la media de 100 trazas del cifrado completo en
+    nuestra placa. Abajo, la correlación de cada muestra con un valor de la primera ronda (azul) y de la última (verde),
+    calculada con la clave conocida: marca dónde empieza y dónde acaba AES. Generada por
+    <code>analisis/reales.py</code>.</figcaption>
+  </figure>
+  <p>En la traza media se ve un patrón que se repite cada 1014 muestras: son las rondas. Como el Nano toma una muestra
+  por ciclo de reloj, el cifrado completo dura unos 10 000 ciclos (1,3 ms a 7,5 MHz), y la primera ronda cabe en las
+  primeras mil muestras. Lo que sigue al cifrado es el firmware preparando y enviando el criptograma. Para el ataque
+  basta con quedarse con el principio de la traza.</p>
 
   <h2 id="dpa">6. DPA: restar medias</h2>
   <p>El análisis diferencial de consumo (DPA) de Kocher, Jaffe y Jun <span class="cite">[5]</span> fue el primer
@@ -225,36 +234,38 @@
 
   <h2 id="montaje">9. Nuestro montaje</h2>
   <p>Medimos con un ChipWhisperer-Nano <span class="cite">[8]</span>, una placa de NewAE que lleva en la misma PCB
-  el microcontrolador atacado (un STM32F030) y el capturador, y se conecta al PC por USB. El PC manda el texto claro
+  el microcontrolador atacado (un STM32F0, Cortex-M0) y el capturador, y se conecta al PC por USB. El PC manda el texto claro
   por el puerto serie, el microcontrolador sube un pin de <i>trigger</i>, cifra y lo baja, y el flanco del trigger
   arranca el convertidor del Nano, que muestrea el consumo durante un número fijo de muestras.</p>
   <figure class="diag" data-diag="montaje">
 <pre role="img" aria-label="Esquema del montaje con el ChipWhisperer-Nano">                    ┌──────────── ChipWhisperer-Nano ─────────────┐
        USB          │                                             │
-  PC ◄─────────────►│  capturador ◄── trigger ──  STM32F030       │
+  PC ◄─────────────►│  capturador ◄── trigger ──  STM32F0         │
    texto claro ──►  │  (ADC 8 bits,               (AES-128 en C,  │
    ◄── cifrado,     │   20 MS/s máx.) ◄─ consumo ─ sin proteger)  │
        traza        │       ▲                          ▲          │
                     │       └──── reloj común ─────────┘          │
                     └─────────────────────────────────────────────┘</pre>
     <figcaption><span class="fig-tool diag">Diagrama · sitúa</span>el montaje (<code>hardware/README.md</code>).
-    Todavía no se ha capturado ninguna traza.</figcaption>
+    Las medidas son del 13 de noviembre de 2026.</figcaption>
   </figure>
   <p>Con la configuración por defecto, el microcontrolador y el convertidor van a 7,5 MHz con el mismo reloj: una
-  muestra por ciclo y siempre en la misma fase, así que las trazas deberían salir alineadas sin procesarlas. Es un
-  caso favorable para el atacante, porque la placa está pensada para estos laboratorios. Aun así, que los de NewAE
-  recuperen la clave con pocas trazas <span class="cite">[7]</span> no implica cuántas nos harán falta a nosotros.
-  Las dudas que solo se resolverán midiendo son:</p>
+  muestra por ciclo y siempre en la misma fase. Es un caso favorable para el atacante, porque la placa está pensada
+  para estos laboratorios, y por eso lo que medimos no se puede trasladar sin más a otro dispositivo. Lo que hemos
+  comprobado midiendo:</p>
   <ul>
-    <li><b>Ventana.</b> Si las 5000 muestras por defecto cubren la primera ronda, y dónde está dentro de la traza.</li>
-    <li><b>Ruido.</b> Con 8 bits de resolución y la ganancia fija del Nano, cuál es la SNR real y, por tanto, cuántas
-    trazas hacen falta comparadas con la simulación.</li>
-    <li><b>Modelo de fuga.</b> Si el peso de Hamming describe bien el consumo de este Cortex-M0, o si se ajusta mejor
-    otro modelo.</li>
+    <li><b>Alineación.</b> Con 500 cifrados del mismo texto claro, todas las trazas quedan alineadas con la media al
+    ciclo, sin procesarlas.</li>
+    <li><b>Ruido.</b> La variación de una traza a otra con el mismo texto es de un escalón del convertidor de 8 bits,
+    más o menos.</li>
+    <li><b>Ventana.</b> La primera ronda entra de sobra en las 5000 muestras por defecto (sección 5).</li>
+    <li><b>Modelo de fuga.</b> El peso de Hamming funciona: el candidato correcto llega a |ρ| ≈ 0,6 en los 16 bytes.
+    Pero la fuga no se limita a SubBytes, porque las operaciones siguientes vuelven a tocar los mismos bytes.</li>
   </ul>
-  <p>Cuando haya trazas reales, la figura del CPA podrá cargarlas en lugar de simularlas, y se verá primero la
-  simulación y luego la medida.</p>
-  <!-- TODO (fase 5): <cpa-live src="..."> con la campaña de respaldo de datos/. -->
+  <p>Esta es la misma figura de la sección 7, pero con <b>400 trazas medidas en nuestra placa</b> en lugar de
+  simuladas: las muestras 440 a 740 de cada traza, que cubren el SubBytes de la primera ronda. Al darle a reproducir,
+  la clave aparece byte a byte al crecer N.</p>
+  <cpa-live id="cpa-real" src="./data/nano-tinyaes.json" n="400"></cpa-live>
 
   <h2 id="resultados">10. Resultados hasta ahora</h2>
   <p>De momento solo hay resultados de la simulación (sección 4.1 de la memoria, generados con
@@ -283,8 +294,28 @@
     </tbody>
   </table>
   <p>Estos números son propiedad del <b>modelo</b>, no del montaje. Fijan el orden de magnitud con el que comparar las
-  medidas; si el montaje real se parece o no a la simulación, solo se sabrá midiendo.</p>
-  <!-- TODO (fase 5): resultados con trazas reales. -->
+  medidas. En la placa, con <b>1000 trazas medidas</b> (las que están en <code>datos/</code>), el CPA recupera los 16
+  bytes: el pico del candidato correcto queda entre 0,586 y 0,645, y el mejor de los 255 falsos entre 0,154 y 0,210.
+  Repitiendo el ataque sobre 100 ordenaciones aleatorias de esas trazas, la mitad acierta la clave completa con 95
+  trazas, el 90 % con 112 y todas con 132. Con ese pico, la simulación predice entre 77 y 151 trazas para el 90 %, así
+  que las medidas caen donde toca. La diferencia es que en las trazas reales la fuga de cada byte no se queda en su
+  ventana de <i>SubBytes</i>: <i>ShiftRows</i> y <i>MixColumns</i> vuelven a cargar los mismos bytes, y la correlación
+  del correcto sigue alta hasta la muestra 1300, más o menos.</p>
+  <table>
+    <caption><span class="real-badge">Medida real</span> El mismo CPA sobre tres variantes del mismo AES, compiladas y
+    medidas en el ChipWhisperer-Nano con la misma clave. «N para el 90 %» es el primer punto de control en el que la
+    clave completa queda en primer puesto en el 90 % de 100 ordenaciones aleatorias. Sección 4.4 de la memoria.</caption>
+    <thead><tr><th>Variante</th><th>Trazas</th><th>Bytes</th><th>N para el 90 %</th></tr></thead>
+    <tbody>
+      <tr><td>Sin contramedida</td><td>1000</td><td>16/16</td><td>132</td></tr>
+      <tr><td><i>SubBytes</i> barajado</td><td>2000</td><td>16/16</td><td>475</td></tr>
+      <tr><td>Retardos aleatorios</td><td>2000</td><td>0/16</td><td>no recupera</td></tr>
+    </tbody>
+  </table>
+  <p>El barajado encarece el ataque pero no lo impide: necesita 3,6 veces más trazas, mucho menos que las 256 que
+  predeciría el modelo simple, porque las demás operaciones siguen tocando los mismos bytes. Los retardos, en cambio,
+  desplazan el cifrado de cada traza: el CPA no recupera nada, ni con 20 000 trazas, hasta que se suman ventanas de
+  muestras antes de correlar (así se recuperan 7 de los 16 bytes).</p>
 
   <h2 id="contramedidas">11. Contramedidas</h2>
   <p>Las defensas frente al análisis de consumo se agrupan en dos familias <span class="cite">[2]</span>, y el artículo
@@ -302,6 +333,11 @@
   <p>Ninguna es una garantía absoluta: suben el coste del ataque, y cuánto lo suben depende de la implementación y del
   atacante. Tampoco basta con que el código sea de tiempo constante; eso protege frente a ataques de temporización,
   pero el consumo sigue dependiendo de los datos.</p>
+  <p>De todas ellas hemos medido las dos de ocultación temporal (la tabla de la sección 10): el barajado de
+  <i>SubBytes</i> solo multiplica por 3,6 las trazas necesarias, y los retardos aleatorios tumban el CPA tal como está
+  escrito, aunque un atacante que integre ventanas de muestras antes de correlar recupera parte de la clave. El
+  enmascaramiento no se ha medido: exige una fuente aleatoria de verdad en el microcontrolador, y el generador que
+  usamos es pseudoaleatorio y con semilla fija, así que sirve para medir pero no es una contramedida real.</p>
 
   <h2 id="referencias">12. Referencias</h2>
   <ol class="refs">
