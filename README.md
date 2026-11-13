@@ -1,6 +1,6 @@
 # Ataque CPA sobre AES-128 con un montaje DIY
 
-Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad de Málaga). Demostramos un ataque de análisis de consumo por correlación (CPA) contra una implementación software de AES-128 sin protecciones en el STM32F030 de un ChipWhisperer-Nano, con trazas capturadas por nosotros y una clave de laboratorio que no protege nada real.
+Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad de Málaga). Demostramos un ataque de análisis de consumo por correlación (CPA) contra una implementación software de AES-128 sin protecciones en el STM32F0 de un ChipWhisperer-Nano, con trazas capturadas por nosotros y una clave de laboratorio que no protege nada real.
 
 **Equipo:** Juan Diego Bermúdez Ureba, Brian Polo Caballero, Alberto Bartolomé Iruela y Roberto Sánchez Martín.
 

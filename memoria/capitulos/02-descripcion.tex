@@ -251,12 +251,15 @@ criptogramas, más de \num{3000} con este firmware, cuyo fichero
 
 \subsection{Medida del consumo}
 
-El Nano digitaliza el consumo del STM32F030 con un convertidor de 8 bits de
+El Nano digitaliza el consumo del STM32F0 con un convertidor de 8 bits de
 hasta 20 millones de muestras por segundo, con la entrada acoplada en alterna y
 una ganancia fija de unos \qty{10}{\deci\bel}, y guarda hasta \num{50000} muestras por
 captura \cite{cw-nano-docs}. No hay que cablear sondas ni elegir el valor de
-una resistencia de \emph{shunt}.
-% TODO: fuente: punto de medida del consumo en el esquema del CW-Nano.
+una resistencia de \emph{shunt}: según la documentación, un puente de
+soldadura une el STM32F0 a la etapa de entrada del amplificador, y se
+recomienda abrirlo para reducir el ruido cuando se mide otro dispositivo por el
+puerto \emph{Measure} \cite{cw-nano-docs}.
+% TODO: fuente: punto de medida exacto (shunt) en el esquema del CW-Nano.
 
 La configuración por defecto de la biblioteca de NewAE pone el reloj del
 microcontrolador y el del convertidor a \qty{7,5}{\mega\hertz}, de modo que se toma una
