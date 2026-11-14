@@ -113,6 +113,19 @@ y solo con letras. Si al JSON le falta la campaña completa con retardos, las
 macros no se tocan, para no dejar la memoria a medio actualizar: el análisis
 completo lo avisa y termina igual, y `--solo-tex` acaba con error.
 
+El análisis deja también en `web/data/` los datos medidos que enseña la web
+explicativa: la campaña recortada del ataque (`nano-tinyaes.json`), la traza
+media del cifrado completo con los números de las rondas (`nano-spa.json`) y las
+curvas de éxito (`nano-curvas.json`). Para rehacerlos sin repetir las
+ordenaciones, a partir de `datos/` y del `reales.json` que ya hay:
+
+```sh
+uv run python -m analisis.reales --solo-web
+```
+
+`web/tests/curves.test.js` compara esas curvas, y los números de las medidas que
+la web escribe en su texto, con las macros de la memoria.
+
 ## Demo en vivo
 
 Pensada para enseñar el ataque, no para producir resultados: no escribe ningún

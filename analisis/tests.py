@@ -23,6 +23,8 @@ Cubren lo que puede invalidar el análisis en silencio:
 8. El análisis de desalineación y la correlación de la hipótesis correcta de
    `reales.py`, que son las que dan los números de las medidas.
 9. La ida y vuelta y el recorte del formato de campaña de `captura/campana.py`.
+10. Los JSON que `reales.py` deja para la web: misma forma que los datos y los
+    mismos números que los resultados.
 """
 
 from __future__ import annotations
@@ -500,6 +502,76 @@ def test_campaign_round_trip_and_trim() -> None:
             "trim no actualiza el tamaño de la campaña recortada"
         )
         assert trimmed.simulated, "trim pierde la marca de campaña simulada"
+
+
+def test_web_exports() -> None:
+    """Los JSON de la web no cambian los números: solo los redondean y los renombran.
+
+    `export_web_spa` guarda la traza media en décimas de código del convertidor
+    y las correlaciones en milésimas; `export_web_curves` copia las curvas de
+    éxito de los resultados. La web lee esos ficheros tal cual, así que un
+    cambio de escala o de nombre aquí la dejaría enseñando otra cosa.
+    """
+    rng = np.random.default_rng(53)
+    n_samples = 40
+    mean = rng.uniform(-0.5, 0.1, size=n_samples)
+    first = rng.uniform(0.0, 0.7, size=n_samples)
+    last = rng.uniform(0.0, 0.7, size=n_samples)
+    analysis = {
+        "n_traces": 7, "mean": mean, "first": first, "last": last,
+        "numbers": {"periodo_ronda_muestras": 12, "ronda1_rho_gt_0_6": (3, 9),
+                    "ronda10_rho_gt_0_6": (30, 36), "fin_cifrado_aprox": 37},
+    }
+    spa = campana.Campaign(
+        traces=np.zeros((7, n_samples), dtype=np.float32),
+        plaintexts=np.zeros((7, 16), dtype=np.uint8),
+        ciphertexts=np.zeros((7, 16), dtype=np.uint8),
+        key=np.zeros(16, dtype=np.uint8),
+        metadata={"instrumento": {"adc_hz": 7.5e6}},
+    )
+    curve = {"pasos": [5, 10, 20], "ordenaciones": 4, "exito_clave_completa": [0.0, 0.25, 1.0],
+             "fraccion_bytes_rango1": [0.015625, 0.5, 1.0], "n_50": 20, "n_90": 20, "n_100": 20}
+    results = {"tinyaes": {"n_traces": 30, "bytes_correctos": 16, "curva": curve},
+               "cm-retardos": {"n_traces": 30, "bytes_correctos": 0,
+                               "curva": {**curve, "exito_clave_completa": [0.0, 0.0, 0.0],
+                                         "n_50": None, "n_90": None, "n_100": None}}}
+    with tempfile.TemporaryDirectory() as tmp:
+        payload = json.loads(reales.export_web_spa(spa, analysis, Path(tmp)).read_text())
+        assert payload["synthetic"] is False, "la traza de la web debe ir marcada como medida"
+        assert payload["meta"]["trazas"] == 7 and payload["meta"]["adc_hz"] == 7.5e6, (
+            f"metadatos inesperados: {payload['meta']}"
+        )
+        assert payload["rondas"] == {"periodo": 12, "ronda1": [3, 9], "ronda10": [30, 36], "fin": 37}, (
+            f"los números de las rondas no son los del análisis: {payload['rondas']}"
+        )
+        for name in ("mean", "rho1", "rho10"):
+            assert len(payload[name]) == n_samples, f"{name} no tiene una entrada por muestra"
+            assert all(isinstance(v, int) for v in payload[name]), f"{name} no va en enteros"
+        # Deshacer la escala devuelve la traza con el error de redondeo esperado.
+        restored = np.asarray(payload["mean"]) / 2560 - 0.5
+        assert np.abs(restored - mean).max() <= 0.5 / 2560 + 1e-12, (
+            "la traza media no se recupera a media décima de código"
+        )
+        assert np.abs(np.asarray(payload["rho1"]) / 1000 - first).max() <= 0.0005 + 1e-12, (
+            "la correlación de la primera ronda no se recupera a media milésima"
+        )
+
+        curves = json.loads(reales.export_web_curves(results, Path(tmp)).read_text())
+        assert curves["ordenaciones"] == 4, f"ordenaciones inesperadas: {curves['ordenaciones']}"
+        assert list(curves["series"]) == ["tinyaes", "cm-retardos"], (
+            f"series inesperadas o desordenadas: {list(curves['series'])}"
+        )
+        tiny = curves["series"]["tinyaes"]
+        assert tiny["pasos"] == curve["pasos"] and tiny["exito"] == curve["exito_clave_completa"], (
+            "la curva de éxito de la web no es la de los resultados"
+        )
+        assert tiny["bytes"] == [0.0156, 0.5, 1.0], f"fracción de bytes mal redondeada: {tiny['bytes']}"
+        assert (tiny["n50"], tiny["n90"], tiny["n100"], tiny["trazas"]) == (20, 20, 20, 30), (
+            "los puntos del 50, 90 y 100 % no se copian"
+        )
+        assert curves["series"]["cm-retardos"]["n90"] is None, (
+            "una variante que no recupera la clave debe quedar sin N para el 90 %"
+        )
 
 
 def main() -> None:
