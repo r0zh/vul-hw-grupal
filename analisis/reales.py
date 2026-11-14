@@ -2,6 +2,8 @@
 
     uv run python -m analisis.reales                 # figuras en figuras/ y números
     uv run python -m analisis.reales --rapido        # menos ordenaciones (prueba)
+    uv run python -m analisis.reales --solo-tex      # solo las macros de la memoria
+    uv run python -m analisis.reales --solo-web      # solo los datos de web/data/
 
 Solo lee las campañas versionadas en `datos/` (recortes de las de
 `datos/brutos/`, hechos con `python -m captura.campana`), así que cualquiera
@@ -15,6 +17,11 @@ Además del JSON y las figuras, deja `memoria/capitulos/generado/reales.tex`, co
 una macro de LaTeX por cada número que cita el capítulo 4 de la memoria; así el
 texto no se desfasa cuando se repite el análisis. Con `--solo-tex` se rehace ese
 fichero a partir del JSON, sin recalcular nada.
+
+También deja en `web/data/` los datos medidos que enseña la web explicativa: la
+campaña recortada del ataque, la traza media del cifrado completo y las curvas
+de éxito. Con `--solo-web` se rehacen en segundos a partir de `datos/` y del
+JSON, sin repetir las ordenaciones.
 
 Las curvas de éxito frente a N no salen de una sola ordenación de las trazas:
 se repite el CPA sobre `--ordenaciones` permutaciones aleatorias (semilla fija)
@@ -199,49 +206,64 @@ def delay_integration(data: campana.Campaign, windows: tuple[int, ...] = DELAY_W
 
 # ──────────────────────────────── Figuras ────────────────────────────────
 
-def figure_spa(spa: campana.Campaign, out: Path, png: Path | None = None) -> tuple[Path, dict]:
-    """Traza media del cifrado completo y dónde fugan la primera y la última ronda."""
-    _style()
+def spa_analysis(spa: campana.Campaign) -> dict:
+    """Traza media del cifrado completo y dónde fugan la primera y la última ronda.
+
+    Devuelve la traza media (`mean`), el máximo sobre los 16 bytes de |ρ| entre
+    cada muestra y un valor de la primera ronda (`first`) y de la última
+    (`last`), calculados con la clave conocida, y los números que cita la
+    memoria (`numbers`): el periodo de las rondas, los tramos con |ρ| > 0,6 y el
+    final aproximado del cifrado.
+    """
     traces = spa.traces.astype(np.float64)
     mean = traces.mean(axis=0)
-    first = _correct_correlation(traces, np.asarray(aes.SBOX, dtype=np.uint8)[spa.plaintexts ^ spa.key])
+    first = _correct_correlation(
+        traces, np.asarray(aes.SBOX, dtype=np.uint8)[spa.plaintexts ^ spa.key]).max(axis=0)
     k10 = np.asarray(aes.key_expansion(bytes(spa.key))[10], dtype=np.uint8)
-    last = _correct_correlation(traces, spa.ciphertexts ^ k10)
+    last = _correct_correlation(traces, spa.ciphertexts ^ k10).max(axis=0)
 
     # Periodo de las rondas: autocorrelación de la traza media en el cifrado.
-    end = int(np.nonzero(last.max(axis=0) > 0.6)[0].max()) + 1
+    end = int(np.nonzero(last > 0.6)[0].max()) + 1
     centred = mean[:end] - mean[:end].mean()
     auto = np.correlate(centred, centred, "full")[end - 1:]
     period = int(600 + np.argmax(auto[600:1500]))
 
     def span(curve):
-        idx = np.nonzero(curve.max(axis=0) > 0.6)[0]
+        idx = np.nonzero(curve > 0.6)[0]
         return int(idx.min()), int(idx.max())
 
+    return {
+        "n_traces": int(len(traces)),
+        "mean": mean,
+        "first": first,
+        "last": last,
+        "numbers": {
+            "periodo_ronda_muestras": period,
+            "ronda1_rho_gt_0_6": span(first),
+            "ronda10_rho_gt_0_6": span(last),
+            "fin_cifrado_aprox": end,
+        },
+    }
+
+
+def figure_spa(analysis: dict, out: Path) -> Path:
+    """Figura de la traza media del cifrado completo (`spa_analysis`)."""
+    _style()
     figure, (top, bottom) = plt.subplots(2, 1, figsize=(FIG_WIDTH, 3.6), sharex=True,
                                          gridspec_kw={"hspace": 0.12})
-    top.plot(mean, linewidth=0.25, color="#444444")
+    top.plot(analysis["mean"], linewidth=0.25, color="#444444")
     top.set_ylabel("traza media")
-    top.set_title(f"Cifrado completo: traza media de {len(traces)} trazas")
-    bottom.plot(first.max(axis=0), linewidth=0.5, color=_COLORS["correct"],
+    top.set_title(f"Cifrado completo: traza media de {analysis['n_traces']} trazas")
+    bottom.plot(analysis["first"], linewidth=0.5, color=_COLORS["correct"],
                 label=r"ronda 1: HW(SBox($p \oplus k$))")
-    bottom.plot(last.max(axis=0), linewidth=0.5, color=_COLORS["last"],
+    bottom.plot(analysis["last"], linewidth=0.5, color=_COLORS["last"],
                 label=r"ronda 10: HW($c \oplus K_{10}$)")
     bottom.set_ylabel(r"$\max_j |\rho|$")
     bottom.set_xlabel("muestra (= ciclo de reloj del STM32)")
     bottom.legend(loc="upper center", ncols=2, framealpha=0.9)
     bottom.set_ylim(0, 1)
     _tag(bottom)
-    if png is not None:
-        png.parent.mkdir(parents=True, exist_ok=True)
-        figure.savefig(png, format="png", dpi=150, metadata={"Software": None})
-    numbers = {
-        "periodo_ronda_muestras": period,
-        "ronda1_rho_gt_0_6": span(first),
-        "ronda10_rho_gt_0_6": span(last),
-        "fin_cifrado_aprox": end,
-    }
-    return _save(figure, out, "real-spa"), numbers
+    return _save(figure, out, "real-spa")
 
 
 def figure_correlation(data: campana.Campaign, out: Path) -> Path:
@@ -380,6 +402,83 @@ def export_web(data: campana.Campaign, web_dir: Path, n: int = 400,
     web_dir.mkdir(parents=True, exist_ok=True)
     path = web_dir / "nano-tinyaes.json"
     path.write_text(json.dumps(payload, separators=(",", ":")) + "\n")
+    return path
+
+
+def export_web_spa(spa: campana.Campaign, analysis: dict, web_dir: Path) -> Path:
+    """Traza media del cifrado completo en JSON, para `<cpa-spa>` de la web.
+
+    La traza va en décimas de código del convertidor de 8 bits y las dos
+    correlaciones en milésimas, como enteros: es toda la resolución que tiene la
+    media de un centenar de trazas y el fichero ocupa la mitad.
+    """
+    numbers = analysis["numbers"]
+    instrument = spa.metadata.get("instrumento", {})
+    payload = {
+        "synthetic": False,
+        "meta": {
+            "origen": CAMPAIGNS["spa"],
+            "trazas": analysis["n_traces"],
+            "adc_hz": instrument.get("adc_hz"),
+            "unidades": "mean: décimas de código del ADC de 8 bits; rho1 y rho10: milésimas",
+            "instrumento": "ChipWhisperer-Nano, 7,5 MHz, una muestra por ciclo",
+        },
+        "rondas": {
+            "periodo": numbers["periodo_ronda_muestras"],
+            "ronda1": list(numbers["ronda1_rho_gt_0_6"]),
+            "ronda10": list(numbers["ronda10_rho_gt_0_6"]),
+            "fin": numbers["fin_cifrado_aprox"],
+        },
+        "mean": np.rint((analysis["mean"] + 0.5) * 2560).astype(int).tolist(),
+        "rho1": np.rint(analysis["first"] * 1000).astype(int).tolist(),
+        "rho10": np.rint(analysis["last"] * 1000).astype(int).tolist(),
+    }
+    web_dir.mkdir(parents=True, exist_ok=True)
+    path = web_dir / "nano-spa.json"
+    path.write_text(json.dumps(payload, separators=(",", ":")) + "\n")
+    return path
+
+
+#: Series de `export_web_curves`: clave de `reales.json` y nombre en la web.
+WEB_CURVES = [
+    ("tinyaes", "TINYAES128C de NewAE"),
+    ("cm-base", "AES propio sin contramedida"),
+    ("cm-barajado", "SubBytes barajado"),
+    ("cm-retardos", "retardos aleatorios"),
+]
+
+
+def export_web_curves(results: dict, web_dir: Path) -> Path:
+    """Curvas de éxito frente a N en JSON, para `<cpa-curves>` de la web.
+
+    Salen de las claves `curva` de los resultados (`success_curve`), así que
+    son los mismos números que `figuras/real-rango.pdf` y
+    `figuras/real-contramedidas.pdf`.
+    """
+    series = {}
+    for name, label in WEB_CURVES:
+        if name not in results:
+            continue
+        curve = results[name]["curva"]
+        series[name] = {
+            "etiqueta": label,
+            "trazas": results[name]["n_traces"],
+            "bytes_correctos": results[name]["bytes_correctos"],
+            "pasos": curve["pasos"],
+            "exito": [round(float(x), 4) for x in curve["exito_clave_completa"]],
+            "bytes": [round(float(x), 4) for x in curve["fraccion_bytes_rango1"]],
+            "n50": curve["n_50"],
+            "n90": curve["n_90"],
+            "n100": curve["n_100"],
+        }
+    payload = {
+        "synthetic": False,
+        "ordenaciones": results["tinyaes"]["curva"]["ordenaciones"],
+        "series": series,
+    }
+    web_dir.mkdir(parents=True, exist_ok=True)
+    path = web_dir / "nano-curvas.json"
+    path.write_text(json.dumps(payload, separators=(",", ":"), ensure_ascii=False) + "\n")
     return path
 
 
@@ -531,13 +630,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--figuras", type=Path, default=REPO / "figuras")
     parser.add_argument("--resultados", type=Path, default=REPO / "analisis" / "salida" / "reales.json")
     parser.add_argument("--web", type=Path, default=REPO / "web" / "data",
-                        help="dónde dejar el JSON y el PNG de la web")
+                        help="dónde dejar los JSON de la web")
     parser.add_argument("--macros", type=Path, default=TEX_MACROS,
                         help="fichero de macros de LaTeX que cita la memoria")
     parser.add_argument("--ordenaciones", type=int, default=100)
     parser.add_argument("--rapido", action="store_true", help="10 ordenaciones")
     parser.add_argument("--solo-tex", action="store_true",
                         help="solo escribe el .tex de macros, a partir del JSON existente")
+    parser.add_argument("--solo-web", action="store_true",
+                        help="solo escribe los datos de la web, a partir de datos/ y del JSON existente")
     args = parser.parse_args(argv)
 
     # Regenerar solo las macros: lee el JSON ya calculado (el análisis completo
@@ -552,6 +653,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Macros: {args.macros}")
         return 0
 
+    # Regenerar solo los datos de la web: las trazas salen de datos/ y las curvas
+    # de éxito, del JSON ya calculado (repetir las ordenaciones tarda minutos).
+    if args.solo_web:
+        if not args.resultados.exists():
+            raise SystemExit(f"No existe {args.resultados}: ejecuta antes el análisis completo")
+        spa = _load("spa")
+        for path in (export_web(_load("tinyaes"), args.web),
+                     export_web_spa(spa, spa_analysis(spa), args.web),
+                     export_web_curves(json.loads(args.resultados.read_text()), args.web)):
+            print(f"Web: {path}")
+        return 0
+
     orderings = 10 if args.rapido else args.ordenaciones
 
     results: dict = {"semilla": SEED, "campanas": CAMPAIGNS}
@@ -564,9 +677,11 @@ def main(argv: list[str] | None = None) -> int:
     results["tinyaes"]["curva"] = curve
     written.append(figure_rank(curve, args.figuras))
 
-    path, numbers = figure_spa(_load("spa"), args.figuras, png=args.web / "real-spa.png")
-    results["spa"] = numbers
-    written += [path, args.web / "real-spa.png", export_web(tiny, args.web)]
+    spa = _load("spa")
+    analysis = spa_analysis(spa)
+    results["spa"] = analysis["numbers"]
+    written += [figure_spa(analysis, args.figuras), export_web(tiny, args.web),
+                export_web_spa(spa, analysis, args.web)]
 
     fixed = _load("fijo")
     std = fixed.traces.astype(np.float64).std(axis=0)
@@ -613,6 +728,8 @@ def main(argv: list[str] | None = None) -> int:
             **attack_summary(whole),
             "ventanas": delay_integration(whole),
         }
+
+    written.append(export_web_curves(results, args.web))
 
     args.resultados.parent.mkdir(parents=True, exist_ok=True)
     args.resultados.write_text(json.dumps(results, indent=2, ensure_ascii=False) + "\n")
