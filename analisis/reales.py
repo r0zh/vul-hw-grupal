@@ -16,7 +16,8 @@ claves se omiten y el resto sale igual.
 Además del JSON y las figuras, deja `memoria/capitulos/generado/reales.tex`, con
 una macro de LaTeX por cada número que cita el capítulo 4 de la memoria; así el
 texto no se desfasa cuando se repite el análisis. Con `--solo-tex` se rehace ese
-fichero a partir del JSON, sin recalcular nada.
+fichero a partir del JSON, sin repetir las ordenaciones; si al JSON le falta un
+número que se calcula en segundos desde `datos/`, lo añade antes.
 
 También deja en `web/data/` los datos medidos que enseña la web explicativa: la
 campaña recortada del ataque, la traza media del cifrado completo y las curvas
@@ -154,6 +155,28 @@ def attack_summary(data: campana.Campaign) -> dict:
         # SNR que daría ese pico en el modelo de la simulación: ρ = √(SNR/(1+SNR)).
         "snr_equivalente": (rho**2 / (1 - rho**2)).round(3).tolist(),
     }
+
+
+#: Umbral de |ρ| con el que se mide hasta dónde llega la fuga de la primera
+#: ronda una vez acabado `SubBytes`: la mitad, más o menos, del pico del
+#: candidato correcto y por encima del pico de cualquier candidato falso.
+LEAK_TAIL_THRESHOLD = 0.3
+
+
+def leak_tail(data: campana.Campaign, threshold: float = LEAK_TAIL_THRESHOLD) -> dict:
+    """Hasta qué muestra sigue fugando la salida de la S-box de la primera ronda.
+
+    Con la clave conocida, correla cada muestra con el peso de Hamming de
+    `SBox(p ⊕ k)` de los 16 bytes y devuelve la última en la que alguno supera
+    `threshold` (`None` si no lo supera ninguna). `SubBytes` acaba mucho antes:
+    lo que queda después son las cargas de esos mismos bytes en `ShiftRows` y
+    `MixColumns`. No repite el CPA de los 256 candidatos, así que cuesta
+    milisegundos.
+    """
+    values = np.asarray(aes.SBOX, dtype=np.uint8)[data.plaintexts ^ data.key]
+    rho = _correct_correlation(data.traces.astype(np.float64), values).max(axis=0)
+    above = np.nonzero(rho > threshold)[0]
+    return {"umbral": threshold, "ultima_muestra": int(above.max()) if len(above) else None}
 
 
 def alignment_shifts(traces: np.ndarray, max_shift: int = 5) -> dict:
@@ -541,6 +564,21 @@ def tex_macros(results: dict) -> list[tuple[str, str]]:
             "repositorio o usa el reales.json de un portátil que la tenga."
         )
 
+    # Hasta dónde llega la fuga de la primera ronda (`leak_tail`). Un JSON
+    # anterior a esa función no la trae; `--solo-tex` la añade antes de llegar aquí.
+    tail = tiny.get("cola_fuga")
+    if tail is None or tail["ultima_muestra"] is None:
+        raise ValueError(
+            "No se pueden escribir las macros de la memoria: al JSON le falta "
+            "hasta dónde llega la fuga de la primera ronda (`tinyaes.cola_fuga`). "
+            "Ejecuta `python -m analisis.reales --solo-tex`, que la calcula a "
+            "partir de `datos/`, o el análisis completo."
+        )
+    # La primera ronda acaba donde empieza la segunda: un periodo después de la
+    # primera muestra en la que fuga su S-box.
+    spa = results["spa"]
+    round_one_end = spa["ronda1_rho_gt_0_6"][0] + spa["periodo_ronda_muestras"]
+
     # Las cifras son cotas, no el mínimo exacto: el texto dice «entre X y N»,
     # donde X es el punto de control anterior más uno (en ese punto todavía no
     # se llegaba al 90 %), la misma convención que la tabla de la simulación.
@@ -566,6 +604,7 @@ def tex_macros(results: dict) -> list[tuple[str, str]]:
         ("realAdcMax", _tex_number(saturation["maximo"], 3)),
         ("realSaturatedSamples", _tex_number(saturation["muestras_en_el_minimo"])),
         ("realTotalSamples", _tex_number(saturation["muestras_totales"])),
+        ("realRoundOneEnd", _tex_number(round_one_end)),
         # §4.3 Recuperación de la clave
         ("realRhoCorrectMin", rho_correct_min),
         ("realRhoCorrectMax", rho_correct_max),
@@ -578,6 +617,8 @@ def tex_macros(results: dict) -> list[tuple[str, str]]:
         ("realTracesNinetyLower", _tex_number(lower)),
         ("realSnrMin", snr_min),
         ("realSnrMax", snr_max),
+        ("realLeakTailThreshold", _tex_number(tail["umbral"], 1)),
+        ("realLeakTailSample", _tex_number(tail["ultima_muestra"])),
         # §4.4 Contramedidas medidas
         ("realBaseTraces", _tex_number(base["n_traces"])),
         ("realBaseBytes", _tex_number(base["bytes_correctos"])),
@@ -646,8 +687,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.solo_tex:
         if not args.resultados.exists():
             raise SystemExit(f"No existe {args.resultados}: ejecuta antes el análisis completo")
+        results = json.loads(args.resultados.read_text())
+        # Lo que no necesita repetir las ordenaciones se completa aquí si el
+        # JSON es anterior a ese número, y se guarda para la próxima vez.
+        if "cola_fuga" not in results["tinyaes"]:
+            results["tinyaes"]["cola_fuga"] = leak_tail(_load("tinyaes"))
+            args.resultados.write_text(json.dumps(results, indent=2, ensure_ascii=False) + "\n")
         try:
-            write_tex_macros(json.loads(args.resultados.read_text()), args.macros)
+            write_tex_macros(results, args.macros)
         except ValueError as error:
             raise SystemExit(str(error)) from None
         print(f"Macros: {args.macros}")
@@ -675,6 +722,7 @@ def main(argv: list[str] | None = None) -> int:
     written += [figure_correlation(tiny, args.figuras), figure_candidates(tiny, args.figuras)]
     curve = success_curve(tiny, _geometric_steps(300, 5, 26), orderings)
     results["tinyaes"]["curva"] = curve
+    results["tinyaes"]["cola_fuga"] = leak_tail(tiny)
     written.append(figure_rank(curve, args.figuras))
 
     spa = _load("spa")

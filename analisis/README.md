@@ -111,7 +111,10 @@ Si el texto necesita un número nuevo, se añade primero a `tex_macros()` en
 `reales.py` y después se cita en `04-resultados.tex`; los nombres van en inglés
 y solo con letras. Si al JSON le falta la campaña completa con retardos, las
 macros no se tocan, para no dejar la memoria a medio actualizar: el análisis
-completo lo avisa y termina igual, y `--solo-tex` acaba con error.
+completo lo avisa y termina igual, y `--solo-tex` acaba con error. Lo que se
+calcula en segundos a partir de `datos/` (hoy, hasta qué muestra llega la fuga
+de la primera ronda, `leak_tail`) no necesita el análisis completo: si al JSON
+le falta, `--solo-tex` lo calcula y lo guarda antes de escribir las macros.
 
 El análisis deja también en `web/data/` los datos medidos que enseña la web
 explicativa: la campaña recortada del ataque (`nano-tinyaes.json`), la traza

@@ -271,8 +271,8 @@ convertidor a \qty{7,5}{\mega\hertz}, una muestra por ciclo de reloj y
 tarda menos de tres minutos. A diferencia de la \cref{sec:validacion-simulada},
 \textbf{todo lo que aparece desde aquí son medidas reales}.
 
-\paragraph{Estructura de la traza.} La primera ronda ocupa las primeras mil
-muestras, y el cifrado completo, unas \num{10000} (\cref{sec:spa},
+\paragraph{Estructura de la traza.} La primera ronda acaba hacia la muestra
+\realRoundOneEnd, y el cifrado completo, hacia la \num{10000} (\cref{sec:spa},
 \cref{fig:real-spa}). Para el ataque basta con las \num{1500} primeras.
 
 \paragraph{Alineación.} Con \realFixedTextTraces{} trazas de un mismo texto
@@ -313,8 +313,8 @@ candidato correcto de cada byte alcanza $|\rho|$ entre \realRhoCorrectMin{} y
 \realRhoWrongMin{} y \realRhoWrongMax. Los picos aparecen en el orden en que
 \texttt{SubBytes} recorre el estado (bytes 0, 4, 8 y 12, después 1, 5, 9 y
 13\ldots), separados unos 11 ciclos. La correlación del candidato correcto no
-desaparece al acabar \texttt{SubBytes}: sigue alta hasta la muestra
-\num{1300}, aproximadamente, porque \texttt{ShiftRows} y \texttt{MixColumns}
+desaparece al acabar \texttt{SubBytes}: sigue superando \realLeakTailThreshold{}
+hasta la muestra \realLeakTailSample, porque \texttt{ShiftRows} y \texttt{MixColumns}
 vuelven a cargar los mismos bytes. Es una diferencia con la simulación, en la
 que cada byte solo fugaba en una ventana, y explica el resultado del barajado
 de la \cref{sec:contramedidas-medidas}.
@@ -505,7 +505,7 @@ una ganancia fija y cada captura admite como mucho \num{50000} muestras
 cifrado que cabe en una traza. En la práctica, ninguno de esos límites ha
 estorbado al ataque (\cref{sec:calidad-captura}): el ruido es del orden de un
 escalón del convertidor, la saturación es anecdótica, la primera ronda cabe en
-las primeras mil muestras y las trazas salen alineadas al ciclo.
+las \num{1500} primeras muestras y las trazas salen alineadas al ciclo.
 
 Los números de este capítulo salen de una sola placa, una sola clave y una
 sola sesión de medida. Las curvas de éxito se estiman permutando una misma

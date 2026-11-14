@@ -81,8 +81,10 @@ primera ronda, la salida de la S-box, y con uno de la última, la entrada de la
 última suma de subclave ($c \oplus K_{10}$). La primera ronda supera
 $|\rho| = 0{,}6$ entre las muestras 463 y 730, y la última, entre la
 \num{9586} y la \num{10042}: el cifrado completo dura unos \num{10000}
-ciclos, unos \qty{1,3}{\milli\second} a \qty{7,5}{\mega\hertz}, y la
-primera ronda entra en las primeras mil muestras. Después del cifrado la traza
+ciclos, unos \qty{1,3}{\milli\second} a \qty{7,5}{\mega\hertz}. La primera
+ronda empieza hacia la muestra 463 y, como el patrón se repite cada
+\num{1014}, acaba hacia la \realRoundOneEnd, donde empieza la segunda: cabe en las
+\num{1500} primeras muestras. Después del cifrado la traza
 sigue: es el firmware que prepara y envía el criptograma, y por eso esa parte
 correla con los bytes del criptograma pero no con los de la primera ronda.
 
