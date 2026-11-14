@@ -25,6 +25,7 @@ Cubren lo que puede invalidar el análisis en silencio:
 9. La ida y vuelta y el recorte del formato de campaña de `captura/campana.py`.
 10. Los JSON que `reales.py` deja para la web: misma forma que los datos y los
     mismos números que los resultados.
+11. La medida de hasta dónde llega la fuga de la primera ronda (`leak_tail`).
 """
 
 from __future__ import annotations
@@ -502,6 +503,35 @@ def test_campaign_round_trip_and_trim() -> None:
             "trim no actualiza el tamaño de la campaña recortada"
         )
         assert trimmed.simulated, "trim pierde la marca de campaña simulada"
+
+
+def test_leak_tail_finds_last_leaking_sample() -> None:
+    """`leak_tail` da la última muestra en la que fuga la S-box de la primera ronda.
+
+    Se fabrican trazas de ruido en las que la salida de la S-box de dos bytes
+    fuga en dos muestras conocidas: la función tiene que devolver la más tardía,
+    sea del byte que sea, y `None` si ninguna muestra supera el umbral.
+    """
+    rng = np.random.default_rng(61)
+    n_traces, n_samples = 400, 30
+    key = rng.integers(0, 256, size=16, dtype=np.uint8)
+    plaintexts = rng.integers(0, 256, size=(n_traces, 16), dtype=np.uint8)
+    leak = simulate.hamming_weight(np.asarray(aes.SBOX, dtype=np.uint8)[plaintexts ^ key])
+    traces = rng.normal(0.0, 1.0, size=(n_traces, n_samples))
+    traces[:, 7] += 2.0 * leak[:, 0]       # el byte 0 fuga en la muestra 7
+    traces[:, 19] += 2.0 * leak[:, 5]      # y el byte 5, más tarde, en la 19
+    data = campana.Campaign(
+        traces=traces.astype(np.float32), plaintexts=plaintexts,
+        ciphertexts=np.zeros_like(plaintexts), key=key,
+    )
+    tail = reales.leak_tail(data)
+    assert tail == {"umbral": reales.LEAK_TAIL_THRESHOLD, "ultima_muestra": 19}, (
+        f"la última muestra con fuga debería ser la 19: {tail}"
+    )
+    # Con un umbral que nadie alcanza no hay última muestra.
+    assert reales.leak_tail(data, threshold=0.999)["ultima_muestra"] is None, (
+        "un umbral inalcanzable debería dar None"
+    )
 
 
 def test_web_exports() -> None:
