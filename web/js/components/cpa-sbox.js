@@ -7,13 +7,14 @@
 //
 // Hooks: data-p, data-k, data-xor, data-sbox, data-hw, data-target,
 // data-best-wrong, data-complement, data-near (candidatos falsos con
-// |ρ| ≥ 0,75 sin contar el complementario) y data-rendered.
+// |ρ| ≥ 0,75 sin contar el complementario) y data-rendered. Pasos guiados:
+// set({ p, k, target }).
 import { NoteElement, define } from '../kit/base.js';
 import { h, scaleLinear } from '../kit/svg.js';
 import { controlsHTML } from '../kit/controls.js';
 import { attachTip } from '../kit/tip.js';
 import { SBOX, HW } from '../model/aes.js';
-import { es, hex2 } from './common.js';
+import { es, hex2, plotWidth } from './common.js';
 
 // Correlación, sobre los 256 textos claros, entre HW(f(p ⊕ k)) y HW(f(p ⊕ k'))
 // en función de d = k ⊕ k' (solo depende de la diferencia). Si el dispositivo
@@ -37,7 +38,8 @@ export const TARGETS = {
 export const NEAR = 0.75;
 
 const bits = (v) => [...v.toString(2).padStart(8, '0')].map((b) => `<i class="bit b${b}">${b}</i>`).join('');
-const W = 720, CELL_W = 40, CELL_H = 17, TL = 40, TT = 20;
+// Geometría (unidades del viewBox); el ancho sale de plotWidth() al pintar.
+const CELL_H = 17, TT = 20;
 const BH = 170, BL = 46, BR = 14, BT = 12, BB = 34;
 
 export class CpaSbox extends NoteElement {
@@ -56,12 +58,12 @@ export class CpaSbox extends NoteElement {
         })}</div>
         <div class="sx-xor" aria-live="polite"></div>
         <p class="cl-sub">S-box: la fila es la primera cifra hexadecimal de p ⊕ k y la columna, la segunda.</p>
-        <svg class="sx-table" viewBox="0 0 ${W} ${TT + 16 * CELL_H + 4}" role="img" aria-label="Tabla de la S-box de AES"></svg>
+        <svg class="sx-table" role="img" aria-label="Tabla de la S-box de AES"></svg>
         <div class="sx-lookup"></div>
         <p class="cl-sub sx-q">¿Qué valor conviene atacar? Parecido de la predicción de cada candidato con la del correcto si se ataca</p>
         <div class="presets sx-targets">${Object.entries(TARGETS).map(([t, c]) => `<button type="button" data-target="${t}">${c.label}</button>`).join('')}</div>
         <div class="legend"><span><i class="lk lk-ok"></i>candidato correcto</span><span><i class="lk sx-lk-c"></i>su complementario (k ⊕ 0xff)</span><span><i class="lk lk-gray"></i>los otros 254</span></div>
-        <svg class="sx-bars" viewBox="0 0 ${W} ${BH}" role="img" aria-label="Correlación de la predicción de cada candidato con la del correcto"></svg>
+        <svg class="sx-bars" role="img" aria-label="Correlación de la predicción de cada candidato con la del correcto"></svg>
         <div class="out sx-out"></div>
       </div>`;
     this.querySelector('.sx-controls').addEventListener('input', (e) => {
@@ -107,16 +109,20 @@ export class CpaSbox extends NoteElement {
     for (const b of this.querySelectorAll('[data-target]')) b.classList.toggle('on', b.dataset.target === target);
     const c = Math.abs(gh[0xff]);
     this.querySelector('.sx-out').innerHTML = target === 'xor'
-      ? `Atacando p ⊕ k, el complementario ${hex2(comp)} predice exactamente lo contrario, 8 − HW, y su |ρ| es <b>${es(c, 2)}</b>: empata con el correcto.
-        Además, otros <b>${near}</b> candidatos tienen |ρ| ≥ ${es(NEAR, 2)}, los que difieren de ${hex2(k)} o de ${hex2(comp)} en un solo bit.`
-      : `Atacando la salida de la S-box, el complementario se queda en |ρ| = <b>${es(c, 2)}</b> y el mejor falso en <b>${es(bestWrong, 2)}</b>:
-        solo el correcto predice bien la fuga. En un CPA, cada barra se multiplica por el pico del correcto, así que con SNR = 0,1 el mejor falso tiende a ${es(bestWrong * Math.sqrt(0.1 / 1.1), 2)}.`;
+      ? `Atacando p ⊕ k, el complementario ${hex2(comp)} predice exactamente lo contrario, 8 − HW, y su parecido con el correcto, sin contar el signo, es <b>${es(c, 2)}</b>: empata con él.
+        Además, otros <b>${near}</b> candidatos pasan de ${es(NEAR, 2)}: los que difieren de ${hex2(k)} o de ${hex2(comp)} en un solo bit.`
+      : `Atacando la salida de la S-box, el parecido del complementario con el correcto se queda en <b>${es(c, 2)}</b> y el del mejor falso, en <b>${es(bestWrong, 2)}</b>:
+        solo el correcto predice bien la fuga.`;
     Object.assign(this.dataset, { p: String(p), k: String(k), xor: String(u), sbox: String(s), hw: String(w), target,
       bestWrong: bestWrong.toFixed(4), complement: c.toFixed(4), near: String(near) });
     this.markRendered();
   }
 
   drawTable(u) {
+    // En pantallas estrechas la tabla ocupa todo el lienzo; en anchas, celdas de 40.
+    const W = plotWidth(), TL = W > 500 ? 40 : 24, CELL_W = W > 500 ? 40 : (W - TL - 2) / 16;
+    const svg = this.querySelector('.sx-table');
+    svg.setAttribute('viewBox', `0 0 ${W} ${TT + 16 * CELL_H + 4}`);
     const g = [];
     for (let c = 0; c < 16; c++) g.push(h('text', { class: 'ax ax-m', x: TL + CELL_W * c + CELL_W / 2, y: TT - 6 }, c.toString(16)));
     for (let r = 0; r < 16; r++) {
@@ -128,13 +134,14 @@ export class CpaSbox extends NoteElement {
           h('text', { class: `sx-t${on ? ' on' : ''}`, x: TL + CELL_W * c + CELL_W / 2, y: TT + CELL_H * r + 12.5 }, SBOX[v].toString(16).padStart(2, '0'))));
       }
     }
-    this.querySelector('.sx-table').replaceChildren(...g);
+    svg.replaceChildren(...g);
   }
 
   drawBars(gh, k) {
-    const svg = this.querySelector('.sx-bars');
+    const svg = this.querySelector('.sx-bars'), W = plotWidth();
+    svg.setAttribute('viewBox', `0 0 ${W} ${BH}`);
     const x = scaleLinear([0, 256], [BL, W - BR]), y = scaleLinear([0, 1], [BH - BB, BT]);
-    this.bx = x;
+    this.bx = x; this.W = W;
     const g = [];
     for (const v of [0, 0.25, 0.5, 0.75, 1]) {
       g.push(h('line', { class: 'grid', x1: BL, x2: W - BR, y1: y(v), y2: y(v) }));
@@ -155,7 +162,7 @@ export class CpaSbox extends NoteElement {
   }
 
   tip(ev) {
-    const box = this.querySelector('.sx-bars').getBoundingClientRect();
+    const box = this.querySelector('.sx-bars').getBoundingClientRect(), W = this.W;
     const px = ((ev.clientX - box.left) / box.width) * W;
     if (px < BL || px > W - BR) return '';
     const { k, target } = this.model.get();

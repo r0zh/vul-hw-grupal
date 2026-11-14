@@ -1,5 +1,5 @@
 // Contrato de aprendizaje de <cpa-sbox>.
-import { setRange, dataOf, widgetText, assert } from './helpers.mjs';
+import { setRange, dataOf, widgetText, step, assert } from './helpers.mjs';
 
 const W = '#sbox';
 const target = (page, t) => page.evalJs(`document.querySelector('${W} [data-target="${t}"]').click()`);
@@ -32,6 +32,15 @@ export const spec = {
         assert(Number(await dataOf(page, W, 'complement')) === 1, 'el complementario no empata');
         assert(await dataOf(page, W, 'near') === '16', `hay ${await dataOf(page, W, 'near')} candidatos cercanos`);
         assert((await widgetText(page, W)).includes('empata'), 'el texto no lo dice');
+      } },
+    { id: 'step-attack-sbox-breaks-the-tie', why: 'pasos 1 y 2: la figura empieza con el empate y el botón de la caja lo deshace',
+      async run({ page }) {
+        assert(await dataOf(page, W, 'target') === 'xor', 'la figura no empieza atacando p ⊕ k');
+        assert(Number(await dataOf(page, W, 'complement')) === 1, 'al empezar, el complementario no empata');
+        await step(page, 'sbox', 0);
+        assert(await dataOf(page, W, 'target') === 'sbox', 'el paso no cambia a la salida de la S-box');
+        assert(Number(await dataOf(page, W, 'complement')) < 0.25, 'el complementario sigue empatando');
+        assert(Number(await dataOf(page, W, 'bestWrong')) < 0.25, 'algún falso sigue cerca del correcto');
       } },
     { id: 'sbox-target-separates', why: 'atacando la salida de la S-box, ningún falso pasa de 0,25, con cualquier clave',
       async run({ page }) {

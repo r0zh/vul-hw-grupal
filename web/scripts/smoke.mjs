@@ -12,7 +12,12 @@ import { findChrome } from './cdp.mjs';
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const PORT = 8123, BASE = `http://localhost:${PORT}`;
 const PAGES = [
-  { path: '/web/index.html', must: ['cpa-live id="cpa-main"', 'data-recovered="16"', 'cpa-leak id="leak"', 'data-hw="4"', 'cpa-sbox id="sbox"', 'data-xor="25"', 'Datos simulados', 'aes-title'] },
+  { path: '/web/index.html', must: ['cpa-live id="cpa-main"', 'data-recovered="16"', 'cpa-leak id="leak"', 'data-hw="4"', 'cpa-sbox id="sbox"', 'data-xor="25"', 'Datos simulados', 'Medida real', 'aes-title', 'montaje-title', 'cpa-live id="cpa-cm"', 'data-cm="none"', 'nano-placa.jpg',
+    // Las figuras con datos medidos: si falta su JSON de data/, no llegan a pintarse.
+    'cpa-live id="hero"', 'cpa-live id="cpa-real"', 'data-source="real"', 'cpa-spa id="fig-spa"', 'data-period="1014"', 'cpa-corr id="corr"', 'data-leak="462"',
+    'cpa-curves id="curva-real"', 'data-n90="112"', 'cpa-curves id="curva-cm"', 'data-n90="132,475,"', 'cpa-dpa id="fig-dpa"', 'data-cpa="16"',
+    // Y lo que crea js/page.js.
+    'class="dots"', 'class="progress"'] },
 ];
 const chrome = findChrome();
 if (!chrome) { console.log('smoke: no hay Chromium, se omite'); process.exit(0); }

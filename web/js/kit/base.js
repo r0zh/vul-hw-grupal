@@ -1,6 +1,12 @@
 // NoteElement: the custom-element base. Subclasses supply defaults/build/render.
 import { createModel } from './model.js';
 
+// Dos disposiciones, ancha y estrecha (móvil). Las figuras eligen el ancho de
+// su lienzo con isNarrow() al pintar y se repintan si la ventana cruza el
+// umbral, de modo que el texto de las gráficas se lee también en un teléfono.
+const NARROW = typeof matchMedia === 'undefined' ? null : matchMedia('(max-width: 560px)');
+export const isNarrow = () => !!NARROW?.matches;
+
 export class NoteElement extends (typeof HTMLElement === 'undefined' ? class {} : HTMLElement) {
   connectedCallback() {
     if (this._ready) return;
@@ -9,6 +15,7 @@ export class NoteElement extends (typeof HTMLElement === 'undefined' ? class {} 
     this.model.subscribe(() => this.render());
     this.build();
     this.render();
+    NARROW?.addEventListener('change', () => this.render());
   }
   defaults() { return {}; }
   build() {}

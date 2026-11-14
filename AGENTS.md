@@ -58,6 +58,10 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 | 2026-11-13 | Contramedida de la fase 6 en `firmware/contramedida/aes-cm.c`: AES propio con la estructura de tiny-AES que sustituye a la biblioteca de NewAE y se compila con el mismo `simpleserial-aes.c`. Variantes `base` (referencia), `retardos` (`CM_DELAY`, 0 a 15 vueltas antes de cada byte de SubBytes, de cada columna de MixColumns y de cada ronda) y `barajado` (`CM_SHUFFLE`, SubBytes en orden aleatorio). Generador xorshift32 con semilla fija: sirve para medir, **no es una contramedida utilizable tal cual** | Hecho |
 | 2026-11-13 | Resultado de la fase 6: el barajado de SubBytes solo multiplica por 3,6 las trazas necesarias (n90: 475 frente a 132), muy por debajo de las m² = 256 del modelo, porque ShiftRows y MixColumns siguen cargando los mismos bytes en las mismas muestras. Los retardos tumban el CPA sin preprocesado incluso con 20 000 trazas; integrando ventanas de 300 muestras antes de correlar se recuperan 7 de 16 bytes | Hecho |
 | 2026-11-13 | Los números de las medidas del capítulo 4 no se escriben a mano: `analisis/reales.py` deja `memoria/capitulos/generado/reales.tex` con una macro de LaTeX por número (`\realRhoCorrectMin`, `\realTracesNinety`…) y la memoria la incluye con `\input`. El fichero se versiona porque la CI compila sin ejecutar el análisis, y `--solo-tex` lo rehace desde el JSON en segundos | Hecho |
+| 2026-11-13 | La web se reorganiza para leerse como una historia: resumen inicial, cajas «Prueba esto» tras cada figura, sección de la placa con fotos (`web/img/`), ataque real en su propia sección y cierre «Qué nos llevamos». Nueva figura de contramedidas simuladas (`<cpa-live cm>`, barajado y retardos acumulados), comprobada por `tests/sim.test.js` y `spec/cpa-cm.mjs` | Hecho (revisada el 2026-11-14) |
+| 2026-11-14 | La web se rehace como lectura guiada: portada con el ataque sobre trazas medidas, figuras nuevas (`<cpa-spa>`, la traza real con zoom y rondas; `<cpa-dpa>`, el DPA por dentro; `<cpa-corr>`, una casilla del CPA con trazas medidas; `<cpa-curves>`, curvas de éxito medidas), esquema del montaje en SVG, glosario emergente, preguntas rápidas y navegación por secciones. Los pasos de «Prueba esto» son botones que manejan la figura, y las specs pulsan esos mismos botones. Detalles en [`web/README.md`](web/README.md) | Hecho |
+| 2026-11-14 | Los datos medidos de la web (`web/data/nano-tinyaes.json`, `nano-spa.json` y `nano-curvas.json`) salen de `analisis/reales.py`, y `--solo-web` los rehace en segundos desde `datos/` y `reales.json`. Se retira `web/data/real-spa.png`: la traza del SPA la dibuja `<cpa-spa>` | Hecho |
+| 2026-11-14 | Los números de las medidas que la web escribe en su texto se cotejan con las macros de `memoria/capitulos/generado/reales.tex` en `web/tests/curves.test.js`: si la web y la memoria dejan de decir lo mismo, la CI de la web falla y no se publica | Hecho |
 | — | Herramienta para la presentación (ver [`presentacion/por-decidir.md`](presentacion/por-decidir.md)) | Pendiente |
 
 ## Estructura del repositorio
@@ -91,7 +95,8 @@ analisis/              CPA, DPA, simulación de trazas, CPA de campañas reales 
   salida/              resultados numéricos de una ejecución (ignorado por git)
 figuras/               figuras generadas por scripts, compartidas por memoria y presentación
 web/                   web explicativa (GitHub Pages): index.html, js/, tests/, spec/ y harness
-  data/                campaña medida y PNG de la traza real; los genera analisis/reales.py
+  data/                datos medidos en JSON (campaña del ataque, traza del cifrado completo y
+                       curvas de éxito); los genera analisis/reales.py
 .github/workflows/     CI de la memoria (memoria.yml), del análisis (analisis.yml) y de la web (web.yml)
 ```
 
@@ -132,6 +137,7 @@ uv run python -m analisis.demo               # demo en vivo del CPA (simulada, n
 uv run python -m analisis.reales             # figuras real-* y números de las medidas (~25 min)
 uv run python -m analisis.reales --rapido    # 10 ordenaciones en vez de 100 (~3 min, para probar)
 uv run python -m analisis.reales --solo-tex  # solo las macros de la memoria, desde el JSON (segundos)
+uv run python -m analisis.reales --solo-web  # solo los datos de web/data/, desde datos/ y el JSON (segundos)
 ```
 
 Detalles en [`analisis/README.md`](analisis/README.md). El workflow `Análisis` ejecuta las comprobaciones y el análisis reducido **dos veces** en cada push que toque `analisis/`, para comprobar que los resultados y las figuras son deterministas. `analisis.reales` no entra en la CI: tarda demasiado y necesita las campañas de `datos/`, que sí están versionadas (la campaña completa con retardos, no: si falta, se omiten esas claves del JSON).
@@ -141,7 +147,7 @@ Detalles en [`analisis/README.md`](analisis/README.md). El workflow `Análisis` 
 ```sh
 cd web
 npm run serve      # http://localhost:8000/web/ (sirve la raíz del repo, como Pages bajo una subruta)
-npm run check      # tests, prueba de humo, claims y auditoría visual (~45 s; Node ≥ 22 y Chromium)
+npm run check      # tests, prueba de humo, claims y auditoría visual (~2 min; Node ≥ 22 y Chromium)
 ```
 
 Detalles en [`web/README.md`](web/README.md). El workflow `Web` ejecuta `npm run check` en cada push que toque `web/` y, desde `main`, publica la carpeta en GitHub Pages.
@@ -185,7 +191,7 @@ Los resultados numéricos van a `analisis/salida/`, que está ignorado por git: 
 - [x] **4. Captura:** 2026-11-13. A 18,6 trazas/s, trazas alineadas sin procesar (dispersión entre trazas del orden de un escalón del ADC), saturación despreciable y primera ronda entre las muestras ~450 y ~700. Campaña `20261113-180036-nano-tinyaes` de 3000 trazas en `datos/brutos/`.
 - [x] **5. Ataque real:** 2026-11-13: con 3000 trazas se recuperan los 16 bytes (|ρ| ≈ 0,6; rango 1 estable entre 24 y 90 trazas según el byte) y hay una campaña de respaldo en `datos/`. Figuras definitivas `real-*` generadas por `analisis/reales.py` y secciones 4.2 y 4.3 de la memoria escritas con esos números.
 - [x] **6. (Opcional) Contramedida:** `firmware/contramedida/` con tres variantes (base, barajado de SubBytes y retardos aleatorios de 0 a 15 vueltas), medidas con el mismo CPA. El barajado sigue recuperando los 16 bytes con 3,6 veces más trazas; los retardos lo tumban incluso con 20 000 trazas, y solo integrando ventanas de 300 muestras se recuperan 7 de 16 bytes. Sección 4.4 de la memoria y, del lado de la teoría, la sección 3.
-- [x] **Web explicativa:** `web/` con `<cpa-live>` (CPA en directo con SNR, N, byte, semilla y clave y, desde 2026-11-13, `#cpa-real` con 400 trazas medidas), `<cpa-leak>` (de dónde sale la fuga) y `<cpa-sbox>` (AddRoundKey y SubBytes con un byte, y por qué atacar `p ⊕ k` empata con el complementario), tests de los modelos, claims en navegador y auditoría visual (`cd web && npm run check`), más `tests/real.test.js`, que exige que el CPA de la web recupere los 16 bytes con las trazas medidas. Se publica en <https://r0zh.github.io/vul-hw-grupal/> desde `main`. Pendiente: Manim, `<cpa-dpa>` y `<cpa-shuffle>` (opcionales).
+- [x] **Web explicativa:** `web/`, publicada en <https://r0zh.github.io/vul-hw-grupal/> desde `main`. Es una lectura guiada de 14 secciones con una figura por idea: `<cpa-leak>` (de dónde sale la fuga), `<cpa-sbox>` (por qué se ataca la salida de la S-box), `<cpa-spa>` (traza medida del cifrado completo), `<cpa-dpa>` (el DPA por dentro), `<cpa-corr>` (una casilla del CPA con trazas medidas), `<cpa-live>` (el CPA entero, simulado, con las 400 trazas medidas y con contramedidas simuladas) y `<cpa-curves>` (curvas de éxito medidas). `cd web && npm run check` pasa los tests de los modelos y de los datos, los claims en navegador y la auditoría visual. Revisada entera el 2026-11-14 (escritorio, móvil, modo oscuro y fuentes de la CI). Pendiente: Manim (opcional).
 - [ ] **7. Entregables:** redacción de la memoria, revisión con Trinka, presentación y ensayo de la demo con el plan B. Capítulos 1 a 5 escritos con los resultados reales (2026-11-13); no queda ningún `% TODO` (la última fuente, Balasch et al. 2014 para la fuga por transiciones en software enmascarado, se añadió el 2026-11-13). El 2026-11-13 se revisó la memoria entera: coherencia con las medidas, frases escritas antes de medir, portada (aún decía ATmega328P) y bibliografía. Queda la revisión de estilo con Trinka. En el portátil del Nano no hay LaTeX: la memoria se compila en la CI o en un contenedor (`docker run --rm -v "$PWD":/repo -w /repo/memoria danteev/texlive latexmk`).
 
 ## Fuentes

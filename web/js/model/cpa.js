@@ -144,6 +144,31 @@ export function attack(acc, key = null) {
   });
 }
 
+// La nube de un candidato en un instante: por cada una de las n primeras trazas,
+// lo que predice el candidato k para el byte j (x = HW(SBox(p ⊕ k)), de 0 a 8)
+// y lo que se midió en la muestra t (y). Devuelve también ρ, la recta de
+// regresión y la media de y en cada valor de x. Es el CPA de una sola casilla
+// (k, t), sin atajos, para dibujarla en <cpa-corr>.
+export function cloud(campaign, j, k, t, n = campaign.n) {
+  const S = campaign.nSamples, x = new Uint8Array(n), y = new Float64Array(n);
+  const count = new Int32Array(9), total = new Float64Array(9);
+  let sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0;
+  for (let i = 0; i < n; i++) {
+    const h = HW[SBOX[campaign.plaintexts[16 * i + j] ^ k]], v = campaign.traces[i * S + t];
+    x[i] = h; y[i] = v;
+    count[h]++; total[h] += v;
+    sx += h; sy += v; sxx += h * h; syy += v * v; sxy += h * v;
+  }
+  const vx = n * sxx - sx * sx, vy = n * syy - sy * sy, cov = n * sxy - sx * sy;
+  const slope = vx > 0 ? cov / vx : 0;
+  return {
+    n, x, y,
+    rho: vx > 0 && vy > 0 ? cov / Math.sqrt(vx * vy) : 0,
+    slope, intercept: n ? (sy - slope * sx) / n : 0,
+    classes: Array.from({ length: 9 }, (_, hw) => ({ hw, count: count[hw], mean: count[hw] ? total[hw] / count[hw] : null })),
+  };
+}
+
 // Campaña real exportada del formato de AGENTS.md (.npz → JSON): `traces`
 // (N×S), `plaintexts` (N×16) y, si se conoce, `key` (16). Acepta listas
 // anidadas o cadenas hex de 16 bytes.

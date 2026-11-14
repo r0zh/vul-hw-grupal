@@ -57,3 +57,40 @@ test('trazas necesarias con SNR = 0,1, del orden de la tabla 4.1 de la memoria',
   assert.ok(med >= 413 / 1.5 && med <= 413 * 1.5, `mediana ${med}`);
   assert.ok(at90 >= 578 / 1.5 && at90 <= 578 * 1.5, `90 % en ${at90}`);
 });
+
+// Contramedidas de la figura de la sección 11. Con la semilla fija, los
+// números son deterministas; los umbrales dejan margen.
+const recoveredAt = (c, n) => {
+  const acc = createAccumulator(c.nSamples);
+  acc.add(c, 0, n);
+  return attack(acc, c.key);
+};
+
+test("cm = 'none' da exactamente las trazas de siempre", () => {
+  assert.deepEqual(simulate({ n: 50, snr: 1, cm: 'none' }).traces, simulate({ n: 50, snr: 1 }).traces);
+  assert.throws(() => simulate({ n: 5, snr: 1, cm: 'masking' }));
+});
+
+test('el barajado tumba el CPA con 500 trazas y con 10 000 la clave vuelve', () => {
+  const c = simulate({ n: 10000, snr: 1, cm: 'shuffle' });
+  assert.ok(recoveredAt(c, 500).filter((x) => x.rank === 1).length < 4);
+  assert.equal(recoveredAt(c, 10000).filter((x) => x.rank === 1).length, 16);
+});
+
+test('los retardos acumulados castigan más a los últimos bytes', () => {
+  const r = recoveredAt(simulate({ n: 500, snr: 1, cm: 'delay' }), 500);
+  assert.equal(r[0].rank, 1);
+  assert.notEqual(r[15].rank, 1);
+  assert.ok(r[0].correctPeak > 2 * r[15].correctPeak, `${r[0].correctPeak} frente a ${r[15].correctPeak}`);
+});
+
+test('en la figura, la clave completa sale con 50 trazas; con barajado, entre 4000 y 6000; con retardos, con 1500', () => {
+  // Los pasos del deslizador de la figura (SNR = 1, clave de laboratorio).
+  const full = (c, n) => recoveredAt(c, n).every((x) => x.rank === 1);
+  const plain = simulate({ n: 50, snr: 1 });
+  assert.ok(!full(plain, 30) && full(plain, 50));
+  const shuffled = simulate({ n: 6000, snr: 1, cm: 'shuffle' });
+  assert.ok(!full(shuffled, 4000) && full(shuffled, 6000));
+  const delayed = simulate({ n: 1500, snr: 1, cm: 'delay' });
+  assert.ok(!full(delayed, 1000) && full(delayed, 1500));
+});
