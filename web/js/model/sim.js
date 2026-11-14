@@ -10,6 +10,16 @@
 // la posición de estado j. La secuencia de numpy no se puede reproducir, así
 // que la equivalencia con Python se comprueba con estadística
 // (tests/sim.test.js), no valor a valor.
+//
+// Contramedidas (opción `cm`, solo para la web; Python no las simula):
+//   'shuffle'  cada traza recorre los 16 bytes de SubBytes en un orden
+//              aleatorio: el byte j fuga en la ventana de la posición π_i(j).
+//   'delay'    antes de cada byte de SubBytes hay un retardo aleatorio de 0 a
+//              DELAY_MAX muestras que se acumula, como CM_DELAY en
+//              firmware/contramedida/aes-cm.c: el byte j se desplaza la suma
+//              de los j + 1 primeros retardos, y la última ronda, la de todos.
+// Sus números aleatorios salen de un generador aparte, así que con cm =
+// 'none' las trazas son exactamente las de siempre.
 import { SBOX, HW, keyExpansion, encryptDetailed, fromHex } from './aes.js';
 
 export const LAB_KEY = fromHex('2b7e151628aed2a6abf7158809cf4f3c');
@@ -22,6 +32,9 @@ export const CONFIG = {
   kernel: [0.5, 1.0, 0.5],
   offsetRatio: 0.4, driftRatio: 0.05, driftFreq: 0.35,
 };
+
+export const COUNTERMEASURES = ['none', 'shuffle', 'delay'];
+export const DELAY_MAX = 3;
 
 // Desviación típica de la fuga de un byte, g_1·√Var(HW). Python la estima con
 // la varianza combinada de los 16 bytes; con textos claros uniformes
@@ -79,7 +92,8 @@ export function randomKey(seed, n) {
 // Cada traza consume siempre la misma cantidad de números aleatorios y en el
 // mismo orden, así que las n primeras trazas son las mismas pidas n o 4n:
 // mover el deslizador de N no cambia las trazas que ya había.
-export function simulate({ n, snr, key = LAB_KEY, seed = CONFIG.seed, cfg = CONFIG }) {
+export function simulate({ n, snr, key = LAB_KEY, seed = CONFIG.seed, cfg = CONFIG, cm = 'none' }) {
+  if (!COUNTERMEASURES.includes(cm)) throw new Error(`contramedida desconocida: ${cm}`);
   const S = cfg.nSamples;
   const sigma = Number.isFinite(snr) ? noiseSigma(snr) : 0;
   const drift = Float64Array.from({ length: S }, (_, t) => Math.sin(2 * Math.PI * cfg.driftFreq * t / S));
@@ -88,7 +102,9 @@ export function simulate({ n, snr, key = LAB_KEY, seed = CONFIG.seed, cfg = CONF
   const offsetStd = cfg.offsetRatio * sigma, driftStd = cfg.driftRatio * sigma;
   const whiteStd = drift.map((s) => sigma * Math.sqrt(1 - cfg.offsetRatio ** 2 - (cfg.driftRatio * s) ** 2));
   const rk = keyExpansion(key);
-  const texts = rng(seed), noise = rng((seed ^ 0x5bd1e995) >>> 0);
+  const texts = rng(seed), noise = rng((seed ^ 0x5bd1e995) >>> 0), cmRng = rng((seed ^ 0x2545f491) >>> 0);
+  const slot = Int32Array.from({ length: 16 }, (_, j) => j);   // posición de cada byte en SubBytes
+  const shift = new Int32Array(16);                              // desplazamiento de cada byte
   const half = cfg.kernel.length >> 1;
 
   const traces = new Float32Array(n * S);
@@ -102,10 +118,20 @@ export function simulate({ n, snr, key = LAB_KEY, seed = CONFIG.seed, cfg = CONF
 
     const b = offsetStd * noise.normal(), d = driftStd * noise.normal();
     for (let t = 0; t < S; t++) row[t] = b + d * drift[t] + whiteStd[t] * noise.normal();
+    if (cm === 'shuffle') {                                      // Fisher-Yates
+      for (let j = 15; j > 0; j--) {
+        const r = cmRng.u32() % (j + 1), tmp = slot[j]; slot[j] = slot[r]; slot[r] = tmp;
+      }
+    } else if (cm === 'delay') {
+      let acc = 0;
+      for (let j = 0; j < 16; j++) { acc += cmRng.u32() % (DELAY_MAX + 1); shift[j] = acc; }
+    }
+    const total = cm === 'delay' ? shift[15] : 0;
     for (let j = 0; j < 16; j++) {
       const first = cfg.firstGain * HW[SBOX[p[j] ^ key[j]]];
       const last = cfg.lastGain * HW[lastInput[j]];
-      const c1 = cfg.firstStart + cfg.firstSpacing * j, c10 = cfg.lastStart + cfg.lastSpacing * j;
+      const c1 = cfg.firstStart + cfg.firstSpacing * slot[j] + shift[j];
+      const c10 = cfg.lastStart + cfg.lastSpacing * j + total;
       for (let o = 0; o < cfg.kernel.length; o++) {
         const t1 = c1 - half + o, t10 = c10 - half + o;
         if (t1 >= 0 && t1 < S) row[t1] += cfg.kernel[o] * first;
@@ -114,5 +140,5 @@ export function simulate({ n, snr, key = LAB_KEY, seed = CONFIG.seed, cfg = CONF
     }
     traces.set(row, S * i);
   }
-  return { synthetic: true, n, nSamples: S, traces, plaintexts, ciphertexts, key: Uint8Array.from(key), snr, seed };
+  return { synthetic: true, n, nSamples: S, traces, plaintexts, ciphertexts, key: Uint8Array.from(key), snr, seed, cm };
 }

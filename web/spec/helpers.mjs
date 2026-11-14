@@ -56,3 +56,21 @@ export async function clickPreset(page, name, within = 'body') {
     return true;
   })()`);
 }
+
+// Pulsa el paso n.º `index` (desde 0) de la caja «Prueba esto» de una figura:
+// el mismo botón que tiene delante el lector.
+export async function step(page, fig, index) {
+  await page.evalJs(`(() => {
+    const b = document.querySelectorAll('button.do[data-fig=' + ${JSON.stringify(JSON.stringify(fig))} + ']')[${index}];
+    if (!b) throw new Error('no hay paso ${index} para ' + ${JSON.stringify(fig)});
+    b.click();
+    return true;
+  })()`);
+}
+
+// Texto del paso n.º `index` de una figura (el <li> entero), para comprobar
+// que lo que promete es lo que se ve.
+export const stepText = (page, fig, index) => page.evalJs(`(() => {
+  const b = document.querySelectorAll('button.do[data-fig=' + ${JSON.stringify(JSON.stringify(fig))} + ']')[${index}];
+  return (b?.closest('li') ?? b)?.innerText ?? '';
+})()`);

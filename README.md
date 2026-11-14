@@ -4,7 +4,7 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 
 **Equipo:** Juan Diego Bermúdez Ureba, Brian Polo Caballero, Alberto Bartolomé Iruela y Roberto Sánchez Martín.
 
-**Web explicativa:** <https://r0zh.github.io/vul-hw-grupal/>, el ataque explicado desde cero con figuras interactivas (trazas simuladas).
+**Web explicativa:** <https://r0zh.github.io/vul-hw-grupal/>, el ataque explicado desde cero con figuras interactivas, sobre trazas simuladas y sobre las medidas en nuestra placa.
 
 ## Contenido
 
@@ -44,9 +44,11 @@ uv run python -m analisis.tests    # comprobaciones rápidas
 uv run python -m analisis.run_all  # regenera figuras y resultados (unos 4 min)
 ```
 
-Todavía **no hay medidas reales**: el análisis de la fase 1 trabaja sobre trazas
-sintéticas con el modelo de fuga del peso de Hamming, y así lo indica cada
-figura. Detalles en [`analisis/README.md`](analisis/README.md).
+`run_all` trabaja sobre trazas sintéticas con el modelo de fuga del peso de
+Hamming, y así lo indica cada figura. Las **medidas reales** del
+ChipWhisperer-Nano (campañas de [`datos/`](datos/)) se analizan con
+`uv run python -m analisis.reales`. Detalles en
+[`analisis/README.md`](analisis/README.md).
 
 ## Referencia principal
 
