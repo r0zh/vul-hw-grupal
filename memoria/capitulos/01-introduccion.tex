@@ -22,10 +22,21 @@ Jun hicieron lo mismo con el consumo eléctrico de implementaciones de DES
 \cite{kocher1999dpa}. Desde entonces, los ataques de canal lateral se han
 convertido en una de las familias principales de la seguridad hardware, junto
 con los ataques a la microarquitectura, la inyección de fallos o los ataques a
-la memoria. La revisión de Mishra y Sahay, que sirve de artículo base para este
-trabajo, dedica una sección a los canales laterales de consumo y otra a los
-ataques diferenciales sobre implementaciones criptográficas y a sus
-contramedidas \cite[secs.~II.B, III.C y III.D]{mishra2025modern}.
+la memoria, como recoge la revisión de Mishra y Sahay que sirve de artículo
+base para este trabajo \cite{mishra2025modern}. La revisión dedica una sección
+a los canales laterales de consumo y otra a los ataques diferenciales sobre
+implementaciones criptográficas y a sus contramedidas
+\cite[secs.~II.B, III.C y III.D]{mishra2025modern}.
+
+Estos ataques no se quedan en el laboratorio. Ronen et al.\ extrajeron con un
+ataque de canal lateral la clave AES-CCM, común a todas las bombillas Hue de un
+mismo modelo, con la que Philips cifra y autentica su firmware. Les bastó un
+equipo de unos cientos de dólares, y con la clave pudieron instalar firmware
+propio y construir un gusano que salta de una bombilla a las vecinas
+\cite{ronen2017iot}. Además, no siempre hace falta tocar el dispositivo:
+PLATYPUS obtiene claves de AES-NI de procesadores Intel leyendo su consumo por
+software, a través de la interfaz RAPL, que permitía hacerlo a programas sin
+privilegios \cite{lipp2021platypus}.
 
 \section{Canales laterales de consumo}
 \label{sec:canales-laterales}

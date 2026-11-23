@@ -133,7 +133,8 @@ atacante no sabe de antemano cuál escoger.
 El CPA de Brier, Clavier y Olivier \cite{brier2004cpa} sustituye la partición
 por un \emph{modelo de fuga} que predice el consumo entero, y la diferencia de
 medias por la correlación de Pearson
-\cite[sec.~II.B.3]{mishra2025modern}.
+\cite[sec.~II.B.3]{mishra2025modern}. Con él se ha extraído, por ejemplo, la
+clave de un AES en procesadores RISC-V \cite[sec.~IV.B]{mishra2025modern}.
 
 El modelo más habitual es el peso de Hamming $\operatorname{HW}(v)$, el número
 de bits a uno del valor procesado, que supone que el consumo en el instante en
@@ -171,8 +172,8 @@ correcto, en cambio, no crece con $N$: depende solo de la relación entre la
 varianza de la fuga y la del ruido. La clave aparece cuando el máximo de los
 falsos cae por debajo del correcto, y por eso el número de trazas necesario
 crece aproximadamente como el inverso del cuadrado de la correlación del
-correcto. La \cref{sec:validacion-simulada} cuantifica esta relación sobre
-trazas simuladas.
+correcto \cite[cap.~6]{mangard2007power}. La \cref{sec:validacion-simulada}
+cuantifica esta relación sobre trazas simuladas.
 
 Frente al DPA de un bit, el CPA aprovecha los ocho bits del valor intermedio y
 da una medida normalizada, comparable entre bytes y entre montajes. El coste de
