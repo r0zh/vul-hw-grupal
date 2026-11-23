@@ -30,11 +30,11 @@ cada ejecución, la \emph{máscara}, y opera sobre el valor enmascarado. En el
 enmascaramiento booleano, en lugar de $v$ se manipula $v \oplus m$, con $m$
 uniforme y desconocida para el atacante. Cada valor que pasa por el procesador
 es, por separado, independiente de la clave, y la predicción
-$\operatorname{HW}(\mathrm{SBox}(p_j \oplus k))$ del CPA deja de correlar con
-el consumo de cualquier instante. Chari et al.\ formalizaron la idea dividiendo
-cada valor en varias partes aleatorias y demostraron que, si cada parte se mide
-con ruido, el número de trazas necesario crece exponencialmente con el número de
-partes \cite{chari1999masking}.
+$\operatorname{HW}(\mathrm{SBox}(p_j \oplus k))$ del CPA deja de estar
+correlacionada con el consumo de cualquier instante. Chari et al.\ formalizaron
+la idea dividiendo cada valor en varias partes aleatorias y demostraron que, si
+cada parte se mide con ruido, el número de trazas necesario crece
+exponencialmente con el número de partes \cite{chari1999masking}.
 
 En AES, las operaciones lineales (\texttt{AddRoundKey}, \texttt{ShiftRows},
 \texttt{MixColumns}) se aplican a cada parte por separado. La S-box no es
@@ -99,7 +99,8 @@ de trazas crece como el inverso del cuadrado de la correlación, harían falta
 del orden de $m^2$ veces más \cite[cap.~8]{mangard2007power}. Con el
 \emph{shuffling} de 16 bytes, $m = 16$. El
 atacante puede compensarlo en parte sumando las $m$ ventanas posibles antes de
-correlar, como proponen Clavier et al.\ frente a los retardos aleatorios
+calcular la correlación, como proponen Clavier et al.\ frente a los retardos
+aleatorios
 \cite{clavier2000countermeasures}; si el ruido de las ventanas es independiente,
 la correlación queda en torno a $\rho/\sqrt{m}$ y el factor baja a unas $m$
 veces. Estas estimaciones salen de un modelo simple. Con trazas medidas, el
@@ -110,8 +111,8 @@ recupera la clave, muy por debajo de las $m^2 = 256$ que preveía el
 modelo, porque \texttt{ShiftRows} y \texttt{MixColumns} siguen cargando los
 mismos bytes en las mismas muestras; los retardos aleatorios, en cambio,
 desplazan el cifrado de cada traza y tumban el CPA tal como está escrito,
-aunque un atacante que integre ventanas de muestras antes de correlar recupera
-parte de los bytes.
+aunque un atacante que integre ventanas de muestras antes de calcular la
+correlación recupera parte de los bytes.
 
 El límite de la aleatorización es que no elimina la fuga, solo la diluye: con
 suficientes trazas, el ataque vuelve a funcionar. Por eso se combina con el

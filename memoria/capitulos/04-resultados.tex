@@ -95,7 +95,8 @@ OpenSSL. En todos se verifican el cifrado y el descifrado. Además se comprueba
 que la versión vectorizada, que es la que genera las trazas, coincide byte a
 byte con la directa; que los valores intermedios de la primera y la última
 ronda reproducen el criptograma, y que la clave maestra se recupera a partir de
-la subclave de la ronda 10, cuyo valor coincide con el del apéndice~A.1. Estas
+la subclave de la ronda 10, cuyo valor coincide con el del apéndice~A.1 del
+FIPS-197. Estas
 comprobaciones están en \texttt{uv run python -m analisis.tests}, y la
 integración continua las ejecuta antes de generar las figuras.
 
