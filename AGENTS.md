@@ -146,7 +146,7 @@ Detalles en [`analisis/README.md`](analisis/README.md). El workflow `Análisis` 
 
 ```sh
 cd web
-npm run serve      # http://localhost:8000/web/ (sirve la raíz del repo, como Pages bajo una subruta)
+npm run serve      # http://127.0.0.1:8000/web/ (sirve la raíz del repo, como Pages bajo una subruta)
 npm run check      # tests, prueba de humo, claims y auditoría visual (~2 min; Node ≥ 22 y Chromium)
 ```
 

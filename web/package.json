@@ -5,7 +5,7 @@
   "description": "Web explicativa del CPA sobre AES-128, sin dependencias ni build",
   "engines": { "node": ">=22" },
   "scripts": {
-    "serve": "python3 -m http.server 8000 --directory ..",
+    "serve": "python3 -m http.server 8000 --bind 127.0.0.1 --directory ..",
     "test": "node --test tests/*.test.js",
     "smoke": "node scripts/smoke.mjs",
     "learn": "node scripts/learn.mjs",
