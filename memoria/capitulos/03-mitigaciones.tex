@@ -85,12 +85,19 @@ alineación en software:
     proporción a la longitud media de los retardos.
 \end{itemize}
 
+En hardware se puede actuar sobre el reloj. Mishra y Sahay recogen el
+escalado dinámico de tensión y frecuencia (DVFS) entre las contramedidas
+frente al DPA, y una frecuencia que cambia al azar durante el cifrado (RDFS),
+propuesta precisamente contra el CPA
+\cite[secs.~III.D y IV.B]{mishra2025modern}.
+
 El efecto sobre el CPA se puede estimar con el razonamiento de la
 \cref{sec:cpa}. Si la S-box de un byte cae con la misma probabilidad en
 cualquiera de $m$ posiciones, en cada una solo está presente en una de cada $m$
 trazas, y su correlación se reduce aproximadamente a $\rho/m$. Como el número
 de trazas crece como el inverso del cuadrado de la correlación, harían falta
-del orden de $m^2$ veces más. Con el \emph{shuffling} de 16 bytes, $m = 16$. El
+del orden de $m^2$ veces más \cite[cap.~8]{mangard2007power}. Con el
+\emph{shuffling} de 16 bytes, $m = 16$. El
 atacante puede compensarlo en parte sumando las $m$ ventanas posibles antes de
 correlar, como proponen Clavier et al.\ frente a los retardos aleatorios
 \cite{clavier2000countermeasures}; si el ruido de las ventanas es independiente,
@@ -110,7 +117,7 @@ suficientes trazas, el ataque vuelve a funcionar. Por eso se combina con el
 enmascaramiento, como en la implementación de Herbst et al.\ para tarjetas
 inteligentes de 8 bits \cite{herbst2006aes}. Además, si el SPA permite
 reconocer los retardos en una traza individual, se pueden eliminar alineando las
-trazas antes del ataque.
+trazas antes del ataque \cite[cap.~8]{mangard2007power}.
 
 \section{Lógica balanceada}
 \label{sec:logica-balanceada}
@@ -122,8 +129,9 @@ evalúan: en cada ciclo cambia exactamente una de las dos, sea cual sea el
 dato, y el consumo es en principio independiente del valor
 \cite{tiri2004wddl}. WDDL (\emph{wave dynamic differential logic}) implementa
 esa idea con celdas estándar, de modo que se puede aplicar en ASIC o en FPGA
-\cite{tiri2004wddl}; Mishra y Sahay la citan entre las contramedidas hardware
-frente al DPA \cite[sec.~III.D]{mishra2025modern}.
+\cite{tiri2004wddl}. Mishra y Sahay citan la lógica de doble raíl con precarga
+entre las contramedidas hardware frente al DPA
+\cite[sec.~III.D]{mishra2025modern}.
 
 El coste es alto: se duplican las señales y se añade la fase de precarga, lo que
 aumenta el área, el consumo y el tiempo de cada operación. El límite es que el
@@ -138,11 +146,13 @@ no se puede aplicar desde el firmware.
 \section{Inyección de ruido}
 \label{sec:ruido}
 
-Otra forma de ocultamiento es añadir consumo que no depende de los datos: un
-generador de ruido en la alimentación, circuitos que conmutan al azar o, en
-software, operaciones falsas intercaladas con las reales
-\cite[sec.~III.D]{mishra2025modern}. El objetivo es bajar la relación
-señal-ruido de la medida.
+Otra forma de ocultamiento es añadir consumo que no depende de los datos, con
+un generador de ruido en la alimentación o con circuitos que añaden consumo
+aleatorio \cite[sec.~III.D]{mishra2025modern}. El objetivo es bajar la
+relación señal-ruido de la medida. En software, lo más parecido es intercalar
+operaciones falsas con las reales, aunque lo que consiguen sobre todo es
+desplazar en el tiempo las operaciones atacadas, como los retardos de la
+\cref{sec:shuffling} \cite[cap.~7]{mangard2007power}.
 
 Es una de las medidas más baratas, pero su efecto sobre el CPA es limitado
 porque el ruido independiente de los datos se cancela al promediar. La
