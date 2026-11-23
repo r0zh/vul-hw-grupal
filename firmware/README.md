@@ -14,7 +14,8 @@ firmware/build.sh CWNANO     # solo el Nano
 
 Hace falta `arm-none-eabi-gcc` (y `avr-gcc` para el XMEGA). `firmware/build/`
 está ignorado por git: el `.hex` es un derivado del código de NewAE y se
-regenera. El SHA-256 del `.hex` usado queda en el JSON de cada campaña.
+regenera. El SHA-256 del `.hex` queda en el JSON de la campaña cuando la
+captura lo programa (`capturar --programar`) o se le pasa con `--firmware`.
 
 ## Contramedidas (fase 6)
 
