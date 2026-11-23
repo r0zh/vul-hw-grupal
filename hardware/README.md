@@ -4,7 +4,7 @@
 
 ## Qué es
 
-Placa de NewAE con el capturador y el chip víctima en la misma PCB, conectada al PC por micro-USB. Según la [documentación de NewAE](https://chipwhisperer.readthedocs.io/en/latest/Capture/ChipWhisperer-Nano.html) (consultada el 2026-11-10, y `docs/source/Capture/ChipWhisperer-Nano.md` del commit `c5e8151` del repo de NewAE):
+Placa de NewAE con el capturador y el chip víctima en la misma PCB, conectada al PC por USB-C. Según la [documentación de NewAE](https://chipwhisperer.readthedocs.io/en/latest/Capture/ChipWhisperer-Nano.html) (consultada el 2026-11-10, y `docs/source/Capture/ChipWhisperer-Nano.md` del commit `c5e8151` del repo de NewAE):
 
 | | |
 |---|---|
@@ -17,7 +17,7 @@ Placa de NewAE con el capturador y el chip víctima en la misma PCB, conectada a
 | Serie | TIO1 (RX) y TIO2 (TX), a 3,3 V |
 | USB | VID `2b3e`, PID `ace0` |
 
-`scope.default_setup()` deja el ADC y el reloj del target a **7,5 MHz** los dos, es decir, una muestra por ciclo de reloj del target y en fase con él, con 5000 muestras por traza. Esto es lo que más cambia frente al plan del TDS 220: no hay que alinear las trazas ni sincronizar el muestreo a mano.
+`scope.default_setup()` deja el ADC y el reloj del target a **7,5 MHz** los dos, es decir, una muestra por ciclo de reloj del target, con un desfase fijo hasta el siguiente arranque (ver [Puntos a revisar](#puntos-a-revisar)), y 5000 muestras por traza. Esto es lo que más cambia frente al plan del TDS 220: no hay que alinear las trazas ni sincronizar el muestreo a mano.
 
 **¿Y si no fuera un Nano?** El script de captura funciona también con un ChipWhisperer-Lite (CW1173) o un Husky, pero entonces hay que indicar el target con `--platform CWLITEARM` (STM32F3) o `--platform CWLITEXMEGA` (XMEGA). Lo que diga `python -m captura.cw info` decide cuál es.
 
@@ -30,7 +30,8 @@ Placa de NewAE con el capturador y el chip víctima en la misma PCB, conectada a
 1. **Reglas udev** (una vez, antes de enchufar):
 
    ```sh
-   sudo cp ~/Programacion/ext/chipwhisperer/50-newae.rules /etc/udev/rules.d/
+   curl -fLO https://raw.githubusercontent.com/newaetech/chipwhisperer/c5e8151e794e86cf588aeca6ed9d9c5f5f245c28/50-newae.rules
+   sudo cp 50-newae.rules /etc/udev/rules.d/
    sudo groupadd -f chipwhisperer && sudo usermod -aG chipwhisperer "$USER"
    sudo udevadm control --reload-rules
    ```
