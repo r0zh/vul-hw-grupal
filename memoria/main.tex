@@ -24,8 +24,10 @@
   style=ieee
 ]{biblatex}
 \addbibresource{referencias.bib}
-% Deja cortar las URL y los DOI por cualquier letra o cifra, en lugar de
-% estirar los espacios entre sus caracteres («https : / / …»).
+% Bibliografía en bandera: justificada, el espacio que sobra en una línea se
+% repartía entre los caracteres de las URL y los DOI («https : / / …»,
+% «10 . 1007 / …»). Además, se dejan cortar por cualquier letra o cifra.
+\appto{\bibsetup}{\raggedright}
 \setcounter{biburllcpenalty}{7000}
 \setcounter{biburlucpenalty}{8000}
 \setcounter{biburlnumpenalty}{9000}
