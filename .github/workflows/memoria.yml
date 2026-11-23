@@ -29,11 +29,24 @@ jobs:
           root_file: main.tex
           working_directory: memoria
           latexmk_use_xelatex: true
+          # Los de por defecto de la acción (sin -pdf, que quita al usar
+          # XeLaTeX) más -Werror: si al final quedan referencias o citas sin
+          # resolver, o faltan glifos, la compilación falla y no se publica.
+          args: -file-line-error -halt-on-error -interaction=nonstopmode -Werror
 
       - uses: actions/upload-artifact@v7
         with:
           name: memoria
           path: memoria/build/main.pdf
+
+      # El registro de XeLaTeX (glifos que faltan, referencias sin resolver),
+      # también cuando la compilación falla.
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: memoria-log
+          path: memoria/build/main.log
+          if-no-files-found: ignore
 
       - name: Publicar en la release memoria-latest
         # Solo desde main: las ramas y las PR se quedan en el artefacto.
