@@ -18,7 +18,7 @@ con `h` el núcleo `(0.5, 1.0, 0.5)` centrado en cada ventana y `x_ij` la
 entrada de la S-box de la última ronda en la posición de estado `j`, que
 depende de la subclave 10. Cada byte del estado ocupa su propia ventana
 temporal, separadas dos muestras, que es lo que cabría esperar de un recorrido
-byte a byte del estado en el ATmega328P.
+byte a byte del estado en el STM32F042 del Nano.
 
 La relación señal-ruido se define sobre la fuga de la primera ronda y sobre
 **todo** el ruido que ve el CPA en un instante, porque la correlación se

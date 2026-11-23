@@ -219,8 +219,8 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(f"Con {config.n_traces} trazas no se recuperan los 16 bytes: "
               f"hacen falta más trazas o menos ruido.")
-    print(_paint(f"Recordatorio: {SIMULATION_NOTICE}. El montaje real aún no existe.",
-                 _DIM, color))
+    print(_paint(f"Recordatorio: {SIMULATION_NOTICE}. Las medidas de la placa están en "
+                 "la sección 4.3 de la memoria.", _DIM, color))
     if plot is not None:
         plot.hold()
     return 0

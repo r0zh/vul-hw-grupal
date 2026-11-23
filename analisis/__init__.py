@@ -1,4 +1,4 @@
-"""Análisis del ataque CPA sobre AES-128 (fase 1: validación en simulación).
+"""Análisis del ataque CPA sobre AES-128.
 
 Módulos:
 
@@ -12,8 +12,8 @@ Módulos:
 - `run_all`: regenera todas las figuras y los resultados de una vez.
 - `tests`: comprobaciones rápidas (AES, ataque sin ruido, utilidades).
 
-Todo lo que produce este paquete es **simulación** y así se etiqueta en las
-figuras y en la memoria.
+Lo que producen estos módulos es **simulación** y así se etiqueta en las
+figuras y en la memoria. Las medidas de `datos/` las analizan `real` y `reales`.
 """
 
 __all__ = [
