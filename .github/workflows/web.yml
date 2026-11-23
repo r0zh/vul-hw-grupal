@@ -9,10 +9,14 @@ name: Web
 
 on:
   push:
-    paths: ['web/**', '.github/workflows/web.yml']
+    # reales.tex entra porque tests/curves.test.js coteja con él las cifras de la web.
+    paths: ['web/**', 'memoria/capitulos/generado/reales.tex', '.github/workflows/web.yml']
   pull_request:
-    paths: ['web/**', '.github/workflows/web.yml']
+    paths: ['web/**', 'memoria/capitulos/generado/reales.tex', '.github/workflows/web.yml']
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 # Un despliegue a la vez; uno en curso no se cancela a medias.
 concurrency:
@@ -32,7 +36,8 @@ jobs:
 
       - name: Tests, prueba de humo, claims y auditoría visual
         working-directory: web
-        # El runner trae Google Chrome; los scripts lo buscan en el PATH.
+        # Los scripts usan el primer navegador del PATH entre chromium,
+        # chromium-browser y google-chrome (en el runner, /usr/bin/chromium).
         run: |
           export CHROME="$(command -v chromium || command -v chromium-browser || command -v google-chrome)"
           echo "Navegador: $CHROME"
@@ -50,6 +55,7 @@ jobs:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pages: write
       id-token: write
     environment:
