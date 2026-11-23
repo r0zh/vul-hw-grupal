@@ -1,4 +1,4 @@
-# Ataque CPA sobre AES-128 con un montaje DIY
+# Ataque CPA sobre AES-128 en un ChipWhisperer-Nano
 
 Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad de Málaga). Demostramos un ataque de análisis de consumo por correlación (CPA) contra una implementación software de AES-128 sin protecciones en el STM32F0 de un ChipWhisperer-Nano, con trazas capturadas por nosotros y una clave de laboratorio que no protege nada real.
 
@@ -41,7 +41,7 @@ Requiere [`uv`](https://docs.astral.sh/uv/):
 ```sh
 uv sync                            # dependencias (numpy, matplotlib)
 uv run python -m analisis.tests    # comprobaciones rápidas
-uv run python -m analisis.run_all  # regenera figuras y resultados (unos 4 min)
+uv run python -m analisis.run_all  # regenera figuras y resultados (unos 10 min)
 ```
 
 `run_all` trabaja sobre trazas sintéticas con el modelo de fuga del peso de
