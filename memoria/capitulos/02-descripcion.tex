@@ -31,8 +31,9 @@ que es el valor intermedio que se ataca en este trabajo. Hay dos razones para
 elegirlo.
 
 La primera es que depende de un solo byte de clave y de un byte que el atacante
-conoce, porque es quien elige el texto claro. Para cada uno de los 256 valores
-posibles de $k_j$ se puede calcular qué valor $v_j$ habría procesado el
+conoce, el del texto claro; en este montaje, además, lo elige él. Para cada
+uno de los 256 valores posibles de $k_j$ se puede calcular qué valor $v_j$
+habría procesado el
 dispositivo, y comprobar cuál de esas predicciones encaja con el consumo medido.
 Cada byte se ataca por separado: en lugar de $2^{128}$ claves hay que
 comprobar $16 \times 256 = 4096$ hipótesis.
@@ -273,7 +274,9 @@ que sigue está medido en esta placa.
   \label{fig:nano-victima}
 \end{figure}
 
-No se escribe un firmware propio, sino que se usa \texttt{simpleserial-aes}
+Para el ataque principal no se escribe un firmware propio (las variantes con
+contramedidas de la \cref{sec:contramedidas-medidas} sí usan un AES propio),
+sino que se usa \texttt{simpleserial-aes}
 de los ejemplos de NewAE \cite{cw-repo} compilado con
 \texttt{CRYPTO\_TARGET=TINYAES128C}: un AES-128 en C sin protecciones, con
 \texttt{SubBytes} como una consulta a tabla byte a byte. Ese recorrido
@@ -304,12 +307,13 @@ microcontrolador y el del convertidor a \qty{7,5}{\mega\hertz}, de modo que se t
 muestra por ciclo de reloj, con un desfase fijo entre los dos relojes mientras
 la placa no se reinicia. Ese desfase cambia en cada arranque, y la
 documentación advierte de que con algunos valores las trazas se recortan
-\cite{cw-nano-docs}; en las medidas de este trabajo no ha ocurrido
-(\cref{sec:calidad-captura}). Como la captura empieza
+\cite{cw-nano-docs}; en las medidas de este trabajo solo ha afectado a
+muestras aisladas (\cref{sec:calidad-captura}). Como la captura empieza
 en el primer ciclo tras el disparo, las trazas salen alineadas sin procesado
 posterior, lo que resuelve el problema de sincronización que plantearía un
-osciloscopio con su propio reloj de muestreo. Se ha comprobado con 500 trazas
-del mismo texto claro: todas quedan a desplazamiento cero de la traza media
+osciloscopio con su propio reloj de muestreo. Se ha comprobado con
+\realFixedTextTraces{} trazas del mismo texto claro: todas quedan a
+desplazamiento cero de la traza media
 (\cref{sec:calidad-captura}).
 
 \subsection{Procesamiento de las trazas}
@@ -330,13 +334,16 @@ La captura está en \texttt{captura/}, y usa la biblioteca de Python de NewAE
 para controlar el Nano. Las trazas reales se guardan en un fichero \texttt{.npz}
 por campaña con las trazas, los textos claros, los criptogramas y la clave, más
 un \texttt{.json} de metadatos con el instrumento, la frecuencia del
-convertidor, el reloj del microcontrolador, la huella del firmware, la fecha y
-la versión del código. Antes del ataque, si es necesario, las trazas se
-recortan a la ventana de la primera ronda que se identifique por SPA. El ataque
+convertidor, el reloj del microcontrolador, la huella del firmware cuando la
+propia captura lo programa, la fecha y la versión del código. Antes del ataque,
+si es necesario, las trazas se recortan a la ventana de la primera ronda que se
+identifique por SPA. El ataque
 sobre una campaña calcula la correlación acumulando sumas parciales, de modo
 que el puesto de la clave correcta frente al número de trazas sale de una sola
-pasada sobre los datos. Con la placa no ha hecho falta ningún otro
-preprocesado: ni alinear, ni filtrar, ni promediar. Las campañas que usa la
+pasada sobre los datos. Contra la víctima sin protecciones no ha hecho falta
+ningún otro preprocesado: ni alinear, ni filtrar, ni promediar; contra los
+retardos aleatorios se integran ventanas de muestras
+(\cref{sec:contramedidas-medidas}). Las campañas que usa la
 memoria se guardan en el repositorio recortadas a las muestras que hacen falta
 (en general, las \num{1500} primeras, que contienen la primera ronda), y las
 figuras del
