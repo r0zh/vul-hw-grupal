@@ -30,7 +30,7 @@ matplotlib.use("Agg")                      # sin ventana: se ejecuta en scripts
 import matplotlib.pyplot as plt
 import numpy as np
 
-from . import attacks, simulate, statistics
+from . import attacks, simulate
 from .config import ExperimentConfig
 
 #: Ancho de las figuras en pulgadas (ajustado al ancho de caja de la memoria).
