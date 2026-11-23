@@ -84,6 +84,10 @@ uv run python -m analisis.reales              # 100 ordenaciones, unos 25 minuto
 uv run python -m analisis.reales --rapido     # 10 ordenaciones, para probar
 ```
 
+Con `--rapido`, lo que no se indique con `--figuras`, `--web`, `--macros` o
+`--resultados` va a `analisis/salida/rapido/`, para no pisar las figuras, los
+datos de la web ni las macros versionados con curvas de 10 ordenaciones.
+
 Las curvas de éxito frente a `N` no salen de una sola ordenación de las trazas:
 se repite el CPA sobre 100 permutaciones aleatorias (semilla fija) de cada
 campaña y se cuenta en cuántas queda la clave completa en primer puesto. Los

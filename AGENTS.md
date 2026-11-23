@@ -135,7 +135,7 @@ uv run python -m analisis.run_all            # fase 1 completa y figuras (~4 min
 uv run python -m analisis.run_all --fast     # versión de humo
 uv run python -m analisis.demo               # demo en vivo del CPA (simulada, no escribe nada)
 uv run python -m analisis.reales             # figuras real-* y números de las medidas (~25 min)
-uv run python -m analisis.reales --rapido    # 10 ordenaciones en vez de 100 (~3 min, para probar)
+uv run python -m analisis.reales --rapido    # 10 ordenaciones en vez de 100 (~3 min, para probar; escribe en analisis/salida/rapido/)
 uv run python -m analisis.reales --solo-tex  # solo las macros de la memoria, desde el JSON (segundos)
 uv run python -m analisis.reales --solo-web  # solo los datos de web/data/, desde datos/ y el JSON (segundos)
 ```
