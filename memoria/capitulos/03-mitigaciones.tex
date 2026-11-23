@@ -231,20 +231,26 @@ cifras están en la \cref{sec:contramedidas-medidas}.
   \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.9cm}
                                >{\raggedright\arraybackslash}p{1.8cm}
                                >{\raggedright\arraybackslash}X
+                               >{\raggedright\arraybackslash}X
                                >{\raggedright\arraybackslash}X}
     \toprule
-    Contramedida & Nivel & Efecto sobre el CPA & Límite principal \\
+    Contramedida & Nivel & Efecto sobre el CPA & Coste para el defensor &
+      Límite principal \\
     \midrule
     Enmascaramiento & Algoritmo & Anula el CPA de primer orden &
+      Fuente de números aleatorios; memoria y tiempo para la tabla enmascarada &
       Ataques de orden superior; combinación accidental de las partes \\
     \emph{Shuffling} y retardos & Algoritmo & Diluye el pico; más trazas &
+      Una permutación por cifrado; tiempo proporcional a los retardos &
       No elimina la fuga; integración de ventanas y realineado \\
     Lógica balanceada & Circuito & Reduce la fuga en origen &
+      Alto: área, consumo y tiempo de cada operación &
       Desequilibrio residual; solo en diseño de hardware \\
     Inyección de ruido & Circuito o software & Baja la SNR; más trazas &
-      El ruido se cancela al promediar \\
+      Bajo & El ruido se cancela al promediar \\
     Renovación de claves & Protocolo & Limita las trazas por clave &
-      La derivación de claves sigue expuesta; cambia el protocolo \\
+      Cambiar el protocolo; proteger la derivación de claves &
+      La derivación sigue expuesta; no frena ataques con muy pocas trazas \\
     \bottomrule
   \end{tabularx}
 \end{table}
