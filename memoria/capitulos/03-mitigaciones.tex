@@ -104,8 +104,9 @@ correlar, como proponen Clavier et al.\ frente a los retardos aleatorios
 la correlación queda en torno a $\rho/\sqrt{m}$ y el factor baja a unas $m$
 veces. Estas estimaciones salen de un modelo simple. Con trazas medidas, el
 resultado depende de la contramedida (\cref{sec:contramedidas-medidas}): el
-barajado de \texttt{SubBytes} solo multiplica por 3,6 las trazas necesarias
-para el 90~\% de los ensayos, muy por debajo de las $m^2 = 256$ que preveía el
+barajado de \texttt{SubBytes} solo multiplica aproximadamente por
+\realShuffleFactor{} las trazas con las que el 90~\% de las ordenaciones
+recupera la clave, muy por debajo de las $m^2 = 256$ que preveía el
 modelo, porque \texttt{ShiftRows} y \texttt{MixColumns} siguen cargando los
 mismos bytes en las mismas muestras; los retardos aleatorios, en cambio,
 desplazan el cifrado de cada traza y tumban el CPA tal como está escrito,
@@ -186,11 +187,17 @@ trazas, como los de plantillas \cite[sec.~II.B.4]{mishra2025modern}.
 En el modelo simulado, con una relación señal-ruido de 0,1, la mediana de
 trazas para recuperar la clave completa está entre 296 y 413
 (\cref{tab:sim-ruido}). En la placa hacen falta menos: con unas pocas decenas
-de trazas, ninguna de las ordenaciones de la campaña medida recupera la clave
-completa, y con \realTracesAll{} la recuperan todas (\cref{fig:real-rango}).
-Una clave que se renovara cada pocas decenas de cifrados dejaría fuera de
-alcance este ataque concreto, aunque no necesariamente uno mejor preparado,
-como un ataque de plantillas.
+de trazas, ninguna de las ordenaciones de la campaña medida tiene la clave
+completa en primer puesto, y con \realTracesAll{} la tienen todas. Pero el
+atacante no necesita llegar a ese punto: al crecer el número de trazas, los
+bytes salen uno a uno antes que la clave completa, y los que aún fallan se
+acercan al primer puesto (\cref{fig:real-rango}), así que con algo menos de
+trazas puede completar la clave probando combinaciones de los mejores
+candidatos de cada byte contra un par conocido de texto claro y criptograma.
+Por eso el intervalo de renovación tiene que quedar con margen por debajo de
+las trazas que necesita el CPA para dar la clave completa; en esta placa no se
+ha medido dónde está ese límite. Tampoco protege necesariamente frente a un
+ataque mejor preparado, como uno de plantillas.
 
 \section{Tiempo constante no es protección frente al consumo}
 \label{sec:tiempo-constante}
