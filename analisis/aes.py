@@ -6,8 +6,8 @@ La implementación sigue FIPS-197 [nist2023fips197] y se verifica en `tests.py`
 contra los ejemplos de la norma y otros vectores contrastados con OpenSSL.
 
 El ataque no depende de esta implementación: en la fase 5 el objetivo es el
-AES del firmware del ATmega328P. Aquí solo hace falta que el valor intermedio
-sea exactamente el de la norma.
+AES del firmware del STM32F042 del Nano. Aquí solo hace falta que el valor
+intermedio sea exactamente el de la norma.
 
 Convenciones:
 - `state` es una lista de 16 enteros en orden de columna (FIPS-197 §3.4):
