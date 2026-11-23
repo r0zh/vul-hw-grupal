@@ -7,7 +7,7 @@ Contexto y normas del repositorio para el equipo y para cualquier agente (Claude
 Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad de Málaga): demostrar y documentar un **ataque de análisis de consumo por correlación (CPA) sobre AES-128** ejecutado en un microcontrolador, con trazas medidas por nosotros con un ChipWhisperer-Nano.
 
 - **Equipo:** Juan Diego Bermúdez Ureba, Brian Polo Caballero, Alberto Bartolomé Iruela y Roberto Sánchez Martín.
-- **GitHub:** <https://github.com/r0zh/vul-hw-grupal> (**público**). Colaboradores: `r0zh`, `Alman368`, `juandiego-bmu` y `plc50` (Brian; pendiente de invitar).
+- **GitHub:** <https://github.com/r0zh/vul-hw-grupal> (**público**). Colaboradores: `r0zh`, `Alman368`, `juandiego-bmu` y `plc50` (Brian).
 - **Entregables:** dos PDF, memoria y presentación. Se puede actualizar la entrega hasta el día de la presentación y solo la sube un miembro. Enunciado y rúbrica completos en [`docs/enunciado.md`](docs/enunciado.md).
 - **Fecha de presentación:** aún no se conoce. El **2026-11-16** hay que presentar una versión bastante avanzada, casi final.
 - **Artículo base:** J. Mishra y S. K. Sahay, *Modern Hardware Security: A Review of Attacks and Countermeasures*, arXiv:2501.04394, 2025. Secciones relevantes: II.B (SPA, DPA y CPA), III.C (ataques DPA a implementaciones criptográficas) y III.D (contramedidas).
@@ -46,14 +46,14 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 | 2026-11-07 | Shunt en VCC (como el CW304 NOTDuino de NewAE), medido en el lado del chip con acoplamiento AC; valor entre 10 y 50 Ω, a elegir midiendo | Descartado (2026-11-10) |
 | 2026-11-07 | Plan B si el TDS 220 no tiene módulo: CPA con un ChipWhisperer-Nano del laboratorio y TDS 220 para SPA y caracterización de la fuga, más un CPA manual de un byte con promediado | Sustituido por el plan principal (2026-11-10) |
 | 2026-11-10 | Se captura con un **ChipWhisperer-Nano** (capturador y víctima STM32F030 en la misma placa) y se dejan el TDS 220 y el montaje DIY con el ATmega328P. El material comprado para ellos se puede devolver (ver [`hardware/README.md`](hardware/README.md)) | Hecho (placa conectada el 2026-11-13) |
-| 2026-11-10 | Víctima: `simpleserial-aes` de NewAE con `CRYPTO_TARGET=TINYAES128C`, compilado con `firmware/build.sh` desde el commit `c5e8151` de newaetech/chipwhisperer. No hay firmware propio salvo para la contramedida opcional | Hecho (compilado, sin probar en placa) |
+| 2026-11-10 | Víctima: `simpleserial-aes` de NewAE con `CRYPTO_TARGET=TINYAES128C`, compilado con `firmware/build.sh` desde el commit `c5e8151` de newaetech/chipwhisperer. No hay firmware propio salvo para la contramedida opcional | Hecho (comprobado en la placa el 2026-11-13) |
 | 2026-11-10 | `chipwhisperer` desde la rama `develop` fijada al mismo commit, en el grupo `captura` de `pyproject.toml`: la 6.0.0 de PyPI exige `numpy<=1.26.4` | Hecho |
-| 2026-11-10 | `captura/cw.py` compara cada texto cifrado del target con `analisis/aes.py` y guarda las campañas en `datos/brutos/`; `analisis/real.py` hace el CPA de una campaña con estadísticos acumulados (rango frente a N en una pasada) | Hecho (probado con `--simular`) |
+| 2026-11-10 | `captura/cw.py` compara cada texto cifrado del target con `analisis/aes.py` y guarda las campañas en `datos/brutos/`; `analisis/real.py` hace el CPA de una campaña con estadísticos acumulados (rango frente a N en una pasada) | Hecho (comprobado en la placa el 2026-11-13) |
 | 2026-11-13 | Placa confirmada por USB como **ChipWhisperer-Nano de NewAE** (`2b3e:ace0`, serie `5333…3039`, firmware del scope 0.65.0, el último de la biblioteca). El bootloader del chip víctima responde con el ID `0x445` (`STM32F04xxx` según NewAE), no `0x444` (STM32F030): falta leer la serigrafía. Detalles en [`hardware/README.md`](hardware/README.md) | Hecho |
 | 2026-11-13 | Serigrafías leídas en fotos de cerca: víctima **STM32F042F6P6** (`32F042F6P6`, coherente con el ID `0x445` y los 32 KB), capturador **ATSAM4S16B** (la memoria decía SAM3U por un título erróneo de la documentación de NewAE) y ADC `ADC1173CIMTC`. Foto de la víctima en `figuras/nano-victima.jpg` y en la sección 2.5 | Hecho |
 | 2026-11-13 | `captura/cw.py` lee `TraceContainer.trace` y `.ciphertext`: en la biblioteca 7.0 `capture_trace` ya no devuelve `.wave` ni `.textout` | Hecho |
 | 2026-11-13 | Campaña de respaldo en `datos/20261113-nano-tinyaes-respaldo` (1000 trazas, muestras 0 a 1500, 1,4 MB), recortada de la de 3000 trazas | Hecho |
-| 2026-11-13 | Las campañas versionadas de `datos/` son recortes de las de `datos/brutos/` hechos con `python -m captura.campana`: víctima sin proteger (1000×1500), SPA del cifrado completo (100×11 000), 500 trazas de texto fijo para ruido y alineación y las tres variantes de la contramedida (base 1000×1500, barajado 2000×1500, retardos 2000×2000). Total, ~9 MB | Hecho |
+| 2026-11-13 | Las campañas versionadas de `datos/` son recortes de las de `datos/brutos/` hechos con `python -m captura.campana`: víctima sin proteger (1000×1500), SPA del cifrado completo (100×11 000), 500 trazas de texto fijo para ruido y alineación y las tres variantes de la contramedida (base 1000×1500, barajado 2000×1500, retardos 2000×2000). Total, ~11 MB | Hecho |
 | 2026-11-13 | `analisis/reales.py` genera las figuras `real-*`, los números de `analisis/salida/reales.json` y los datos de la web a partir de `datos/`. Las curvas de éxito se estiman con 100 permutaciones de la misma campaña (10 con `--rapido`), no con campañas independientes | Hecho |
 | 2026-11-13 | Contramedida de la fase 6 en `firmware/contramedida/aes-cm.c`: AES propio con la estructura de tiny-AES que sustituye a la biblioteca de NewAE y se compila con el mismo `simpleserial-aes.c`. Variantes `base` (referencia), `retardos` (`CM_DELAY`, 0 a 15 vueltas antes de cada byte de SubBytes, de cada columna de MixColumns y de cada ronda) y `barajado` (`CM_SHUFFLE`, SubBytes en orden aleatorio). Generador xorshift32 con semilla fija: sirve para medir, **no es una contramedida utilizable tal cual** | Hecho |
 | 2026-11-13 | Resultado de la fase 6: el barajado de SubBytes solo multiplica por 3,6 las trazas necesarias (n90: 475 frente a 132), muy por debajo de las m² = 256 del modelo, porque ShiftRows y MixColumns siguen cargando los mismos bytes en las mismas muestras. Los retardos tumban el CPA sin preprocesado incluso con 20 000 trazas; integrando ventanas de 300 muestras antes de correlar se recuperan 7 de 16 bytes | Hecho |
@@ -102,7 +102,7 @@ web/                   web explicativa (GitHub Pages): index.html, js/, tests/, 
 
 Directorios con datos:
 
-- `datos/`: campañas recortadas y versionadas que usan la memoria y `analisis/reales.py` (un `.npz` y un `.json` por campaña, ~9 MB). Las trazas en bruto van en `datos/brutos/`, que está ignorado; los recortes se rehacen con `uv run python -m captura.campana ORIGEN DESTINO -n N --muestras 0:1500`.
+- `datos/`: campañas recortadas y versionadas que usan la memoria y `analisis/reales.py` (un `.npz` y un `.json` por campaña, ~11 MB). Las trazas en bruto van en `datos/brutos/`, que está ignorado; los recortes se rehacen con `uv run python -m captura.campana ORIGEN DESTINO -n N --muestras 0:1500`.
 
 ## Flujo de trabajo
 
@@ -131,7 +131,7 @@ La plantilla usa `fontspec`, así que **no compila con pdfLaTeX**. En cada push 
 ```sh
 uv sync                                      # crea .venv con numpy y matplotlib
 uv run python -m analisis.tests              # comprobaciones rápidas
-uv run python -m analisis.run_all            # fase 1 completa y figuras (~4 min)
+uv run python -m analisis.run_all            # fase 1 completa y figuras (~10 min)
 uv run python -m analisis.run_all --fast     # versión de humo
 uv run python -m analisis.demo               # demo en vivo del CPA (simulada, no escribe nada)
 uv run python -m analisis.reales             # figuras real-* y números de las medidas (~25 min)

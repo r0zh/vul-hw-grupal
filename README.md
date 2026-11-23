@@ -19,7 +19,7 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 | [`analisis/`](analisis/) | CPA, DPA, simulación de trazas, CPA de campañas reales y figuras |
 | [`figuras/`](figuras/) | Figuras generadas por los scripts (PDF vectorial) |
 | [`web/`](web/) | Web explicativa con componentes interactivos (GitHub Pages) |
-| [`docs/`](docs/) | Enunciado, rúbrica y contexto inicial |
+| [`docs/`](docs/) | Enunciado, rúbrica, contexto inicial, reuniones con el profesor y estado al cerrar cada sesión |
 
 ## Compilar la memoria
 
