@@ -30,11 +30,11 @@ cada ejecución, la \emph{máscara}, y opera sobre el valor enmascarado. En el
 enmascaramiento booleano, en lugar de $v$ se manipula $v \oplus m$, con $m$
 uniforme y desconocida para el atacante. Cada valor que pasa por el procesador
 es, por separado, independiente de la clave, y la predicción
-$\operatorname{HW}(\mathrm{SBox}(p_j \oplus k))$ del CPA deja de correlar con
-el consumo de cualquier instante. Chari et al.\ formalizaron la idea dividiendo
-cada valor en varias partes aleatorias y demostraron que, si cada parte se mide
-con ruido, el número de trazas necesario crece exponencialmente con el número de
-partes \cite{chari1999masking}.
+$\operatorname{HW}(\mathrm{SBox}(p_j \oplus k))$ del CPA deja de estar
+correlacionada con el consumo de cualquier instante. Chari et al.\ formalizaron
+la idea dividiendo cada valor en varias partes aleatorias y demostraron que, si
+cada parte se mide con ruido, el número de trazas necesario crece
+exponencialmente con el número de partes \cite{chari1999masking}.
 
 En AES, las operaciones lineales (\texttt{AddRoundKey}, \texttt{ShiftRows},
 \texttt{MixColumns}) se aplican a cada parte por separado. La S-box no es
@@ -85,32 +85,41 @@ alineación en software:
     proporción a la longitud media de los retardos.
 \end{itemize}
 
+En hardware se puede actuar sobre el reloj. Mishra y Sahay recogen el
+escalado dinámico de tensión y frecuencia (DVFS) entre las contramedidas
+frente al DPA, y una frecuencia que cambia al azar durante el cifrado (RDFS),
+propuesta precisamente contra el CPA
+\cite[secs.~III.D y IV.B]{mishra2025modern}.
+
 El efecto sobre el CPA se puede estimar con el razonamiento de la
 \cref{sec:cpa}. Si la S-box de un byte cae con la misma probabilidad en
 cualquiera de $m$ posiciones, en cada una solo está presente en una de cada $m$
 trazas, y su correlación se reduce aproximadamente a $\rho/m$. Como el número
 de trazas crece como el inverso del cuadrado de la correlación, harían falta
-del orden de $m^2$ veces más. Con el \emph{shuffling} de 16 bytes, $m = 16$. El
+del orden de $m^2$ veces más \cite[cap.~8]{mangard2007power}. Con el
+\emph{shuffling} de 16 bytes, $m = 16$. El
 atacante puede compensarlo en parte sumando las $m$ ventanas posibles antes de
-correlar, como proponen Clavier et al.\ frente a los retardos aleatorios
+calcular la correlación, como proponen Clavier et al.\ frente a los retardos
+aleatorios
 \cite{clavier2000countermeasures}; si el ruido de las ventanas es independiente,
 la correlación queda en torno a $\rho/\sqrt{m}$ y el factor baja a unas $m$
 veces. Estas estimaciones salen de un modelo simple. Con trazas medidas, el
 resultado depende de la contramedida (\cref{sec:contramedidas-medidas}): el
-barajado de \texttt{SubBytes} solo multiplica por 3,6 las trazas necesarias
-para el 90~\% de los ensayos, muy por debajo de las $m^2 = 256$ que preveía el
+barajado de \texttt{SubBytes} solo multiplica aproximadamente por
+\realShuffleFactor{} las trazas con las que el 90~\% de las ordenaciones
+recupera la clave, muy por debajo de las $m^2 = 256$ que preveía el
 modelo, porque \texttt{ShiftRows} y \texttt{MixColumns} siguen cargando los
 mismos bytes en las mismas muestras; los retardos aleatorios, en cambio,
 desplazan el cifrado de cada traza y tumban el CPA tal como está escrito,
-aunque un atacante que integre ventanas de muestras antes de correlar recupera
-parte de los bytes.
+aunque un atacante que integre ventanas de muestras antes de calcular la
+correlación recupera parte de los bytes.
 
 El límite de la aleatorización es que no elimina la fuga, solo la diluye: con
 suficientes trazas, el ataque vuelve a funcionar. Por eso se combina con el
 enmascaramiento, como en la implementación de Herbst et al.\ para tarjetas
 inteligentes de 8 bits \cite{herbst2006aes}. Además, si el SPA permite
 reconocer los retardos en una traza individual, se pueden eliminar alineando las
-trazas antes del ataque.
+trazas antes del ataque \cite[cap.~8]{mangard2007power}.
 
 \section{Lógica balanceada}
 \label{sec:logica-balanceada}
@@ -122,8 +131,9 @@ evalúan: en cada ciclo cambia exactamente una de las dos, sea cual sea el
 dato, y el consumo es en principio independiente del valor
 \cite{tiri2004wddl}. WDDL (\emph{wave dynamic differential logic}) implementa
 esa idea con celdas estándar, de modo que se puede aplicar en ASIC o en FPGA
-\cite{tiri2004wddl}; Mishra y Sahay la citan entre las contramedidas hardware
-frente al DPA \cite[sec.~III.D]{mishra2025modern}.
+\cite{tiri2004wddl}. Mishra y Sahay citan la lógica de doble raíl con precarga
+entre las contramedidas hardware frente al DPA
+\cite[sec.~III.D]{mishra2025modern}.
 
 El coste es alto: se duplican las señales y se añade la fase de precarga, lo que
 aumenta el área, el consumo y el tiempo de cada operación. El límite es que el
@@ -138,11 +148,13 @@ no se puede aplicar desde el firmware.
 \section{Inyección de ruido}
 \label{sec:ruido}
 
-Otra forma de ocultamiento es añadir consumo que no depende de los datos: un
-generador de ruido en la alimentación, circuitos que conmutan al azar o, en
-software, operaciones falsas intercaladas con las reales
-\cite[sec.~III.D]{mishra2025modern}. El objetivo es bajar la relación
-señal-ruido de la medida.
+Otra forma de ocultamiento es añadir consumo que no depende de los datos, con
+un generador de ruido en la alimentación o con circuitos que añaden consumo
+aleatorio \cite[sec.~III.D]{mishra2025modern}. El objetivo es bajar la
+relación señal-ruido de la medida. En software, lo más parecido es intercalar
+operaciones falsas con las reales, aunque lo que consiguen sobre todo es
+desplazar en el tiempo las operaciones atacadas, como los retardos de la
+\cref{sec:shuffling} \cite[cap.~7]{mangard2007power}.
 
 Es una de las medidas más baratas, pero su efecto sobre el CPA es limitado
 porque el ruido independiente de los datos se cancela al promediar. La
@@ -176,11 +188,17 @@ trazas, como los de plantillas \cite[sec.~II.B.4]{mishra2025modern}.
 En el modelo simulado, con una relación señal-ruido de 0,1, la mediana de
 trazas para recuperar la clave completa está entre 296 y 413
 (\cref{tab:sim-ruido}). En la placa hacen falta menos: con unas pocas decenas
-de trazas, ninguna de las ordenaciones de la campaña medida recupera la clave
-completa, y con \realTracesAll{} la recuperan todas (\cref{fig:real-rango}).
-Una clave que se renovara cada pocas decenas de cifrados dejaría fuera de
-alcance este ataque concreto, aunque no necesariamente uno mejor preparado,
-como un ataque de plantillas.
+de trazas, ninguna de las ordenaciones de la campaña medida tiene la clave
+completa en primer puesto, y con \realTracesAll{} la tienen todas. Pero el
+atacante no necesita llegar a ese punto: al crecer el número de trazas, los
+bytes salen uno a uno antes que la clave completa, y los que aún fallan se
+acercan al primer puesto (\cref{fig:real-rango}), así que con algo menos de
+trazas puede completar la clave probando combinaciones de los mejores
+candidatos de cada byte contra un par conocido de texto claro y criptograma.
+Por eso el intervalo de renovación tiene que quedar con margen por debajo de
+las trazas que necesita el CPA para dar la clave completa; en esta placa no se
+ha medido dónde está ese límite. Tampoco protege necesariamente frente a un
+ataque mejor preparado, como uno de plantillas.
 
 \section{Tiempo constante no es protección frente al consumo}
 \label{sec:tiempo-constante}
@@ -214,20 +232,26 @@ cifras están en la \cref{sec:contramedidas-medidas}.
   \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.9cm}
                                >{\raggedright\arraybackslash}p{1.8cm}
                                >{\raggedright\arraybackslash}X
+                               >{\raggedright\arraybackslash}X
                                >{\raggedright\arraybackslash}X}
     \toprule
-    Contramedida & Nivel & Efecto sobre el CPA & Límite principal \\
+    Contramedida & Nivel & Efecto sobre el CPA & Coste para el defensor &
+      Límite principal \\
     \midrule
     Enmascaramiento & Algoritmo & Anula el CPA de primer orden &
+      Fuente de números aleatorios; memoria y tiempo para la tabla enmascarada &
       Ataques de orden superior; combinación accidental de las partes \\
     \emph{Shuffling} y retardos & Algoritmo & Diluye el pico; más trazas &
+      Una permutación por cifrado; tiempo proporcional a los retardos &
       No elimina la fuga; integración de ventanas y realineado \\
     Lógica balanceada & Circuito & Reduce la fuga en origen &
+      Alto: área, consumo y tiempo de cada operación &
       Desequilibrio residual; solo en diseño de hardware \\
     Inyección de ruido & Circuito o software & Baja la SNR; más trazas &
-      El ruido se cancela al promediar \\
+      Bajo & El ruido se cancela al promediar \\
     Renovación de claves & Protocolo & Limita las trazas por clave &
-      La derivación de claves sigue expuesta; cambia el protocolo \\
+      Cambiar el protocolo; proteger la derivación de claves &
+      La derivación sigue expuesta; no frena ataques con muy pocas trazas \\
     \bottomrule
   \end{tabularx}
 \end{table}

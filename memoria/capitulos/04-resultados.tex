@@ -95,7 +95,8 @@ OpenSSL. En todos se verifican el cifrado y el descifrado. Además se comprueba
 que la versión vectorizada, que es la que genera las trazas, coincide byte a
 byte con la directa; que los valores intermedios de la primera y la última
 ronda reproducen el criptograma, y que la clave maestra se recupera a partir de
-la subclave de la ronda 10, cuyo valor coincide con el del apéndice~A.1. Estas
+la subclave de la ronda 10, cuyo valor coincide con el del apéndice~A.1 del
+FIPS-197. Estas
 comprobaciones están en \texttt{uv run python -m analisis.tests}, y la
 integración continua las ejecuta antes de generar las figuras.
 
@@ -266,8 +267,9 @@ Todas las medidas de este capítulo se tomaron el 13 de noviembre de 2026 con el
 ChipWhisperer-Nano y el firmware de la \cref{sec:implementacion}, con la
 configuración por defecto de la biblioteca de NewAE: microcontrolador y
 convertidor a \qty{7,5}{\mega\hertz}, una muestra por ciclo de reloj y
-\num{5000} muestras por traza (\qty{0,67}{\milli\second}). Se capturan unas
-\num{18,6} trazas por segundo, de modo que una campaña de \num{3000} trazas
+\num{5000} muestras por traza (\qty{0,67}{\milli\second}), salvo la campaña del
+SPA (\cref{sec:spa}), que captura el cifrado completo con trazas más largas. Se
+capturan unas \num{18,6} trazas por segundo, de modo que una campaña de \num{3000} trazas
 tarda menos de tres minutos. A diferencia de la \cref{sec:validacion-simulada},
 \textbf{todo lo que aparece desde aquí son medidas reales}.
 
@@ -310,9 +312,10 @@ figuras. La clave obtenida coincide byte a byte con la programada.
 La \cref{fig:real-cpa-correlacion} muestra la correlación frente al tiempo. El
 candidato correcto de cada byte alcanza $|\rho|$ entre \realRhoCorrectMin{} y
 \realRhoCorrectMax, mientras que el mejor de los 255 falsos se queda entre
-\realRhoWrongMin{} y \realRhoWrongMax. Los picos aparecen en el orden en que
-\texttt{SubBytes} recorre el estado (bytes 0, 4, 8 y 12, después 1, 5, 9 y
-13\ldots), separados unos 11 ciclos. La correlación del candidato correcto no
+\realRhoWrongMin{} y \realRhoWrongMax{} (\cref{fig:real-candidatos}). Los picos
+de \texttt{SubBytes} aparecen en el orden en que recorre el estado (bytes 0, 4,
+8 y 12, después 1, 5, 9 y 13\ldots), separados unos 11 ciclos dentro de cada
+grupo de cuatro. La correlación del candidato correcto no
 desaparece al acabar \texttt{SubBytes}: sigue superando \realLeakTailThreshold{}
 hasta la muestra \realLeakTailSample, porque \texttt{ShiftRows} y \texttt{MixColumns}
 vuelven a cargar los mismos bytes. Es una diferencia con la simulación, en la
@@ -384,18 +387,27 @@ protecciones, que sustituye a la biblioteca de NewAE para que las tres
 variantes se diferencien solo en la contramedida. Las otras dos añaden
 \emph{shuffling} de \texttt{SubBytes} o retardos aleatorios de 0 a 15 vueltas
 de un bucle antes de cada byte de \texttt{SubBytes}, de cada columna de
-\texttt{MixColumns} y al empezar cada ronda. El generador es un xorshift32 con
+\texttt{MixColumns} y al empezar cada ronda. El barajado recorre en cada
+cifrado los 16 bytes en uno de 128 órdenes (un byte de partida y un paso
+impar), de modo que cada byte cae con la misma probabilidad en cualquiera de
+las 16 posiciones. El generador es un xorshift32 con
 semilla fija y sin ninguna fuente de entropía: sirve para medir el efecto de la
 aleatorización, pero con el código y la semilla públicos se pueden predecir
 los retardos y el orden, así que no es una contramedida utilizable tal cual.
+La \cref{tab:contramedidas-medidas} y la \cref{fig:real-contramedidas}
+resumen el resultado.
 
 \begin{table}[htbp]
   \centering
   \caption{CPA sobre las tres variantes del mismo AES, medida con la misma
-    placa y la misma clave. «Trazas» es el tamaño de la campaña y «$N$ para el
-    90~\%» el primer punto de control en el que la clave completa queda en
-    primer puesto en el 90~\% de \realOrderings{} ordenaciones aleatorias.
-    \textbf{Medidas reales.}}
+    placa y la misma clave. «Trazas» es el número de trazas atacadas, las
+    primeras de cada campaña capturada (la de retardos completa tiene
+    \realDelayFullTraces), y «$N$ para el 90~\%» el primer punto de control
+    en el que la clave completa queda en primer puesto en el 90~\% de
+    \realOrderings{} ordenaciones aleatorias. La base es el AES propio sin
+    protecciones, un binario distinto del AES de NewAE de la
+    \cref{sec:recuperacion-clave}, así que sus cifras no se comparan con las de
+    esa sección. \textbf{Medidas reales.}}
   \label{tab:contramedidas-medidas}
   \small
   % Columnas r y c, no S: las macros ya dan el formato con \num.
@@ -404,9 +416,9 @@ los retardos y el orden, así que no es una contramedida utilizable tal cual.
     Variante & Trazas & Bytes & $|\rho|$ mín. & $|\rho|$ máx. &
       $N$ para el 90~\% \\
     \midrule
-    Sin contramedida & \realBaseTraces & \realBaseBytes/16 & \realBaseRhoMin &
+    Base (AES propio) & \realBaseTraces & \realBaseBytes/16 & \realBaseRhoMin &
       \realBaseRhoMax & \realBaseTracesNinety \\
-    \emph{Shuffling} & \realShuffleTraces & \realShuffleBytes/16 & \realShuffleRhoMin &
+    Barajado de \texttt{SubBytes} & \realShuffleTraces & \realShuffleBytes/16 & \realShuffleRhoMin &
       \realShuffleRhoMax & \realShuffleTracesNinety \\
     Retardos aleatorios & \realDelayTraces & \realDelayBytes/16 & \realDelayRhoMin &
       \realDelayRhoMax & {—} \\
@@ -414,16 +426,24 @@ los retardos y el orden, así que no es una contramedida utilizable tal cual.
   \end{tabular}
 \end{table}
 
-\paragraph{Aleatorización: el ataque sigue funcionando.} El barajado no impide
-el ataque, como decía la \cref{sec:shuffling}: recupera los 16 bytes, pero
-necesita \realShuffleFactor{} veces más trazas para el 90~\% (\realShuffleTracesNinety{} frente a
-\realBaseTracesNinety). El factor es mucho menor que el $m^2$ del modelo simple, con
-$m = 16$, y tiene una explicación en las trazas: el barajado solo afecta a
+\paragraph{Barajado: el ataque sigue funcionando.} El barajado de
+\texttt{SubBytes} no impide el ataque, como decía la \cref{sec:shuffling}:
+recupera los 16 bytes, pero necesita unas \realShuffleFactor{} veces más
+trazas para el 90~\% (\realShuffleTracesNinety{} frente a
+\realBaseTracesNinety). El factor es aproximado: divide dos cotas que salen de
+rejillas de puntos de control distintas (\cref{sec:recuperacion-clave}), y
+compara dos binarios que no tienen por qué filtrar igual en las operaciones
+que no se barajan. Aun así, queda muy por debajo del $m^2$ del modelo simple,
+con $m = 16$, y tiene una explicación en las trazas: el barajado solo afecta a
 \texttt{SubBytes}, mientras que \texttt{ShiftRows} y \texttt{MixColumns}
 recorren el estado en orden fijo y vuelven a cargar los mismos bytes
 (\cref{fig:real-cpa-correlacion}), así que la fuga sigue apareciendo, en parte,
-en las mismas muestras de siempre. La estimación de la \cref{sec:shuffling}
-suponía que cada byte fugaba en una sola ventana; con trazas reales no es así.
+en las mismas muestras de siempre. El panel derecho de la
+\cref{fig:real-contramedidas} lo muestra en la propia variante: donde la base
+tiene los picos de \texttt{SubBytes}, la variante barajada se queda al nivel
+del ruido, y su correlación aparece después. La estimación de la
+\cref{sec:shuffling} suponía que cada byte fugaba en una sola ventana; con
+trazas reales no es así.
 
 \paragraph{Retardos: el ataque ingenuo falla.} Los retardos son otra cosa. Cada
 traza empieza el cifrado en un instante distinto y el CPA, que compara muestra a
@@ -436,26 +456,29 @@ recupera ninguno, y el pico no sube de \realDelayFullRho, muy por debajo del
 mínimo de \realBaseRhoMin{} de la variante sin contramedida. El CPA no falla porque la fuga
 desaparezca, sino porque deja de estar en una muestra fija.
 
-\paragraph{El atacante puede compensarlo, con trabajo.} Una primera forma de
-compensarlo es sumar ventanas de muestras antes de correlar, como proponen
+\paragraph{El atacante puede compensarlo en parte.} Una primera forma de
+compensarlo es sumar ventanas de muestras antes de calcular la correlación,
+como proponen
 Clavier et al.\ frente a los retardos \cite{clavier2000countermeasures}. Con
 ventanas de \realWindowNarrow{} muestras, el CPA sobre la campaña completa
 recupera \realWindowNarrowBytes{} de los 16 bytes, y con ventanas de
-\realWindowWide, \realWindowWideBytes{} de 16. No se ha intentado un ataque
-completo ---realinear las trazas por su estructura de rondas y atacar después
-byte a byte---, así que no se puede decir cuántas trazas costaría, pero el
-resultado es el esperado: la aleatorización encarece el ataque y obliga a
-cambiar el preprocesado, y no lo impide. Por eso, en la práctica, se combina con
-el enmascaramiento y no se usa sola.
+\realWindowWide, \realWindowWideBytes{} de 16. La clave completa no se ha
+recuperado: no se ha intentado un ataque completo ---realinear las trazas por
+su estructura de rondas y atacar después byte a byte---, así que no se puede
+decir cuántas trazas costaría. Lo que sí muestran las medidas es que la
+contramedida no elimina la fuga: la dispersa en el tiempo, encarece el ataque y
+obliga a cambiar el preprocesado. Por eso, en la práctica, se combina con el
+enmascaramiento y no se usa sola.
 
 \begin{figure}[htbp]
   \centering
   % Generada por analisis/reales.py::figure_countermeasures
   \includegraphics[width=\textwidth]{real-contramedidas.pdf}
   \caption{Izquierda: fracción de \realOrderings{} ordenaciones en las que el CPA recupera
-    la clave completa, para las tres variantes. Derecha: $|\rho|$ del
-    candidato correcto de cada byte frente a la muestra, con \realAttackTraces{}
-    trazas. \textbf{Medidas reales.}}
+    la clave completa, para las tres variantes. Derecha: máximo sobre los 16
+    bytes de $|\rho|$ del candidato correcto frente a la muestra, con las
+    \num{1000} primeras trazas de cada variante y los mismos colores que a la
+    izquierda. \textbf{Medidas reales.}}
   \label{fig:real-contramedidas}
 \end{figure}
 

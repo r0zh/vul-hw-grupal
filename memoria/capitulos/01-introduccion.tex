@@ -22,10 +22,21 @@ Jun hicieron lo mismo con el consumo eléctrico de implementaciones de DES
 \cite{kocher1999dpa}. Desde entonces, los ataques de canal lateral se han
 convertido en una de las familias principales de la seguridad hardware, junto
 con los ataques a la microarquitectura, la inyección de fallos o los ataques a
-la memoria. La revisión de Mishra y Sahay, que sirve de artículo base para este
-trabajo, dedica una sección a los canales laterales de consumo y otra a los
-ataques diferenciales sobre implementaciones criptográficas y a sus
-contramedidas \cite[secs.~II.B, III.C y III.D]{mishra2025modern}.
+la memoria, como recoge la revisión de Mishra y Sahay que sirve de artículo
+base para este trabajo \cite{mishra2025modern}. La revisión dedica una sección
+a los canales laterales de consumo y otra a los ataques diferenciales sobre
+implementaciones criptográficas y a sus contramedidas
+\cite[secs.~II.B, III.C y III.D]{mishra2025modern}.
+
+Estos ataques no se quedan en el laboratorio. Ronen et al.\ extrajeron con un
+ataque de canal lateral la clave AES-CCM, común a todas las bombillas Hue de un
+mismo modelo, con la que Philips cifra y autentica su firmware. Les bastó un
+equipo de unos cientos de dólares, y con la clave pudieron instalar firmware
+propio y construir un gusano que salta de una bombilla a las vecinas
+\cite{ronen2017iot}. Además, no siempre hace falta tocar el dispositivo:
+PLATYPUS obtiene claves de AES-NI de procesadores Intel leyendo su consumo por
+software, a través de la interfaz RAPL, que permitía hacerlo a programas sin
+privilegios \cite{lipp2021platypus}.
 
 \section{Canales laterales de consumo}
 \label{sec:canales-laterales}
@@ -81,8 +92,9 @@ ChipWhisperer-Nano. En concreto, se plantean estos objetivos:
     una implementación de referencia verificada con los vectores de la norma.
   \item Medir el consumo del microcontrolador con el ChipWhisperer-Nano y
     automatizar la captura de miles de trazas.
-  \item Atacar las trazas reales y medir cuántas hacen falta para recuperar cada
-    byte de la clave.
+  \item Atacar las trazas reales y medir cuántas hacen falta para recuperar la
+    clave completa, y qué fracción de los bytes se recupera con cada número de
+    trazas.
   \item Revisar las contramedidas existentes y, como objetivo opcional, medir
     cómo degradan el ataque algunas de ellas.
 \end{enumerate}
@@ -94,7 +106,9 @@ sobre una placa de laboratorio controlada por el grupo, con una clave que no
 protege nada real. El éxito no estaba garantizado de antemano: dependía del
 ruido de la medida, de la sincronización de las trazas, de la frecuencia de
 muestreo y de la propia implementación, y por eso el ataque se valida primero
-en simulación.
+en simulación. En la placa ha funcionado: el CPA recupera los 16 bytes de la
+clave a partir de trazas medidas, y con \realTracesNinety{} trazas lo consigue
+el 90~\% de las ordenaciones de la campaña (\cref{sec:recuperacion-clave}).
 
 \section{Estructura del documento}
 \label{sec:estructura}
@@ -105,5 +119,6 @@ tres técnicas de análisis de consumo y el montaje experimental. El
 \cref{cap:resultados} presenta los resultados: primero la validación del ataque
 sobre trazas simuladas y después las medidas sobre el microcontrolador. El
 \cref{cap:conclusiones} resume los puntos fuertes y débiles del ataque, y los
-anexos recogen los detalles del montaje y del código y una bibliografía
-comentada.
+apéndices recogen los detalles del montaje y del código y una bibliografía
+comentada. El código, las campañas medidas y una web explicativa con figuras
+interactivas están en las direcciones que da el \cref{anx:codigo}.

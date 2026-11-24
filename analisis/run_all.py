@@ -5,7 +5,7 @@
     uv run python -m analisis.run_all --no-sweep # sin barrido de ruido
 
 Todo lo que produce son **datos simulados** con el modelo de fuga del peso de
-Hamming: no hay ninguna medida real todavía (fase 2 y siguientes). La semilla
+Hamming, no medidas reales (esas las procesa `analisis.reales`). La semilla
 está fijada en `analisis/config.py`, así que dos ejecuciones con los mismos
 parámetros dan exactamente el mismo resultado.
 """

@@ -1,6 +1,6 @@
 %────────────────────── Capítulo 2 — Descripción ───────────────────────
 % Detalles sobre el mecanismo de ataque y su implementación.
-\chapter{Descripción del ataque}
+\chapter{Descripción}
 \label{cap:descripcion}
 
 \section{AES-128 y el valor intermedio atacado}
@@ -31,8 +31,9 @@ que es el valor intermedio que se ataca en este trabajo. Hay dos razones para
 elegirlo.
 
 La primera es que depende de un solo byte de clave y de un byte que el atacante
-conoce, porque es quien elige el texto claro. Para cada uno de los 256 valores
-posibles de $k_j$ se puede calcular qué valor $v_j$ habría procesado el
+conoce, el del texto claro; en este montaje, además, lo elige él. Para cada
+uno de los 256 valores posibles de $k_j$ se puede calcular qué valor $v_j$
+habría procesado el
 dispositivo, y comprobar cuál de esas predicciones encaja con el consumo medido.
 Cada byte se ataca por separado: en lugar de $2^{128}$ claves hay que
 comprobar $16 \times 256 = 4096$ hipótesis.
@@ -76,8 +77,8 @@ La \cref{fig:real-spa} muestra la media de 100 trazas del cifrado completo en
 el microcontrolador atacado (\cref{sec:implementacion}). En la traza media se
 repite un mismo patrón cada \num{1014} muestras, que son ciclos de reloj
 porque se toma una muestra por ciclo. Para no fiarse solo del aspecto de la
-traza, se ha correlado cada muestra con el peso de Hamming de un valor de la
-primera ronda, la salida de la S-box, y con uno de la última, la entrada de la
+traza, se ha correlacionado cada muestra con el peso de Hamming de un valor de
+la primera ronda, la salida de la S-box, y con uno de la última, la entrada de la
 última suma de subclave ($c \oplus K_{10}$). La primera ronda supera
 $|\rho| = 0{,}6$ entre las muestras 463 y 730, y la última, entre la
 \num{9586} y la \num{10042}: el cifrado completo dura unos \num{10000}
@@ -86,7 +87,8 @@ ronda empieza hacia la muestra 463 y, como el patrón se repite cada
 \num{1014}, acaba hacia la \realRoundOneEnd, donde empieza la segunda: cabe en las
 \num{1500} primeras muestras. Después del cifrado la traza
 sigue: es el firmware que prepara y envía el criptograma, y por eso esa parte
-correla con los bytes del criptograma pero no con los de la primera ronda.
+se correlaciona con los bytes del criptograma, pero no con los de la primera
+ronda.
 
 \begin{figure}[htbp]
   \centering
@@ -133,7 +135,8 @@ atacante no sabe de antemano cuál escoger.
 El CPA de Brier, Clavier y Olivier \cite{brier2004cpa} sustituye la partición
 por un \emph{modelo de fuga} que predice el consumo entero, y la diferencia de
 medias por la correlación de Pearson
-\cite[sec.~II.B.3]{mishra2025modern}.
+\cite[sec.~II.B.3]{mishra2025modern}. Con él se ha extraído, por ejemplo, la
+clave de un AES en procesadores RISC-V \cite[sec.~IV.B]{mishra2025modern}.
 
 El modelo más habitual es el peso de Hamming $\operatorname{HW}(v)$, el número
 de bits a uno del valor procesado, que supone que el consumo en el instante en
@@ -171,8 +174,8 @@ correcto, en cambio, no crece con $N$: depende solo de la relación entre la
 varianza de la fuga y la del ruido. La clave aparece cuando el máximo de los
 falsos cae por debajo del correcto, y por eso el número de trazas necesario
 crece aproximadamente como el inverso del cuadrado de la correlación del
-correcto. La \cref{sec:validacion-simulada} cuantifica esta relación sobre
-trazas simuladas.
+correcto \cite[cap.~6]{mangard2007power}. La \cref{sec:validacion-simulada}
+cuantifica esta relación sobre trazas simuladas.
 
 Frente al DPA de un bit, el CPA aprovecha los ocho bits del valor intermedio y
 da una medida normalizada, comparable entre bytes y entre montajes. El coste de
@@ -180,7 +183,8 @@ cálculo es moderado: $16 \times 256$ correlaciones por instante de la traza,
 que se pueden calcular de una vez como un producto de matrices. Además, como la
 predicción solo depende del byte de texto claro, basta acumular para cada byte
 $j$ y cada uno de los 256 valores de $p_j$ cuántas trazas hay y su suma, sin
-guardar las trazas; así lo hace la web explicativa del proyecto.
+guardar las trazas; así lo hace la web explicativa del proyecto
+(\cref{anx:codigo}).
 
 \section{Implementación experimental}
 \label{sec:implementacion}
@@ -272,7 +276,9 @@ que sigue está medido en esta placa.
   \label{fig:nano-victima}
 \end{figure}
 
-No se escribe un firmware propio, sino que se usa \texttt{simpleserial-aes}
+Para el ataque principal no se escribe un firmware propio (las variantes con
+contramedidas de la \cref{sec:contramedidas-medidas} sí usan un AES propio),
+sino que se usa \texttt{simpleserial-aes}
 de los ejemplos de NewAE \cite{cw-repo} compilado con
 \texttt{CRYPTO\_TARGET=TINYAES128C}: un AES-128 en C sin protecciones, con
 \texttt{SubBytes} como una consulta a tabla byte a byte. Ese recorrido
@@ -303,12 +309,13 @@ microcontrolador y el del convertidor a \qty{7,5}{\mega\hertz}, de modo que se t
 muestra por ciclo de reloj, con un desfase fijo entre los dos relojes mientras
 la placa no se reinicia. Ese desfase cambia en cada arranque, y la
 documentación advierte de que con algunos valores las trazas se recortan
-\cite{cw-nano-docs}; en las medidas de este trabajo no ha ocurrido
-(\cref{sec:calidad-captura}). Como la captura empieza
+\cite{cw-nano-docs}; en las medidas de este trabajo solo ha afectado a
+muestras aisladas (\cref{sec:calidad-captura}). Como la captura empieza
 en el primer ciclo tras el disparo, las trazas salen alineadas sin procesado
 posterior, lo que resuelve el problema de sincronización que plantearía un
-osciloscopio con su propio reloj de muestreo. Se ha comprobado con 500 trazas
-del mismo texto claro: todas quedan a desplazamiento cero de la traza media
+osciloscopio con su propio reloj de muestreo. Se ha comprobado con
+\realFixedTextTraces{} trazas del mismo texto claro: todas quedan a
+desplazamiento cero de la traza media
 (\cref{sec:calidad-captura}).
 
 \subsection{Procesamiento de las trazas}
@@ -329,13 +336,16 @@ La captura está en \texttt{captura/}, y usa la biblioteca de Python de NewAE
 para controlar el Nano. Las trazas reales se guardan en un fichero \texttt{.npz}
 por campaña con las trazas, los textos claros, los criptogramas y la clave, más
 un \texttt{.json} de metadatos con el instrumento, la frecuencia del
-convertidor, el reloj del microcontrolador, la huella del firmware, la fecha y
-la versión del código. Antes del ataque, si es necesario, las trazas se
-recortan a la ventana de la primera ronda que se identifique por SPA. El ataque
+convertidor, el reloj del microcontrolador, la huella del firmware cuando la
+propia captura lo programa, la fecha y la versión del código. Antes del ataque,
+si es necesario, las trazas se recortan a la ventana de la primera ronda que se
+identifique por SPA. El ataque
 sobre una campaña calcula la correlación acumulando sumas parciales, de modo
 que el puesto de la clave correcta frente al número de trazas sale de una sola
-pasada sobre los datos. Con la placa no ha hecho falta ningún otro
-preprocesado: ni alinear, ni filtrar, ni promediar. Las campañas que usa la
+pasada sobre los datos. Contra la víctima sin protecciones no ha hecho falta
+ningún otro preprocesado: ni alinear, ni filtrar, ni promediar; contra los
+retardos aleatorios se integran ventanas de muestras
+(\cref{sec:contramedidas-medidas}). Las campañas que usa la
 memoria se guardan en el repositorio recortadas a las muestras que hacen falta
 (en general, las \num{1500} primeras, que contienen la primera ronda), y las
 figuras del

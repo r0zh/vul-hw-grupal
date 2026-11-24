@@ -1,4 +1,4 @@
-# Análisis del ataque (fase 1: validación en simulación)
+# Análisis del ataque
 
 Código del análisis CPA/DPA sobre AES-128. `run_all.py` y sus figuras `sim-*`
 trabajan con **datos simulados** (trazas sintéticas con fuga del peso de
@@ -84,6 +84,10 @@ uv run python -m analisis.reales              # 100 ordenaciones, unos 25 minuto
 uv run python -m analisis.reales --rapido     # 10 ordenaciones, para probar
 ```
 
+Con `--rapido`, lo que no se indique con `--figuras`, `--web`, `--macros` o
+`--resultados` va a `analisis/salida/rapido/`, para no pisar las figuras, los
+datos de la web ni las macros versionados con curvas de 10 ordenaciones.
+
 Las curvas de éxito frente a `N` no salen de una sola ordenación de las trazas:
 se repite el CPA sobre 100 permutaciones aleatorias (semilla fija) de cada
 campaña y se cuenta en cuántas queda la clave completa en primer puesto. Los
@@ -168,7 +172,7 @@ T_i[t] = b_i + d_i·s[t] + w_i[t]
   `last_round_gain` (0,8 por defecto).
 - `h` es un núcleo `(0,5 · 1,0 · 0,5)`: cada byte del estado ocupa su propia
   ventana temporal, separadas dos muestras, como cabría esperar de un recorrido
-  byte a byte del estado en el ATmega328P.
+  byte a byte del estado en el STM32F042 del Nano.
 - `b_i` (offset por traza), `d_i·s[t]` (deriva lenta) y `w_i[t]` (ruido blanco)
   forman el ruido. El offset es constante dentro de una traza pero cambia de
   una a otra, y la correlación se calcula entre trazas en cada instante: para
@@ -183,8 +187,8 @@ T_i[t] = b_i + d_i·s[t] + w_i[t]
   correcto es `sqrt(SNR/(1+SNR))`, y `tests.py` lo comprueba.
 
 **Nada de esto describe el montaje real.** Parámetros como el número de
-muestras, la separación entre ventanas o el ruido son hipótesis de trabajo que
-habrá que contrastar con las medidas de las fases 3 y 4.
+muestras, la separación entre ventanas o el ruido son hipótesis de trabajo; la
+comparación con las medidas de la placa está en la sección 4.3 de la memoria.
 
 ## Figuras
 
