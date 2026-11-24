@@ -18,7 +18,7 @@ script comprueba que Crucible lee el GLB en el navegador y en Node, que es donde
 
 ## Crear el pod
 
-En la consola de RunPod (o con la herramienta `create-pod` del MCP), *Community Cloud*:
+En la consola de RunPod, *Community Cloud*:
 
 - GPU: **RTX 3070** (8 GB) u otra NVIDIA RTX o serie A; Cook necesita `VK_KHR_ray_query`. El piloto usa menos
   de 2 GB de VRAM, así que cualquier tarjeta RTX vale.
@@ -28,14 +28,14 @@ En la consola de RunPod (o con la herramienta `create-pod` del MCP), *Community 
 - Volumen de 30 GB en `/workspace` y puertos `22/tcp` y `8000/http`.
 - Precio pagado: 0,13 $/h (RTX 3070, 18 vCPU, 2026-11-23). Se cobra mientras el pod esté encendido, se use o no.
 
-Dentro del pod (consola web, SSH o `exec-pod`):
+Dentro del pod (consola web o SSH):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/r0zh/vul-hw-grupal/presentacion/presentacion/cine/pod/arranque.sh | bash
+curl -fsSL https://raw.githubusercontent.com/r0zh/vul-hw-grupal/main/presentacion/cine/pod/arranque.sh | bash
 ```
 
 Tarda un par de minutos y acaba en `ARRANQUE_OK`. Instala con apt el cargador de Vulkan y ffmpeg; baja Node
-22.23.5 y Open Image Denoise 2.5.1 a `/workspace/opt` comprobando su SHA-256; clona la rama `presentacion` en
+22.23.5 y Open Image Denoise 2.5.1 a `/workspace/opt` comprobando su SHA-256; clona el repo (rama `main`) en
 `/workspace/repo`; instala `presentacion/cine` con `npm ci`; baja el addon de Cook (`npx cook fetch-addon`, que
 también comprueba su SHA-256), y comprueba la GPU con la escena de prueba de Cook. Se puede repetir: lo que ya está
 no se vuelve a bajar. Tras parar y volver a encender el pod hay que repetirlo, porque apt y los enlaces de
@@ -43,11 +43,11 @@ no se vuelve a bajar. Tras parar y volver a encender el pod hay que repetirlo, p
 
 ## Flujo de trabajo
 
-**Código al pod.** Commit y push a `presentacion` solo de los ficheros propios (`git add` con rutas explícitas) y,
-en el pod, `cd /workspace/repo && git pull --ff-only`. Un modelo de menos de 10 MB se versiona en `../modelos/`
-junto con el script que lo genera; uno más grande, en trozos base64 por `exec-pod`.
+**Código al pod.** Commit y push de la rama de trabajo, solo con los ficheros propios (`git add` con rutas
+explícitas), y en el pod `cd /workspace/repo && git fetch && git checkout <rama> && git pull --ff-only`. Un modelo de menos de 10 MB se versiona en `../modelos/`
+junto con el script que lo genera; uno más grande no se versiona y se copia al pod aparte.
 
-**Render.** En el pod, en segundo plano (una llamada de `exec-pod` espera como mucho 25 s):
+**Render.** En el pod, en segundo plano, para que siga aunque se cierre la consola o la sesión de SSH:
 
 ```sh
 cd /workspace/repo/presentacion/cine
@@ -82,8 +82,8 @@ nohup python3 -m http.server 8000 --directory /workspace/salida > /workspace/htt
 ```
 
 En el portátil: `curl -fO https://<id-del-pod>-8000.proxy.runpod.net/piloto.mp4`. Esa URL es pública: ahí solo van
-renders, y el servidor se para al acabar: `pkill -f '[h]ttp.server 8000'` (con los corchetes; sin ellos, por
-`exec-pod` el patrón casa con el propio `sh -c` y pkill lo mata).
+renders, y el servidor se para al acabar: `pkill -f '[h]ttp.server 8000'` (con los corchetes; sin ellos, si la
+orden va dentro de un `sh -c`, el patrón casa con ese mismo `sh -c` y pkill lo mata).
 
 **Al terminar**, parar el pod (*Stop*: conserva `/workspace` y sigue cobrando el disco) o borrarlo (*Terminate*).
 

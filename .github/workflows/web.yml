@@ -5,6 +5,12 @@
 # claims de aprendizaje y la auditoría visual. Solo los push a main (y el
 # lanzamiento manual) publican después la carpeta web/ en
 # https://r0zh.github.io/vul-hw-grupal/.
+#
+# La publicación va en dos trabajos: build sube el artefacto github-pages y
+# deploy lo despliega. En un mismo trabajo, deploy-pages a veces no encuentra
+# el artefacto recién subido (actions/deploy-pages#451). Si deploy falla, se
+# relanza con «Re-run failed jobs», que reutiliza el artefacto de build; con
+# «Re-run all jobs» se sube otro y deploy-pages falla por artefactos repetidos.
 name: Web
 
 on:
@@ -50,17 +56,14 @@ jobs:
           path: web/review/
           if-no-files-found: ignore
 
-  deploy:
+  build:
     needs: test
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      # configure-pages lee la configuración de Pages del repositorio.
+      pages: read
     steps:
       - uses: actions/checkout@v7
 
@@ -70,5 +73,16 @@ jobs:
         with:
           path: web
 
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v5
