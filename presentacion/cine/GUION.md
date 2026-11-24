@@ -17,7 +17,8 @@ notas de abajo son las del render.
 
 **V1 ya no está en el deck.** Se renderizó y se retiró el 2026-11-23: la portada usa la escena 3D en
 tiempo real (`js/figuras/placa.js`) porque deja girar la placa en cualquier dirección. Lo que este
-guion dice de V1 como vídeo de la portada (aquí, en §2, §5 y §6) queda como registro.
+guion dice de V1 como vídeo de la portada (aquí y en §1, §2, §5, §6 y §8) queda como registro. Los números
+de diapositiva son también los de entonces: hoy «Lo que medimos» es la 10 y «Qué acaba de pasar», la 13.
 
 | Vídeo | Diapositiva | Qué explica | Formato | Fotogramas | spp | Coste (×3) |
 |---|---|---|---|---:|---:|---:|

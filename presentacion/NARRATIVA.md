@@ -154,7 +154,7 @@ y se saltan si va justo de tiempo.
 Para quien haga de público en un ensayo:
 
 - **Qué se le da:** la presentación tal como se va a dar (o, si no puede estar en el ensayo,
-  `build/presentacion.pdf` con las notas del ponente) y la tabla de preguntas de abajo. **No** se le da
+  `build/presentacion.pdf` y, aparte, las notas del ponente, que no van en el PDF) y la tabla de preguntas de abajo. **No** se le da
   la §7, que tiene las respuestas.
 - **Cuándo aprueba:** si acierta 6 de las 8 preguntas y, entre ellas, las 3, 4 y 5, que son el núcleo
   de la analogía.
