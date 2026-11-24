@@ -70,7 +70,7 @@ let cuelume = null;
 const sound = () => (cuelume ??= import('../vendor/cuelume/index.js').catch(() => null));
 const soundOn = () => { try { return localStorage.getItem('presentacion:sonido') === 'si'; } catch { return false; } };
 
-// Cifras que ruedan (cartera-en-vivo.html de la skill estetica-web): cada
+// Cifras que ruedan, como un cuentakilómetros: cada
 // dígito es una columna 0-9 que se desplaza desde el valor anterior.
 const DIGITS = [...'0123456789'].map((d) => `<span>${d}</span>`).join('');
 function roll(el, text) {
@@ -637,8 +637,8 @@ export function mount(container, options = {}) {
     later(() => toastEl.classList.remove('show'), 300);
   }
 
-  // Partículas que saltan de la clave, caen y se posan sobre ella (AshBurst de
-  // enviar-dinero.html), en un lienzo del propio contenedor.
+  // Partículas que saltan de la clave, caen y se posan sobre ella, como ceniza,
+  // en un lienzo del propio contenedor.
   let particles = [], fxRaf = 0;
   function burst(host) {
     if (RM || isStatic) return;

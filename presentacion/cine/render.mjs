@@ -146,7 +146,7 @@ async function openNative() {
   const { buildJobNativeInput, buildFlattenedJobNativeInput } = await import('@codepawlhq/cook/job-input');
   const { encodePackFile } = await import('@codepawlhq/cook/pack-file');
   // Crucible 0.22.0 no publica buildTraceScene ni el empaquetador de tablas: se toman de su build igual que hace su propio
-  // trabajo de render (build/mcp/preview.js, exportNativeScene). Estos nombres de fichero cambian con cada versión.
+  // trabajo de render (exportNativeScene, en su build/). Estos nombres de fichero cambian con cada versión.
   const build = new URL('./node_modules/@codepawlhq/crucible/build/', import.meta.url);
   const { buildTraceScene, resolveTexture } = (await import(new URL('path-tracer-scene-cakEyFmm.js', build))).u;
   const pack = (await import(new URL('path-tracer-gpu-pack-CBRnnSFk.js', build))).d;

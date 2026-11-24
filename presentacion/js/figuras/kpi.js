@@ -1,4 +1,4 @@
-// Cifras que ruedan, con el «roll» de cartera-en-vivo.html (estetica-web):
+// Cifras que ruedan, como un cuentakilómetros:
 // cada dígito es una columna 0-9 que se desplaza desde el valor anterior,
 // escalonada de izquierda a derecha. El texto final está en el HTML (con su
 // data-cifra), así que sin JS o en el PDF se ve el valor correcto.
