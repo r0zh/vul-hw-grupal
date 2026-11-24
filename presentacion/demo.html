@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Demo del ataque</title>
+<!-- La demo suelta, para ensayar y para las pruebas. Con el servidor de la demo:
+       uv run python -m captura.vivo --abrir   →   http://127.0.0.1:8000/presentacion/demo.html
+     Parámetros: ?modo=nano|grabado|simulado  &ritmo=<trazas/s>  &n=<trazas>  &static=1
+     La instancia queda en window.demo. -->
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+</script>
+<link rel="stylesheet" href="css/demo.css">
+<style>
+  :root { --c-fondo: #f5f5f7; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--c-fondo); }
+  /* Una diapositiva de 1920 × 1080 escalada a la ventana, como en el deck */
+  .escenario { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform: translate(-50%, -50%);
+    box-sizing: border-box; padding: 34px 48px 40px; }
+</style>
+</head>
+<body>
+<main class="escenario"><div class="escena" id="demo"></div></main>
+<script type="module">
+import { mount } from './js/demo.js';
+
+const stage = document.querySelector('.escenario');
+const fit = () => { stage.style.transform = `translate(-50%, -50%) scale(${Math.min(innerWidth / 1920, innerHeight / 1080)})`; };
+addEventListener('resize', fit);
+fit();
+
+const q = new URLSearchParams(location.search), options = {};
+if (q.has('modo')) options.modo = q.get('modo');
+for (const k of ['ritmo', 'n']) if (Number(q.get(k)) > 0) options[k] = Number(q.get(k));
+if (q.has('static')) options.static = true;
+window.demo = mount(document.getElementById('demo'), options);
+window.demo.start();
+window.demo.step(0);
+</script>
+</body>
+</html>

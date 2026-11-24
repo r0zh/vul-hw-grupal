@@ -149,7 +149,7 @@ uv run python -m analisis.reales --solo-web
 
 | Fichero | Qué es | Origen |
 |---|---|---|
-| `nano-tinyaes.json` | 400 trazas, muestras 440 a 740 (el SubBytes de la primera ronda), textos claros y clave de laboratorio. Las trazas van como códigos enteros del convertidor: la correlación no cambia con una transformación afín | `datos/20261113-nano-tinyaes-respaldo` |
+| `nano-tinyaes.json` | 400 trazas, muestras 440 a 740 (donde la fuga de la primera ronda supera \|ρ\| = 0,6, de la 463 a la 730), textos claros y clave de laboratorio. Las trazas van como códigos enteros del convertidor: la correlación no cambia con una transformación afín | `datos/20261113-nano-tinyaes-respaldo` |
 | `nano-spa.json` | Traza media de 100 cifrados completos (11 000 muestras, en décimas de código), correlación de cada muestra con un valor de la primera ronda y de la última (en milésimas) y los números de las rondas: periodo, inicio y fin | `datos/20261113-spa` |
 | `nano-curvas.json` | Curvas de éxito frente a `N` de la víctima de NewAE y de las tres variantes de la contramedida, sobre 100 ordenaciones | `analisis/salida/reales.json` |
 
