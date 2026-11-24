@@ -15,6 +15,10 @@ notas de abajo son las del render.
 
 ## Resumen
 
+**V1 ya no está en el deck.** Se renderizó y se retiró el 2026-11-23: la portada usa la escena 3D en
+tiempo real (`js/figuras/placa.js`) porque deja girar la placa en cualquier dirección. Lo que este
+guion dice de V1 como vídeo de la portada (aquí, en §2, §5 y §6) queda como registro.
+
 | Vídeo | Diapositiva | Qué explica | Formato | Fotogramas | spp | Coste (×3) |
 |---|---|---|---|---:|---:|---:|
 | V1 «Revelado» | 1 · Portada | El objeto real del ataque. Se gira con el ratón | 900 × 968, bucle de 12 s | 360 | 512 | 0,25 $ |
@@ -160,7 +164,11 @@ eso:
   para que no recompile a mitad.
 - La semilla es el número de fotograma.
 
-## 2. V1 «Revelado» · diapositiva 1
+## 2. V1 «Revelado» · diapositiva 1 (retirado del deck)
+
+**Retirado.** V1 se renderizó y se retiró del deck el 2026-11-23. La portada usa la escena 3D en
+tiempo real (`js/figuras/placa.js`) porque deja girar la placa en cualquier dirección, también por
+debajo, y V1 solo giraba en horizontal. El plano sigue en `cine/planos/v1.mjs`.
 
 **Qué explica.** El objeto del ataque tal como es: una placa de unos 6 cm que lleva juntos el
 capturador y la víctima. Sustituye a la escena Three.js de la portada y conserva lo que tenía: se
