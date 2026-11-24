@@ -167,19 +167,22 @@ export function mount(container, options = {}) {
       const texto = (textos[e.id] ?? e.id).replace(/\{(\w+)\}/g, (m, v) => valores[v] ?? m);
       if (texto !== e.texto) e.span.innerHTML = e.texto = texto;
       if (texto !== e.medido || !e.w) { e.w = e.span.offsetWidth; e.h = e.span.offsetHeight; e.medido = texto; }
+      e.span.classList.toggle('ver', ver);
+      e.g?.classList.toggle('ver', ver);
+      // La que se oculta se desvanece donde estaba: si siguiera a su ancla, en el cambio de vista del fotograma 253
+      // (paso 3) saltaría a la nueva mientras se desvanece.
+      if (!ver) return;
       const [, dx, dy, alinea] = (d.vista === 2 && FRONTAL[e.id]) || SITIO[e.id] || ['marca', 0, 0, 'centro'];
       const ax = ox + d.anclas[2 * k] * datos.ancho * s, ay = oy + d.anclas[2 * k + 1] * datos.alto * s;
       const x = ax + dx - (alinea === 'der' ? e.w : alinea === 'izq' ? 0 : e.w / 2);
       const y = ay + dy - (alinea === 'arriba' ? 0 : e.h / 2);
       e.span.style.transform = `translate(${x}px, ${y}px)`;
-      e.span.classList.toggle('ver', ver);
       if (e.g) {
         const [line, circle] = e.g.children;
         // La guía va al lado de la píldora que mira al ancla.
         const ex = alinea === 'der' ? x + e.w : alinea === 'centro' ? x + e.w / 2 : x, ey = alinea === 'centro' ? y + e.h : y + e.h / 2;
         line.setAttribute('x1', ax); line.setAttribute('y1', ay); line.setAttribute('x2', ex); line.setAttribute('y2', ey);
         circle.setAttribute('cx', ax); circle.setAttribute('cy', ay);
-        e.g.classList.toggle('ver', ver);
       }
     });
     if (f !== mostrado) {
