@@ -1,0 +1,12 @@
+{
+  "name": "vul-hw-cine",
+  "private": true,
+  "type": "module",
+  "description": "Vídeos path-traced de la presentación: un plano (escena + línea de tiempo) → PNG → MP4",
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "@codepawlhq/cook": "github:codepawl/cook#v0.2.1",
+    "@codepawlhq/crucible": "0.22.0",
+    "three": "0.187.0"
+  }
+}
