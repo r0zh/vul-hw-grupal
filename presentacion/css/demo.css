@@ -259,7 +259,7 @@
 .demo-toast small { font-size: 18px; color: var(--tenue); animation: demo-gen .6s var(--e) both 1s; }
 @keyframes demo-gen { from { opacity: 0; filter: blur(8px); transform: translateY(4px); } }
 
-/* ── Cifras que ruedan (cartera-en-vivo de la skill estetica-web) ─────── */
+/* ── Cifras que ruedan (cada dígito, una columna 0-9 que se desplaza) ─── */
 .demo .roll { display: inline-flex; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .demo .rd {
   display: inline-block; height: 1.1em; overflow: clip; line-height: 1.1;

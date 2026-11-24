@@ -671,7 +671,7 @@ sup { font-size: .6em; line-height: 0; }
 .curvas-leyenda .serie-b { background: var(--c-tinta); }
 .curvas-leyenda .serie-c { background: #a1a1a6; }
 
-/* ── Cifras que ruedan (roll de cartera-en-vivo.html) ── */
+/* ── Cifras que ruedan (js/figuras/kpi.js), como un cuentakilómetros ── */
 .roll { display: inline-flex; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .rd { display: inline-block; height: 1.1em; overflow: clip; line-height: 1.1; -webkit-mask: linear-gradient(transparent, #000 14%, #000 86%, transparent); mask: linear-gradient(transparent, #000 14%, #000 86%, transparent); }
 .rs { display: flex; flex-direction: column; transition: transform .85s cubic-bezier(.2, .95, .1, 1); }
