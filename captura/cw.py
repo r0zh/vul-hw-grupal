@@ -66,8 +66,12 @@ def connect():
             f"No se pudo abrir el ChipWhisperer: {error}\n"
             "¿Está conectado? ¿Están instaladas las reglas udev? (ver captura/README.md)"
         )
-    scope.default_setup()
-    target = cw.target(scope, cw.targets.SimpleSerial)
+    try:
+        scope.default_setup()
+        target = cw.target(scope, cw.targets.SimpleSerial)
+    except BaseException:
+        scope.dis()  # que la placa no se quede abierta si falla a medias
+        raise
     return cw, scope, target
 
 
@@ -159,6 +163,29 @@ def _random_plaintexts(n: int, seed: int) -> np.ndarray:
     return np.random.default_rng(seed).integers(0, 256, size=(n, 16), dtype=np.uint8)
 
 
+def capture_one(cw, scope, target, plaintext: bytes, key: bytes, round_keys,
+                samples: int, index: int):
+    """Captura una traza y comprueba su texto cifrado contra `analisis/aes.py`.
+
+    Devuelve `(traza, texto cifrado)`, o None si el target no respondió a
+    tiempo. Si el texto cifrado no es el de AES-128 con `key`, sale con un
+    mensaje (`index` es el número de traza que se cita en él). La usan
+    `capturar` y la demo en directo (`captura/vivo.py`).
+    """
+    trace = cw.capture_trace(scope, target, bytearray(plaintext), bytearray(key), as_int=False)
+    if trace is None:
+        return None
+    expected = aes.encrypt_block(bytes(plaintext), round_keys)
+    # chipwhisperer >= 6.1 devuelve un TraceContainer (.trace, .ciphertext).
+    returned = bytes(trace.ciphertext or b"")
+    if returned != expected:
+        sys.exit(
+            f"Traza {index}: el target devolvió {returned.hex()} y AES-128 da "
+            f"{expected.hex()}. El firmware o la clave no son los esperados."
+        )
+    return trace.trace[:samples], expected
+
+
 def _capture_real(args, key: bytes, plaintexts: np.ndarray) -> tuple[np.ndarray, np.ndarray, dict]:
     cw, scope, target = connect()
     platform = detect_platform(scope, args.platform)
@@ -176,25 +203,16 @@ def _capture_real(args, key: bytes, plaintexts: np.ndarray) -> tuple[np.ndarray,
     i = 0
     timeouts = 0
     while i < len(plaintexts):
-        pt = bytearray(plaintexts[i].tobytes())
-        trace = cw.capture_trace(scope, target, pt, bytearray(key), as_int=False)
-        if trace is None:
+        result = capture_one(cw, scope, target, plaintexts[i].tobytes(), key, round_keys, args.samples, i)
+        if result is None:
             timeouts += 1
             if timeouts > 10:
                 sys.exit("Demasiados timeouts seguidos: ¿firmware cargado? Prueba `programar`.")
             reset_target(scope, platform)
             continue
         timeouts = 0
-        expected = aes.encrypt_block(bytes(pt), round_keys)
-        # chipwhisperer >= 6.1 devuelve un TraceContainer (.trace, .ciphertext).
-        returned = bytes(trace.ciphertext or b"")
-        if returned != expected:
-            sys.exit(
-                f"Traza {i}: el target devolvió {returned.hex()} y AES-128 da "
-                f"{expected.hex()}. El firmware o la clave no son los esperados."
-            )
-        traces[i] = trace.trace[: args.samples]
-        ciphertexts[i] = np.frombuffer(expected, dtype=np.uint8)
+        traces[i] = result[0]
+        ciphertexts[i] = np.frombuffer(result[1], dtype=np.uint8)
         count = _try(lambda: scope.adc.trig_count)
         if isinstance(count, int):
             trig_counts.append(count)

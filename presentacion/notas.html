@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notas del ponente</title>
+<link rel="stylesheet" href="css/deck.css">
+<script type="module" src="js/notas.js"></script>
+</head>
+<body class="vista-notas">
+<div class="marco">
+  <div class="barra">
+    <span class="crono" id="crono" aria-label="Tiempo transcurrido">00:00</span>
+    <button type="button" class="control" id="pausa" aria-pressed="false">Pausa</button>
+    <button type="button" class="control" id="reiniciar">Reiniciar</button>
+    <p class="siguiente">Siguiente <b id="siguiente">—</b></p>
+    <span class="hora" id="hora"></span>
+  </div>
+  <section class="actual panel" aria-live="polite">
+    <p class="pos" id="pos">Esperando a la presentación…</p>
+    <h1 id="titulo">Abre index.html y pulsa N</h1>
+    <p class="turno"><span id="quien"></span><span id="tiempo"></span></p>
+    <div class="texto-notas" id="notas"></div>
+  </section>
+  <p class="aviso">El cronómetro empieza con la primera navegación. Las flechas y AvPág/RePág de esta ventana también mueven la presentación.</p>
+</div>
+<div class="mandos">
+  <button type="button" id="atras" aria-label="Anterior">←</button>
+  <button type="button" id="adelante" aria-label="Siguiente">→</button>
+</div>
+</body>
+</html>

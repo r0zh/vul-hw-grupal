@@ -12,10 +12,10 @@ Trabajo grupal de **Vulnerabilidades Hardware** (ETSI Informática, Universidad 
 |---|---|
 | [`AGENTS.md`](AGENTS.md) | Contexto, decisiones, convenciones y plan de trabajo |
 | [`memoria/`](memoria/) | Memoria en LaTeX (plantilla TFG de la ETSI) |
-| [`presentacion/`](presentacion/) | Presentación (herramienta por decidir) |
+| [`presentacion/`](presentacion/) | Presentación interactiva (HTML sin build) con escenas 3D, demo del ataque en directo y exportación a PDF |
 | [`hardware/`](hardware/) | ChipWhisperer-Nano: puesta en marcha |
 | [`firmware/`](firmware/) | Compilación de la víctima (`simpleserial-aes` de NewAE) |
-| [`captura/`](captura/) | Captura de trazas con el ChipWhisperer |
+| [`captura/`](captura/) | Captura de trazas con el ChipWhisperer y servidor de la demo en directo |
 | [`analisis/`](analisis/) | CPA, DPA, simulación de trazas, CPA de campañas reales y figuras |
 | [`figuras/`](figuras/) | Figuras generadas por los scripts (PDF vectorial) |
 | [`web/`](web/) | Web explicativa con componentes interactivos (GitHub Pages) |

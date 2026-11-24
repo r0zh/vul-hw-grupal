@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Póster de una escena</title>
+<!-- Monta un módulo en modo estático a 1600×900 para sacar su póster (img/escenas/<escena>-paso<n>.png):
+       /presentacion/scripts/poster.html?m=figuras/spa.js&step=3
+     y se captura con scripts/capturas.mjs a 1600×900, esperando a #escena[data-ready]. -->
+<style>
+  @font-face { font-family: Inter; src: url("../vendor/fonts/inter-latin-opsz-normal.woff2") format("woff2"); font-weight: 100 900; }
+  html, body { margin: 0; background: #f5f5f7; color: #1d1d1f; font: 16px Inter, system-ui, sans-serif; }
+  #escena { position: relative; width: 1600px; height: 900px; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "../vendor/three/three.module.js", "three/addons/": "../vendor/three/addons/" } }
+</script>
+</head>
+<body>
+<div id="escena"></div>
+<script type="module">
+  const q = new URLSearchParams(location.search);
+  await document.fonts.load('16px Inter');
+  const { mount } = await import(`../js/${q.get('m')}`);
+  window.escena = mount(document.querySelector('#escena'), { static: true, step: Number(q.get('step')) });
+</script>
+</body>
+</html>

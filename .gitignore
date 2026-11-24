@@ -1,6 +1,8 @@
 # LaTeX
 memoria/build/
 presentacion/build/
+presentacion/cine/node_modules/
+presentacion/cine/salida/
 *.aux
 *.bbl
 *.bcf
