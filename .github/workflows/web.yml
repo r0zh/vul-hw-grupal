@@ -8,7 +8,9 @@
 #
 # La publicación va en dos trabajos: build sube el artefacto github-pages y
 # deploy lo despliega. En un mismo trabajo, deploy-pages a veces no encuentra
-# el artefacto recién subido (actions/deploy-pages#451).
+# el artefacto recién subido (actions/deploy-pages#451). Si deploy falla, se
+# relanza con «Re-run failed jobs», que reutiliza el artefacto de build; con
+# «Re-run all jobs» se sube otro y deploy-pages falla por artefactos repetidos.
 name: Web
 
 on:

@@ -3,7 +3,7 @@
 # está no se vuelve a bajar, y lo grande va a /workspace, que es el volumen que sobrevive a parar el pod.
 # Imagen runpod/base:1.0.2-ubuntu2204 con NVIDIA_DRIVER_CAPABILITIES=all (sin eso no llega la parte gráfica del driver).
 #
-#   curl -fsSL https://raw.githubusercontent.com/r0zh/vul-hw-grupal/presentacion/presentacion/cine/pod/arranque.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/r0zh/vul-hw-grupal/main/presentacion/cine/pod/arranque.sh | bash
 set -euo pipefail
 NODE=22.23.5 NODE_SHA=cdeb8670a0c81f51b4dc4ac61919f9b1ad917b304bf8221eb939570663d240f8
 OIDN=2.5.1 OIDN_SHA=743c3e2aff8c220d5d70fe6cb970fb3d36f2702d2693c61d1d148e404cf37cd6 # el de crucible/packages/denoise-oidn
@@ -26,7 +26,7 @@ fetch "https://github.com/RenderKit/oidn/releases/download/v$OIDN/oidn-$OIDN.x86
 ln -sfn "$OPT/oidn-$OIDN.x86_64.linux" "$OPT/oidn" # render.mjs la busca en /workspace/opt/oidn (o en OIDN_LIBRARY_PATH)
 for b in node npm npx; do ln -sf "$OPT/node-v$NODE-linux-x64/bin/$b" /usr/local/bin/$b; done
 
-[ -d "$REPO" ] || git clone --branch presentacion --single-branch https://github.com/r0zh/vul-hw-grupal "$REPO"
+[ -d "$REPO" ] || git clone https://github.com/r0zh/vul-hw-grupal "$REPO"
 git -C "$REPO" pull --ff-only
 cd "$REPO/presentacion/cine"
 npm ci --ignore-scripts --no-audit --no-fund

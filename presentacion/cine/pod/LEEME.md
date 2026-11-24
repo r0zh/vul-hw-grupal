@@ -31,11 +31,11 @@ En la consola de RunPod, *Community Cloud*:
 Dentro del pod (consola web o SSH):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/r0zh/vul-hw-grupal/presentacion/presentacion/cine/pod/arranque.sh | bash
+curl -fsSL https://raw.githubusercontent.com/r0zh/vul-hw-grupal/main/presentacion/cine/pod/arranque.sh | bash
 ```
 
 Tarda un par de minutos y acaba en `ARRANQUE_OK`. Instala con apt el cargador de Vulkan y ffmpeg; baja Node
-22.23.5 y Open Image Denoise 2.5.1 a `/workspace/opt` comprobando su SHA-256; clona la rama `presentacion` en
+22.23.5 y Open Image Denoise 2.5.1 a `/workspace/opt` comprobando su SHA-256; clona el repo (rama `main`) en
 `/workspace/repo`; instala `presentacion/cine` con `npm ci`; baja el addon de Cook (`npx cook fetch-addon`, que
 también comprueba su SHA-256), y comprueba la GPU con la escena de prueba de Cook. Se puede repetir: lo que ya está
 no se vuelve a bajar. Tras parar y volver a encender el pod hay que repetirlo, porque apt y los enlaces de
@@ -43,8 +43,8 @@ no se vuelve a bajar. Tras parar y volver a encender el pod hay que repetirlo, p
 
 ## Flujo de trabajo
 
-**Código al pod.** Commit y push a `presentacion` solo de los ficheros propios (`git add` con rutas explícitas) y,
-en el pod, `cd /workspace/repo && git pull --ff-only`. Un modelo de menos de 10 MB se versiona en `../modelos/`
+**Código al pod.** Commit y push de la rama de trabajo, solo con los ficheros propios (`git add` con rutas
+explícitas), y en el pod `cd /workspace/repo && git fetch && git checkout <rama> && git pull --ff-only`. Un modelo de menos de 10 MB se versiona en `../modelos/`
 junto con el script que lo genera; uno más grande no se versiona y se copia al pod aparte.
 
 **Render.** En el pod, en segundo plano, para que siga aunque se cierre la consola o la sesión de SSH:
