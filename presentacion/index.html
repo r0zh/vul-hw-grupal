@@ -1,0 +1,775 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leer una clave AES en el consumo</title>
+<meta name="description" content="Presentación del trabajo de Vulnerabilidades Hardware (ETSI Informática, Universidad de Málaga): ataque CPA sobre AES-128 en un ChipWhisperer-Nano, con demo en directo.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230071e3'/%3E%3Cpath d='M5 20h5l3-10 4 13 3-7h7' fill='none' stroke='white' stroke-width='2.5' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preload" href="vendor/fonts/inter-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/deck.css">
+<link rel="stylesheet" href="css/demo.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+</script>
+<script type="module" src="js/deck.js"></script>
+</head>
+<body>
+<!--
+  Cada número medido lleva su fuente, y tests/cifras.test.js la comprueba:
+    data-cifra="macro"          → memoria/capitulos/generado/reales.tex
+    data-dato="fichero:ruta"    → web/data/<fichero> (un número o un texto que lo contiene)
+    data-memoria="capitulo.tex" → el número aparece en memoria/capitulos/<capitulo>
+  Notas del ponente: <aside class="notas" data-quien data-tiempo> en cada diapositiva
+  (las lee notas.html). El reparto es una propuesta; el guion del equipo está en NARRATIVA.md.
+-->
+<div class="escenario" role="main">
+
+  <!-- 1 · Portada -->
+  <section class="diapo portada" id="portada" data-titulo="Portada" data-seccion="">
+    <div class="portada-texto">
+      <h1>Leer una clave AES en el consumo</h1>
+      <p class="lede">Ataque CPA sobre AES-128 en un <span class="nw">ChipWhisperer-Nano</span></p>
+      <ul class="autores">
+        <li>Juan Diego Bermúdez Ureba</li>
+        <li>Brian Polo Caballero</li>
+        <li>Alberto Bartolomé Iruela</li>
+        <li>Roberto Sánchez Martín</li>
+      </ul>
+      <p class="asignatura">Vulnerabilidades Hardware<br>ETSI Informática, Universidad de Málaga</p>
+    </div>
+    <div class="escena portada-placa" data-modulo="js/figuras/placa.js" data-opciones='{"desde":0,"hasta":0}' data-3d>
+      <img class="poster" src="img/escenas/placa-paso0.png" alt="">
+    </div>
+    <aside class="notas" data-quien="Juan Diego" data-tiempo="30 s">
+      <ul>
+        <li>Saludo y equipo. Frase de entrada: «Vamos a sacar la clave de un cifrado midiendo cuánta corriente gasta el chip, sin leer su memoria y sin romper AES. Pero antes, un juego.»</li>
+        <li>La placa gira sola: es el modelo 3D en tiempo real. Decir «la placa es nuestro modelo 3D: la podemos girar y ver por debajo» y arrastrarla: se le da la vuelta en cualquier dirección, también por debajo para enseñar la cara de abajo, y con la rueda se acerca.</li>
+        <li>Reparto propuesto: Juan Diego, 1 a 4 con el juego (4 min 20 s); Brian, 5 a 9 (5 min); Alberto, 10 a 13 con la demo (6 min 40 s); Roberto, 14 a 17 y las preguntas (4 min).</li>
+        <li>Unos 17 min más 3 de demo. Si hay que recortar: el juego en una sola partida, el SPA en dos pasos y el montaje con una frase por paso.</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 2 · El juego de las monedas (js/figuras/juego-monedas.js): se juega con Tirar, Seguir tirando/Parar, tocando la moneda y Comprobar -->
+  <section class="diapo completa" id="juego" data-titulo="Una de estas monedas está trucada" data-seccion="">
+    <h2 class="titulo">Una de estas monedas está trucada</h2>
+    <div class="escena juego" data-modulo="js/figuras/juego-monedas.js" data-3d>
+      <img class="poster" src="img/escenas/monedas-paso0.png" alt="">
+    </div>
+    <aside class="notas" data-quien="Juan Diego" data-tiempo="2 min 30 s">
+      <ul>
+        <li>«Empezamos con un juego. Una de estas diez monedas está trucada: sale cara el 60 % de las veces y las otras, el 50 %. Ni nosotros sabemos cuál, la sortea el ordenador. Vamos a tirar hasta que alguien sepa decir con seguridad cuál es.»</li>
+        <li>Pulsar «Tirar» una vez: «Con una tirada cada moneda está en 0 % o en 100 % de caras: cualquiera parece trucada. La franja azul es lo que puede hacer el azar.»</li>
+        <li>Pulsar «Seguir tirando» y preguntar cada pocas tandas: «¿Alguien lo sabe ya? Decid una letra.» Si la dicen pronto: «¿Con seguridad? Mientras su barra siga dentro de la franja, no». Si insisten, «Parar», tocar esa moneda y «Comprobar»: si acierta, el juego dice «Acertado, pero con suerte»; si falla, «No era esa», y la ↻ de arriba a la derecha empieza otra partida.</li>
+        <li>Cuando una barra se salga de la franja y se quede fuera: «Parar», tocar la moneda y «Comprobar». Leer en voz alta «¡Acertado con N tiradas!»: ese N vuelve en los resultados. Si una moneda normal se asoma un momento fuera, seguid tirando: la suerte la devuelve dentro y la trucada se queda fuera.</li>
+        <li>La idea que tiene que quedar: con pocas tiradas la suerte tapa la trampa; con muchas la franja se estrecha y la trucada se sale. No se ha vuelto más tramposa: la suerte ya no la tapa. Las tiradas son simuladas.</li>
+        <li>Relevo a la siguiente: «¿Y qué tiene que ver esto con un chip?»</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 3 · La pregunta y la clave del público -->
+  <section class="diapo pregunta" id="pregunta" data-titulo="¿Un chip puede chivarse de su clave?" data-seccion="">
+    <div class="cabecera">
+      <h2 class="titulo">¿Un chip puede chivarse de su clave?</h2>
+      <p class="lede">Sin leer su memoria y sin romper AES.</p>
+    </div>
+    <div class="escena clave" data-modulo="js/figuras/clave.js">
+      <form class="clave-form" autocomplete="off">
+        <label for="clave-campo">Elegid una palabra de hasta 16 letras: será la clave del chip</label>
+        <div class="clave-fila">
+          <div class="clave-campo">
+            <input id="clave-campo" name="clave" maxlength="16" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="clave-ayuda">
+            <span class="clave-cuenta" aria-live="polite"><span class="clave-n">0</span>/16</span>
+          </div>
+          <button type="submit" class="boton">Guardar en el chip</button>
+        </div>
+        <span id="clave-ayuda" hidden>Las tildes y las eñes se quitan solas: la clave son bytes ASCII.</span>
+      </form>
+      <div class="clave-guardada" hidden>
+        <span class="puntos" aria-hidden="true"></span>
+        <span class="hecho"><span class="check"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>Guardada para el chip</span>
+        <button type="button" class="cambiar">Cambiar</button>
+      </div>
+    </div>
+    <p class="nota-etica">Hardware de laboratorio y una clave que no protege nada real.</p>
+    <aside class="notas" data-quien="Juan Diego" data-tiempo="1 min">
+      <ul>
+        <li>«Un chip que cifra tiene una trampa parecida: en cada cifrado se delata un poquito. ¿Puede chivarse de su clave?» Callar 5 s y recoger dos respuestas sin corregirlas: se resuelven al final.</li>
+        <li>Contexto, en una frase: es un ataque de canal lateral. No ataca las matemáticas del cifrado, sino lo que el chip deja escapar mientras trabaja: el tiempo que tarda, la corriente que gasta o lo que radia. Importa en cualquier aparato con una clave dentro que otro pueda tener en la mano y medir.</li>
+        <li>«Necesitamos una clave: decidnos una palabra de hasta 16 letras. Cada letra será un byte de la clave.» Escribirla sin leerla en voz alta y pulsar «Guardar en el chip». Las tildes y las eñes se quitan solas.</li>
+        <li>«Esta palabra es ahora la clave del chip. Dentro de un rato la sacaremos de su consumo, sin mirarla.»</li>
+        <li>Marco ético: placa de laboratorio y una clave que no protege nada real.</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 4 · Índice -->
+  <section class="diapo indice" id="indice" data-titulo="Índice" data-seccion="">
+    <h2 class="titulo">De la fuga a la clave</h2>
+    <ol class="partes">
+      <li><span class="n">1</span><b>La fuga</b><span>Por qué el consumo delata los datos</span></li>
+      <li><span class="n">2</span><b>El ataque</b><span>Dónde mirar y cómo ganarle al azar</span></li>
+      <li><span class="n">3</span><b>En la placa</b><span>El montaje, la demo y cuántas trazas</span></li>
+      <li><span class="n">4</span><b>Defensas</b><span>Qué lo encarece y cuánto</span></li>
+      <li><span class="n">5</span><b>Conclusiones</b><span>Puntos fuertes y débiles</span></li>
+    </ol>
+    <aside class="notas" data-quien="Juan Diego" data-tiempo="20 s">
+      <ul>
+        <li>Cinco partes, en el orden de la memoria con un cambio: las defensas van después de verlo funcionar.</li>
+        <li>«Al final de la parte 2 volveremos a las monedas: veréis qué es cada pieza del juego en el ataque. En la 3, la placa ataca vuestra palabra.»</li>
+        <li>La parte en la que estamos se ve arriba a la izquierda. Relevo a Brian.</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 5 · La fuga -->
+  <section class="diapo fuga" id="fuga" data-titulo="El consumo depende de los datos" data-seccion="La fuga" data-pasos="4" data-paso-pdf="3">
+    <div class="cabecera">
+      <h2 class="titulo">El consumo depende de los datos</h2>
+      <p class="lede">En media, un byte con más unos gasta algo más de corriente.</p>
+    </div>
+    <div class="escena escena-ancha" data-modulo="js/figuras/fuga.js" data-3d>
+      <img class="poster" src="img/escenas/byte-paso3.png" alt="">
+    </div>
+    <div class="pie">
+      <p data-solo="0">Un byte del mensaje (el texto claro) y uno de la clave.</p>
+      <p data-solo="1">AES los mezcla con un XOR, bit a bit.</p>
+      <p data-solo="2">Una tabla fija, la S-box, lo cambia por otro byte.</p>
+      <p data-solo="3">Cuantos más unos tiene ese byte, más corriente gasta.</p>
+      <p data-solo="4">Con cada mensaje cambia ese byte, y con él la corriente.</p>
+    </div>
+    <aside class="notas" data-quien="Brian" data-tiempo="1 min 15 s">
+      <ul>
+        <li>Una sola idea: el chip gasta un poco más de corriente cuando maneja un byte con más unos. Es un modelo (se llama peso de Hamming; aquí, «número de unos»). Lo que nuestras medidas confirman es que la corriente cambia con el número de unos; hacia qué lado se mueve la lectura depende del montaje.</li>
+        <li>Antes del paso 3: «¿Qué creéis que gasta más, un byte todo a ceros o uno todo a unos?» Se contesta solo al pulsar: en media, el de unos.</li>
+        <li>Pulsar → en cada paso: un byte del mensaje y uno de la clave; el XOR los mezcla; la S-box lo cambia por otro byte; se cuentan sus unos; y con cada mensaje cambia la corriente.</li>
+        <li>El ejemplo es el del FIPS-197: 0x32 ⊕ 0x2b = 0x19 y SBox(0x19) = 0xd4, con cuatro unos.</li>
+        <li>La diferencia es pequeña, del orden del ruido de la medida, pero se repite igual en cada cifrado: es la trampa de la moneda, y es lo que vamos a aprovechar.</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 6 · Punto de ataque (la fórmula está en el anexo «anexo-cuentas») -->
+  <section class="diapo ataque" id="punto-de-ataque" data-titulo="El punto débil: la primera ronda" data-seccion="La fuga" data-pasos="1">
+    <h2 class="titulo">El punto débil: la primera ronda</h2>
+    <svg class="aes" viewBox="0 0 1680 290" role="img" aria-label="AES-128: el mensaje se mezcla por XOR con la clave y pasa por la S-box en la primera ronda; después vienen más mezclas y nueve rondas más, que dan el mensaje cifrado. Se ataca la salida de la S-box de la primera ronda.">
+      <defs>
+        <marker id="punta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="punta" d="M0 0L10 5L0 10z"/></marker>
+      </defs>
+      <!-- Las cajas, con las palabras de la diapositiva 5. En AES: AddRoundKey (el XOR), SubBytes (la S-box) y,
+           en «más mezclas», ShiftRows, MixColumns y AddRoundKey; «9 rondas más» son las rondas 2 a 10. -->
+      <!-- mensaje -->
+      <rect class="caja" x="1" y="70" width="150" height="110" rx="16"/>
+      <text x="76" y="134" text-anchor="middle">mensaje</text>
+      <path class="flecha" d="M151 125H184" marker-end="url(#punta)"/>
+      <!-- el XOR con la clave: la clave entra por arriba; el XOR se dibuja (Inter no trae ⊕) -->
+      <text x="222" y="30" text-anchor="middle" class="t-acento" style="font-weight:650">clave</text>
+      <path class="llave" d="M222 42V91"/>
+      <circle class="caja-acento-suave" cx="222" cy="125" r="32"/>
+      <path class="llave" d="M207 125H237M222 110V140"/>
+      <text x="222" y="214" text-anchor="middle" class="t-tenue">XOR</text>
+      <path class="flecha" d="M254 125H284" marker-end="url(#punta)"/>
+      <!-- ronda 1 -->
+      <rect class="caja-ronda" x="290" y="52" width="730" height="146" rx="22"/>
+      <text x="306" y="40" class="t-tenue">ronda 1</text>
+      <rect class="caja-acento" x="304" y="70" width="168" height="110" rx="14"/>
+      <text x="388" y="134" text-anchor="middle" class="t-blanco">S-box</text>
+      <rect class="caja" x="482" y="70" width="524" height="110" rx="14"/>
+      <text x="744" y="134" text-anchor="middle" class="t-tenue" style="font-size:25px">más mezclas</text>
+      <path class="flecha" d="M1020 125H1054" marker-end="url(#punta)"/>
+      <!-- rondas 2 a 10 -->
+      <rect class="caja" x="1060" y="70" width="410" height="110" rx="16"/>
+      <text x="1265" y="134" text-anchor="middle" class="t-tenue" style="font-size:25px">9 rondas más</text>
+      <path class="flecha" d="M1470 125H1504" marker-end="url(#punta)"/>
+      <rect class="caja" x="1510" y="70" width="169" height="110" rx="16"/>
+      <text x="1594" y="120" text-anchor="middle">mensaje</text>
+      <text x="1594" y="152" text-anchor="middle">cifrado</text>
+      <!-- lo que se ataca -->
+      <path class="llave" d="M190 228V240H472V228"/>
+      <text x="331" y="280" text-anchor="middle" class="t-acento" style="font-size:30px;font-weight:650">aquí atacamos</text>
+    </svg>
+    <ul class="razones dos-col" data-paso="1">
+      <li><span>Aquí cada byte depende solo de un byte del mensaje, que mandamos nosotros, y de uno de la clave.</span></li>
+      <li><span>Byte a byte, como un PIN cifra a cifra: 16 × 256 candidatos, no todas las claves.</span></li>
+    </ul>
+    <aside class="notas" data-quien="Brian" data-tiempo="50 s">
+      <ul>
+        <li>AES no se ataca entero. Al principio mezcla cada byte de la clave con un byte del mensaje, con el XOR de la diapositiva anterior, y lo pasa por la S-box: ahí miramos. El mensaje lo conocemos porque lo mandamos nosotros; después, las mezclas lo revuelven todo.</li>
+        <li>Pulsar → cada byte de la clave tiene 256 valores posibles, los «candidatos», y se prueban por separado: 16 × 256 = 4096 pruebas en vez de 2<sup>128</sup> claves. Es como adivinar un PIN cifra a cifra en vez de entero.</li>
+        <li>Cada candidato predice cuántos unos saldrán de la S-box con cada mensaje. Solo el correcto acierta: es la moneda trucada entre 256.</li>
+        <li>Si preguntan: se mira a la salida de la S-box y no justo tras el XOR porque ahí el candidato con todos los bits al revés predeciría lo contrario y empataría; la S-box rompe ese empate (anexo 23). Las «más mezclas» son ShiftRows, MixColumns y AddRoundKey.</li>
+        <li>Pregunta puente: «Vale, pero ¿en qué momento del cifrado hay que mirar?»</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 7 · SPA -->
+  <section class="diapo spa" id="spa" data-titulo="Ver las rondas sin saber nada" data-seccion="El ataque" data-pasos="3">
+    <h2 class="titulo">Ver las rondas sin saber nada</h2>
+    <div class="escena escena-ancha" data-modulo="js/figuras/spa.js" data-3d>
+      <img class="poster" src="img/escenas/cascada-paso3.png" alt="">
+    </div>
+    <div class="pie">
+      <p data-solo="0">Una traza: la corriente del chip mientras cifra. Aquí, la media de <span data-dato="nano-spa.json:meta.trazas">100</span>.</p>
+      <p data-solo="1">Un dibujo que se repite cada <span data-dato="nano-spa.json:rondas.periodo">1014</span> ciclos: son las rondas.</p>
+      <p data-solo="2">Con cualquier clave, el dibujo es el mismo: mirar no basta.</p>
+      <p data-solo="3">Pero dice dónde mirar: al principio de la ronda 1.</p>
+    </div>
+    <aside class="notas" data-quien="Brian" data-tiempo="50 s">
+      <ul>
+        <li>«Una traza es la corriente del chip mientras cifra un mensaje, medida en la placa: en el juego, una tirada. Esta es la media de <span data-dato="nano-spa.json:meta.trazas">100</span>, de principio a fin del cifrado.»</li>
+        <li>Pulsar → un dibujo que se repite cada <span data-dato="nano-spa.json:rondas.periodo">1014</span> ciclos: las diez rondas de AES. Esto es el SPA: mirar la traza y reconocer el algoritmo.</li>
+        <li>Pulsar → mirar no basta: con cualquier clave el dibujo es el mismo, porque el chip ejecuta lo mismo.</li>
+        <li>Pulsar → pero dice dónde mirar: al principio de la ronda 1. Para eso no hace falta la clave, basta ver dónde empieza el cifrado. Nosotros, que sí la sabemos, comprobamos que ahí la fuga es fuerte (parecido por encima de <span data-memoria="02-descripcion.tex">0,6</span> entre las muestras <span data-dato="nano-spa.json:rondas.ronda1.0">463</span> y <span data-dato="nano-spa.json:rondas.ronda1.1">730</span>; cada muestra es un punto de la traza, una por ciclo de reloj). Por eso el ataque solo mira el principio de cada traza.</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 8 · Así se nota el candidato correcto: adivinar, predecir y comparar con trazas medidas (figura nube) -->
+  <section class="diapo dpa-cpa" id="dpa-cpa" data-titulo="Así se nota el candidato correcto" data-seccion="El ataque" data-pasos="1">
+    <h2 class="titulo">Así se nota el candidato correcto</h2>
+    <div class="cuerpo">
+      <div class="metodos">
+        <ol class="pasos-cpa">
+          <li><b>Adivina</b><span>un valor para un byte de la clave: un candidato.</span></li>
+          <li><b>Predice</b><span>con cada mensaje, cuántos unos saldrán de la S-box.</span></li>
+          <li><b>Compara</b><span>con lo que midió la placa. ¿Se parecen?</span></li>
+        </ol>
+        <p class="nota">Cada punto es una traza grabada: <span data-dato="nano-tinyaes.json:traces.length">400</span> en total, en el instante en que el chip pasa el byte 0 por la S-box.</p>
+        <p class="nota">Esto es el CPA (2004). Su antecesor, el DPA (1999), solo miraba un bit.</p>
+      </div>
+      <div class="escena panel nube" data-modulo="js/figuras/nube.js" data-opciones='{"byte":0}'></div>
+    </div>
+    <aside class="notas" data-quien="Brian" data-tiempo="1 min">
+      <ul>
+        <li>Tres verbos: adivina, predice y compara. Cada punto es una traza grabada en la placa (<span data-dato="nano-tinyaes.json:traces.length">400</span>). En horizontal, cuántos unos predice un candidato; en vertical, lo que midió la placa en ese instante, un número de 0 a 255.</li>
+        <li>Paso 0, un candidato falso: la nube sale plana y el parecido es casi 0, como una moneda normal en el 50 %. Antes de pulsar: «Si pruebo otro candidato, ¿cambian las medidas?» No: son las mismas, solo se recolocan.</li>
+        <li>Pulsar → el correcto: los mismos puntos se ordenan y la nube sube. Esa es la trampa: el consumo se parece a lo que predice la clave correcta. El número de arriba es el parecido: 0 es nada y 1, idéntico.</li>
+        <li>Esto se llama CPA (Brier, Clavier y Olivier, 2004). Su antecesor, el DPA (Kocher, Jaffe y Jun, 1999), partía las trazas en dos montones según un bit y comparaba sus medias.</li>
+        <li>Relevo al puente: «Aquí sabíamos cuál era el correcto y teníamos 400 trazas. Sin saberlo, ¿cómo lo distinguimos de la suerte? Como en el juego.»</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 9 · Puente: qué es cada pieza del juego en el ataque. Va antes del montaje y de la demo: así la sala lee la demo y la montaña con las monedas en la cabeza. -->
+  <section class="diapo puente" id="puente" data-titulo="En el juego → en el ataque" data-seccion="El ataque">
+    <h2 class="titulo">En el juego → en el ataque</h2>
+    <div class="equivalencias" role="table" aria-label="Qué es cada pieza del juego de las monedas en el ataque">
+      <div class="eq" role="row">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><circle class="oro" cx="32" cy="32" r="27"/><circle class="plata" cx="32" cy="32" r="17"/><text class="uno" x="32" y="39.5" text-anchor="middle">1</text></svg>
+        <p role="cell"><b>Una moneda</b></p>
+        <span class="flecha" aria-hidden="true">→</span>
+        <svg viewBox="0 0 64 64" aria-hidden="true"><circle class="trazo" cx="17" cy="32" r="10"/><path class="trazo" d="M27 32H58M48 32V41M56 32V39"/></svg>
+        <p role="cell"><b>Un candidato</b><span>uno de los 256 valores de un byte de la clave</span></p>
+      </div>
+      <div class="eq" role="row">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><path class="estela" d="M6 60C8 44 14 34 24 28"/><g transform="rotate(-24 40 22)"><ellipse class="oro" cx="40" cy="22" rx="21" ry="9.5"/><ellipse class="plata" cx="40" cy="22" rx="13" ry="5.5"/></g><path class="giro" d="M52 4c5 2 8 6 9 11M24 41c-4-2-6-5-7-9"/></svg>
+        <p role="cell"><b>Una tirada</b></p>
+        <span class="flecha" aria-hidden="true">→</span>
+        <svg viewBox="0 0 64 64" aria-hidden="true"><path class="trazo" d="M3 36H10L14 20L19 46L24 26L29 40L34 14L39 48L44 30L49 38L54 33H61"/></svg>
+        <p role="cell"><b>Una traza</b><span>la corriente mientras cifra un mensaje nuevo</span></p>
+      </div>
+      <div class="eq" role="row">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><rect class="hueco" x="21" y="4" width="22" height="56" rx="11"/><rect class="lleno" x="21" y="32" width="22" height="28" rx="11"/><path class="media" d="M6 32H58"/></svg>
+        <p role="cell"><b>El % de caras</b><span>50 % si es normal</span></p>
+        <span class="flecha" aria-hidden="true">→</span>
+        <svg viewBox="0 0 64 64" aria-hidden="true"><g class="pg"><circle cx="9" cy="22" r="3.5"/><circle cx="15" cy="44" r="3.5"/><circle cx="22" cy="30" r="3.5"/><circle cx="28" cy="48" r="3.5"/><circle cx="33" cy="17" r="3.5"/><circle cx="40" cy="38" r="3.5"/><circle cx="46" cy="24" r="3.5"/><circle cx="51" cy="46" r="3.5"/><circle cx="57" cy="30" r="3.5"/></g><path class="gris" d="M4 33H60"/></svg>
+        <p role="cell"><b>El parecido con el consumo</b><span>de 0 a 1; cerca de 0 si es falso</span></p>
+      </div>
+      <div class="eq" role="row">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><rect class="hueco" x="21" y="4" width="22" height="56" rx="11"/><rect class="verde" x="21" y="26" width="22" height="34" rx="11"/><path class="media" d="M6 32H58"/></svg>
+        <p role="cell"><b>La trampa</b><span>sale cara el 60 %</span></p>
+        <span class="flecha" aria-hidden="true">→</span>
+        <svg viewBox="0 0 64 64" aria-hidden="true"><g class="pa"><circle cx="9" cy="50" r="3.5"/><circle cx="15" cy="42" r="3.5"/><circle cx="21" cy="46" r="3.5"/><circle cx="27" cy="34" r="3.5"/><circle cx="33" cy="38" r="3.5"/><circle cx="39" cy="26" r="3.5"/><circle cx="45" cy="30" r="3.5"/><circle cx="51" cy="18" r="3.5"/><circle cx="57" cy="14" r="3.5"/></g><path class="azul" d="M4 54L60 10"/></svg>
+        <p role="cell"><b>La fuga</b><span>el consumo se parece a lo que predice la clave correcta</span></p>
+      </div>
+      <div class="eq" role="row">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><path class="banda" d="M4 6L60 24V40L4 58Z"/><path class="borde" d="M4 6L60 24M4 58L60 40"/><path class="media" d="M4 32H60"/></svg>
+        <p role="cell"><b>Lo que puede hacer el azar</b><span>se estrecha con más tiradas</span></p>
+        <span class="flecha" aria-hidden="true">→</span>
+        <svg viewBox="0 0 64 64" aria-hidden="true"><path class="eje" d="M6 6V58H60"/><path class="gris" d="M10 12C18 34 30 44 58 50"/></svg>
+        <p role="cell"><b>El azar de los 255 falsos</b><span>baja con más trazas</span></p>
+      </div>
+      <div class="eq" role="row">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><rect class="banda" x="2" y="25" width="60" height="14"/><rect class="lleno" x="7" y="30" width="12" height="30" rx="6"/><rect class="verde" x="26" y="9" width="12" height="51" rx="6"/><rect class="lleno" x="45" y="33" width="12" height="27" rx="6"/><path class="borde" d="M2 25H62M2 39H62"/></svg>
+        <p role="cell"><b>La trucada se sale</b></p>
+        <span class="flecha" aria-hidden="true">→</span>
+        <svg viewBox="0 0 64 64" aria-hidden="true"><path class="eje" d="M6 6V58H60"/><path class="gris" d="M10 12C18 34 30 44 58 50"/><path class="azul" d="M10 14C16 24 26 26 58 24"/></svg>
+        <p role="cell"><b>El correcto se sale</b><span>ya tenemos ese byte</span></p>
+      </div>
+    </div>
+    <p class="remate">Con las mismas trazas se juegan 16 partidas a la vez: una por byte, una letra de vuestra palabra.</p>
+    <aside class="notas" data-quien="Brian" data-tiempo="1 min">
+      <ul>
+        <li>«Lo que habéis jugado es el ataque.» Cada moneda es un candidato: en el chip hay 256 por cada byte de la clave. Cada tirada es una traza: la corriente medida mientras el chip cifra un mensaje nuevo, no una ronda ni un ciclo. Medimos el principio del cifrado, que es donde está la fuga.</li>
+        <li>El % de caras es el parecido, que va de 0 a 1: no es un porcentaje. La moneda normal se queda en el 50 %, y un candidato falso, cerca de 0: solo azar. La trampa del 60 % es la fuga: el consumo se parece a lo que predice la clave correcta.</li>
+        <li>La franja azul del juego es el azar de los 255 falsos: con más trazas baja, como la franja se estrechaba con más tiradas. Cuando el correcto se sale, tenemos ese byte.</li>
+        <li>Con las mismas trazas se juegan 16 partidas a la vez, una por byte de la clave: una por cada letra de vuestra palabra. Lo que el juego no tiene es el «cuándo»: en el chip, además, hay que mirar en el instante justo, el de la ronda 1.</li>
+        <li>Ojo: una tirada y una traza no valen lo mismo. Cuántas trazas hacen falta depende de cuánto se delate el chip, y eso lo vamos a medir. Relevo a Alberto: «Ahora, de verdad: así medimos cada tirada.»</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 10 · Montaje -->
+  <section class="diapo montaje" id="montaje" data-titulo="Lo que medimos" data-seccion="En la placa" data-pasos="4">
+    <div class="cabecera">
+      <h2 class="titulo">Lo que medimos</h2>
+      <p class="lede">Una traza es la corriente del chip mientras cifra un mensaje.</p>
+    </div>
+    <div class="cuerpo">
+      <!-- Vídeo V2 (cine/GUION.md §3), un trozo por paso; si no carga, la escena 3D con los pasos en el mismo orden. -->
+      <div class="escena montaje-placa" data-modulo="js/figuras/cine-v2.js" data-respaldo="js/figuras/placa.js" data-opciones='{"orden":[3,4,2,1,0]}'>
+        <img class="poster" src="img/cine/v2-inicio.jpg" alt="">
+        <template data-etiqueta="victima"><strong>Víctima · STM32F042F6P6</strong>: el chip que cifra con AES-128</template>
+        <template data-etiqueta="shunt"><strong>Resistencia de <span data-memoria="02-descripcion.tex">27</span> Ω (shunt)</strong> en la alimentación de la víctima: su tensión sigue a la corriente<small>recorrido esquemático</small></template>
+        <template data-etiqueta="adc"><strong>Medidor (ADC) de <span data-dato="nano-tinyaes.json:meta.unidades">8 bits</span></strong> · una muestra en cada ciclo del chip: <span data-dato="nano-tinyaes.json:meta.instrumento">7,5</span> millones por segundo</template>
+        <template data-etiqueta="capturador"><strong>Capturador · ATSAM4S16B</strong>: espera la señal de inicio, guarda las muestras y las manda al portátil por USB</template>
+        <template data-etiqueta="regalado"><strong>Viene regalado:</strong> el chip avisa cuando empieza y el medidor va a su ritmo, así que las trazas salen alineadas<ul class="cine-leyenda"><li data-trazo="medida">medida</li><li data-trazo="muestras">muestras</li><li data-trazo="reloj">reloj</li><li data-trazo="disparo">señal de inicio</li></ul><small>esquema; el reloj de verdad va a <span data-dato="nano-tinyaes.json:meta.instrumento">7,5 MHz</span></small></template>
+      </div>
+      <div class="montaje-lado">
+        <!-- El reloj (7,5 MHz) y el medidor de 8 bits ya los dicen las etiquetas del vídeo: aquí, solo lo que vuelve después. -->
+        <ul class="datos">
+          <li><b><span data-memoria="04-resultados.tex">5000</span></b><span>muestras por traza, un número de <span data-dato="nano-tinyaes.json:meta.unidades">0 a 255</span> cada una</span></li>
+          <li><b><span data-memoria="04-resultados.tex">18,6</span><small>trazas/s</small></b><span>velocidad de captura</span></li>
+        </ul>
+        <figure class="foto-real">
+          <img src="img/placa-real.jpg" width="1094" height="553" alt="Foto cenital de nuestra ChipWhisperer-Nano, con el USB-C a la izquierda y la parte víctima a la derecha">
+          <figcaption>La placa real que medimos</figcaption>
+        </figure>
+      </div>
+    </div>
+    <aside class="notas" data-quien="Alberto" data-tiempo="1 min 30 s">
+      <ul>
+        <li>Paso 0, la víctima: «Este es el chip que cifra con AES. Lo que medimos es su corriente.»</li>
+        <li>Pulsar → «Su alimentación pasa por una resistencia de 27 Ω, el shunt: la tensión en ella sigue a la corriente. Lo azul es un esquema, no las pistas reales.»</li>
+        <li>Pulsar → «El medidor, un ADC de 8 bits, toma una muestra en cada ciclo del reloj del chip: 7,5 millones por segundo.»</li>
+        <li>Pulsar → «El capturador espera la señal de inicio, guarda las muestras y las manda al portátil. Eso es una traza, una tirada del juego: <span data-memoria="04-resultados.tex">5000</span> muestras desde que empieza el cifrado, que cubren su principio, donde está la ronda 1. Salen unas <span data-memoria="04-resultados.tex">18,6</span> trazas por segundo.»</li>
+        <li>Pulsar → «Esto viene regalado: el propio chip avisa cuando empieza y el medidor va a su ritmo, así que todas las trazas salen alineadas. Un atacante real tendría que conseguirlo él. Comparad el modelo con la foto.»</li>
+        <li>Si en vez del vídeo sale la escena 3D, las mismas frases en el orden en que salen.</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 11 · Apuesta -->
+  <section class="diapo apuesta" id="apuesta" data-titulo="¿Cuántas trazas harán falta?" data-seccion="En la placa">
+    <div class="cuerpo">
+      <div class="cabecera">
+        <h2 class="titulo">¿Cuántas trazas harán falta?</h2>
+        <p class="lede">Para la clave entera. ¿Más o menos que vuestras tiradas?</p>
+      </div>
+      <div class="escena votacion" data-modulo="js/figuras/apuesta.js" data-opciones='{"modo":"votar"}'>
+        <ul class="opciones">
+          <li><button type="button" class="opcion" data-valor="10" aria-pressed="false">unas 10<span class="marca"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></button></li>
+          <li><button type="button" class="opcion" data-valor="100" aria-pressed="false">unas 100<span class="marca"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></button></li>
+          <li><button type="button" class="opcion" data-valor="1000" aria-pressed="false">unas 1000<span class="marca"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></button></li>
+          <li><button type="button" class="opcion" data-valor="10000" aria-pressed="false">unas 10&#8239;000<span class="marca"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></button></li>
+          <li><button type="button" class="opcion" data-valor="1000000" aria-pressed="false">un millón<span class="marca"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></button></li>
+        </ul>
+        <p class="apuesta-estado" aria-live="polite"></p>
+      </div>
+    </div>
+    <aside class="notas" data-quien="Alberto" data-tiempo="40 s">
+      <ul>
+        <li>«En el juego hicieron falta unas cuantas tiradas para ver la moneda. ¿Y en el chip? ¿Cuántas trazas para sacar la clave entera?»</li>
+        <li>Leer las cinco opciones y contar manos en cada una. Si dudan: «¿más o menos que vuestras tiradas?». «Unas 1000» está para quien crea que el chip se delata como nuestras monedas.</li>
+        <li>Pulsar la más votada: queda marcada y se resuelve en «Resultados».</li>
+        <li>No dar pistas. Si alguien duda qué es una traza: la corriente medida durante un cifrado, una tirada.</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 12 · Demo en directo -->
+  <section class="diapo completa" id="demo" data-titulo="En directo" data-seccion="">
+    <h2 class="titulo">En directo</h2>
+    <div class="escena demo" data-modulo="js/demo.js"></div>
+    <aside class="notas" data-quien="Alberto" data-tiempo="3 min">
+      <ul>
+        <li>Antes de clase, sin decirlo: placa conectada, <code>captura.cw programar</code> (lo último cargado fue la variante con retardos, que da 0 de 16) y el servidor en marcha. La palabra de la clase ya está guardada en la diapositiva 3.</li>
+        <li>Decir el modo en voz alta: «En directo, con vuestra palabra». Si la placa falla: «Grabado: trazas que grabamos el 13 de noviembre, con la clave de laboratorio».</li>
+        <li>Antes de pulsar, qué mirar: «Cada traza es una tirada para las 256 monedas de cada byte, y para los 16 bytes a la vez. Abajo, la línea azul es el candidato correcto y la gris, lo que puede hacer el azar: el falso con más suerte. Las dos empiezan arriba, porque con pocas trazas todo parece trucado, pero la gris baja más deprisa. Cuando la azul queda por encima, el byte se pone verde. Avisad cuando veáis el primer verde.»</li>
+        <li>Pulsar «Capturar» y callar hasta el aviso «Clave recuperada»: el primer verde llega en un par de segundos y la clave entera, en unos 7. «El ataque no sabe la clave: en cada byte elige el candidato que más se parece. El verde lo ponemos nosotros con la clave real, solo para que lo veáis.» Un atacante la comprobaría cifrando uno de los mensajes capturados y comparando con lo que dio el chip.</li>
+        <li>Al acabar: «¿Es vuestra palabra?», y esperar la reacción. Si fue en Grabado, 20 s de «Simulado» con su palabra, diciendo que son trazas simuladas. Relevo: «Vamos a ver despacio qué ha pasado en un byte, con trazas grabadas.»</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 13 · Por dentro -->
+  <section class="diapo por-dentro" id="por-dentro" data-titulo="Qué acaba de pasar" data-seccion="En la placa" data-pasos="3">
+    <h2 class="titulo">Qué acaba de pasar</h2>
+    <div class="cuerpo">
+      <!-- Vídeo V3 (cine/GUION.md §4): cada fotograma es un N real; si no carga, la escena 3D con los mismos pasos. -->
+      <div class="escena" data-modulo="js/figuras/cine-v3.js" data-respaldo="js/figuras/por-dentro.js" data-opciones='{"byte":0}'>
+        <img class="poster" src="img/cine/v3-0.jpg" alt="">
+        <template data-etiqueta="eje-rho">parecido</template>
+        <template data-etiqueta="eje-t">tiempo</template>
+        <template data-etiqueta="eje-k">candidato</template>
+        <template data-etiqueta="fila">{clave}, el correcto</template>
+        <template data-etiqueta="cresta">{clave} · parecido {correcto}</template>
+        <template data-etiqueta="velo">lo que puede hacer el azar · hasta {mejorFalso}</template>
+        <template data-etiqueta="cresta2">el mismo byte, otra vez</template>
+      </div>
+      <div class="por-dentro-lado">
+        <!-- N y el puesto siguen a la montaña (evento cine-fotograma); sin JS se ve el último paso. -->
+        <div class="escena marcador" data-modulo="js/figuras/marcador.js">
+          <div class="contador">
+            <span class="cifra-poster marcador-n">400</span>
+            <span>trazas grabadas, byte 0 de la clave de laboratorio</span>
+          </div>
+          <p class="puesto" data-estado="primero"><span>puesto del correcto entre 256</span><b><span class="puesto-n">1.º</span><svg class="puesto-ok" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></b></p>
+        </div>
+        <div class="pie">
+          <p data-solo="0">Con tan pocas, cualquier candidato parece trucado.</p>
+          <p data-solo="1">El correcto ya va arriba, pero el azar aún lo tapa.</p>
+          <p data-solo="2">La cresta del correcto se sale del azar.</p>
+          <p data-solo="3">Solo queda en pie el candidato correcto.</p>
+        </div>
+        <p class="clave-idea" data-paso="3">Como con las monedas: la trampa no crece, lo que baja es el azar.</p>
+      </div>
+    </div>
+    <aside class="notas" data-quien="Alberto" data-tiempo="1 min 30 s">
+      <ul>
+        <li>«Es el juego de las monedas con 256 monedas, con trazas grabadas en la placa. Cada fila es un candidato del byte 0, la altura es el parecido y el tiempo va de izquierda a derecha. El plano es lo que puede hacer el azar: hasta donde llega el falso con más suerte.»</li>
+        <li>Paso 0, 5 trazas: como con cinco tiradas, 87 candidatos empatan a parecido 1. Cualquiera parece trucado.</li>
+        <li>Pulsar → 20 trazas: el correcto ya va 7.º de 256, pero el azar aún lo tapa. Pulsar → 100: a las 27 trazas pasa a primero y ya no lo suelta (el puesto se pone verde).</li>
+        <li>Antes del último paso: «¿Qué le pasará a la cresta azul con 400 trazas? ¿Sube?» Pulsar → no sube, incluso baja un poco: con pocas trazas la suerte también inflaba al correcto. Lo que baja de verdad es el azar. Como la moneda, que no se vuelve más tramposa: la suerte deja de taparla.</li>
+        <li>Al final, de frente, se ven dos crestas azules: «La segunda es el mismo byte, otra vez: las mezclas que vienen después de la S-box lo vuelven a cargar. Acordaos de ella en las defensas.»</li>
+        <li>Relevo a Roberto: «Eso es un byte. ¿Cuántas trazas para los dieciséis?»</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 14 · Resultados -->
+  <section class="diapo resultados" id="resultados" data-titulo="Resultados" data-seccion="En la placa" data-pasos="1">
+    <h2 class="titulo">¿Cuántas trazas hicieron falta?</h2>
+    <div class="cuerpo">
+      <div class="escena kpis" data-modulo="js/figuras/kpi.js">
+        <div class="kpi-heroe">
+          <span class="cifra-poster"><span class="roll" data-cifra="realTracesNinety">112</span></span>
+          <p>trazas: con ellas, 9 de cada 10 repeticiones sacan la clave entera</p>
+        </div>
+        <p class="kpi-explica">Una repetición es el ataque con trazas escogidas al azar de las <span data-cifra="realAttackTraces">1000</span> grabadas. Hicimos <span data-cifra="realOrderings">100</span>, como <span data-cifra="realOrderings">100</span> partidas del juego.</p>
+        <div class="kpi"><b><span class="roll" data-memoria="04-resultados.tex">18,6</span><small>trazas/s</small></b><span>unos 6 s de captura para <span data-cifra="realTracesNinety">112</span> trazas</span></div>
+      </div>
+      <div class="resultados-derecha">
+        <div class="escena panel curvas" data-modulo="js/figuras/curvas.js" data-opciones='{"series":["tinyaes"]}'></div>
+        <div class="escena apuesta-resuelta" data-paso="1" data-modulo="js/figuras/apuesta.js" data-opciones='{"modo":"resolver"}'>
+          <span class="check neutro"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+          <p>La respuesta: unas 100 trazas.</p>
+        </div>
+        <!-- La partida del juego (diapositiva 2): sin partida, o en el PDF, se queda este texto. -->
+        <div class="escena recuerdo" data-paso="1" data-modulo="js/figuras/recuerdo.js">
+          <p><span class="recuerdo-juego">Las monedas: <b>unas 1000 tiradas</b></span> · el ataque: unas 100 trazas</p>
+        </div>
+      </div>
+    </div>
+    <aside class="notas" data-quien="Roberto" data-tiempo="1 min 15 s">
+      <ul>
+        <li>Recordar la apuesta de la clase antes de enseñar nada.</li>
+        <li>«Con <span data-cifra="realTracesNinety">112</span> trazas, 9 de cada 10 repeticiones sacan la clave entera. Una repetición es el ataque con trazas escogidas al azar de las <span data-cifra="realAttackTraces">1000</span> grabadas; hicimos <span data-cifra="realOrderings">100</span>, como <span data-cifra="realOrderings">100</span> partidas.» A <span data-memoria="04-resultados.tex">18,6</span> trazas por segundo son unos 6 s de captura.</li>
+        <li>Si preguntan: es una cota. El 90 % se alcanza entre <span data-cifra="realTracesNinetyLower">96</span> y <span data-cifra="realTracesNinety">112</span> trazas, y con unas pocas más salen todas las repeticiones. Con las <span data-cifra="realAttackTraces">1000</span>, los 16 bytes; el correcto más flojo da un parecido de <span data-cifra="realRhoCorrectMin">0,586</span> y el falso con más suerte, como mucho <span data-cifra="realRhoWrongMax">0,210</span>: ni se acercan.</li>
+        <li>Pulsar → la respuesta, unas 100, y debajo las tiradas que necesitó la clase en el juego. Mirar a quienes votaron. Si salió «con suerte», decirlo: con esas tiradas aún no se podía saber.</li>
+        <li>Si las tiradas pasan de 100: «Menos trazas que tiradas: nuestra moneda estaba poco trucada a propósito, 60 frente a 50, y este chip sin protecciones se delata mucho más». Con la mitad de trampa harían falta unas cuatro veces más tiradas: lo que hace falta crece con el inverso del cuadrado de la trampa.</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 15 · Contramedidas -->
+  <section class="diapo contramedidas" id="contramedidas" data-titulo="Defensas: esconder la trampa" data-seccion="Defensas" data-pasos="2">
+    <h2 class="titulo">Defensas: esconder la trampa</h2>
+    <div class="familias">
+      <div class="familia">
+        <h3>Ocultar <span class="chip vivo">medido</span></h3>
+        <p>Barajar el orden: la trampa de un byte solo asoma en una de cada 16 tiradas. Esperar al azar: no saber cuándo mirar.</p>
+      </div>
+      <div class="familia">
+        <h3>Enmascarar <span class="chip">no medido</span></h3>
+        <p>Mezclar cada valor con un número al azar, nuevo en cada cifrado: darle la vuelta a la moneda sin avisar.</p>
+      </div>
+    </div>
+    <div class="medido" data-paso="1">
+      <h3 class="medido-titulo">Medido en nuestra placa, con tres versiones de un AES propio</h3>
+      <div class="cuerpo">
+        <div class="escena panel curvas" data-modulo="js/figuras/curvas.js" data-opciones='{"series":["cm-base","cm-barajado","cm-retardos"],"aparece":1,"nombres":{"cm-base":"sin defensa (AES propio)","cm-barajado":"orden barajado","cm-retardos":"esperas al azar"}}'></div>
+        <ul class="medidas">
+          <li><b>×<span data-cifra="realShuffleFactor">3,6</span></b><span>trazas al barajar: <span data-cifra="realShuffleTracesNinety">475</span> en vez de <span data-cifra="realBaseTracesNinety">132</span>, para acertar 9 de cada 10 veces</span><span class="porque">Solo barajamos la S-box: la segunda cresta seguía en su sitio.</span></li>
+          <li><b><span data-cifra="realDelayBytes">0</span> de 16</b><span>bytes con esperas al azar, ni con <span data-cifra="realDelayTraces">2000</span> ni con <span data-cifra="realDelayFullTraces">20&#8239;000</span> trazas</span></li>
+          <li><b><span data-cifra="realWindowWideBytes">7</span> de 16</b><span>si el atacante suma ventanas de <span data-cifra="realWindowWide">300</span> muestras, como una foto de exposición larga, con esas <span data-cifra="realDelayFullTraces">20&#8239;000</span></span></li>
+        </ul>
+      </div>
+    </div>
+    <p class="garantia" data-paso="2">Ninguna es una garantía absoluta: encarecen el ataque.</p>
+    <aside class="notas" data-quien="Roberto" data-tiempo="1 min 45 s">
+      <ul>
+        <li>Antes de nada: «¿Cómo esconderíais la moneda trucada?» Dos o tres respuestas; suelen salir «cambiarlas de sitio» y «que no se vea cuándo caen».</li>
+        <li>Ocultar: barajar cambia en cada cifrado el orden en que pasan los 16 bytes por la S-box. En el instante que miras, la trampa de tu byte solo actúa en una de cada 16 tiradas, y no sabes en cuáles. Las esperas al azar mueven todo en el tiempo: no sabes cuándo mirar. Enmascarar es darle la vuelta a la moneda al azar sin avisar: lo que ves ya no depende de la trampa. Esto último no lo hemos medido.</li>
+        <li>Pulsar → lo medido, con un AES propio en tres versiones; su referencia sin defensa es <span data-cifra="realBaseTracesNinety">132</span> trazas. En teoría, barajar 16 bytes pediría unas 256 veces más trazas; medimos solo <span data-cifra="realShuffleFactor">3,6</span> veces más (<span data-cifra="realShuffleTracesNinety">475</span>), porque solo barajamos la S-box: las mezclas siguientes vuelven a cargar cada byte en su sitio de siempre, la segunda cresta de la montaña, y por ahí lo seguimos viendo.</li>
+        <li>Esperas al azar: <span data-cifra="realDelayBytes">0</span> de 16 bytes, ni con <span data-cifra="realDelayFullTraces">20&#8239;000</span> trazas. Pero si el atacante suma ventanas de <span data-cifra="realWindowWide">300</span> muestras, como una foto de exposición larga, recupera <span data-cifra="realWindowWideBytes">7</span> de 16.</li>
+        <li>Pulsar → «Ninguna es una garantía absoluta: encarecen el ataque». Nuestro generador de azar tiene semilla fija: sirve para medir, no para proteger.</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 16 · Conclusiones -->
+  <section class="diapo conclusiones" id="conclusiones" data-titulo="No rompe AES: rompe una implementación" data-seccion="Conclusiones">
+    <div class="cabecera">
+      <h2 class="titulo">No rompe AES: rompe una implementación</h2>
+      <p class="lede">¿Un chip puede chivarse de su clave? Sí: el nuestro, con unas 100 trazas.</p>
+    </div>
+    <div class="cuerpo">
+      <div class="lista">
+        <h3><i style="background:var(--c-ok-vivo)"></i>Puntos fuertes</h3>
+        <ul>
+          <li><b>Divide la clave:</b> 16 búsquedas de 256 candidatos.</li>
+          <li><b>Pide poco:</b> conocer los mensajes y medir la corriente, con una placa y un portátil.</li>
+          <li><b>Rápido:</b> unos segundos de captura.</li>
+        </ul>
+      </div>
+      <div class="lista">
+        <h3><i style="background:var(--c-mal)"></i>Puntos débiles</h3>
+        <ul>
+          <li><b>Acceso físico:</b> hace falta, salvo que el sistema exponga su consumo al software.</li>
+          <li><b>Muchos cifrados, misma clave:</b> aquí, del orden de cien.</li>
+          <li><b>Laboratorio:</b> la señal de inicio y el reloj venían regalados.</li>
+        </ul>
+      </div>
+    </div>
+    <aside class="notas" data-quien="Roberto" data-tiempo="1 min">
+      <ul>
+        <li>La idea que tiene que quedar: AES sigue siendo seguro; lo que falla es una implementación que deja escapar información por la corriente.</li>
+        <li>Volver a la pregunta del principio, que está arriba: «¿Un chip puede chivarse de su clave? Sí: el nuestro, con unas cien trazas y unos segundos de captura.»</li>
+        <li>Leer un punto de cada columna. Acceso físico: nuestro ataque mide la placa, pero hay variantes sin tocarla cuando el sistema publica su consumo: PLATYPUS (Lipp et al., IEEE S&amp;P 2021) lo lee con la interfaz RAPL de los procesadores Intel y saca claves de AES-NI. Lo cita el artículo base.</li>
+        <li>Si sale el tema: un enmascaramiento bien hecho frena este ataque, pero no es invulnerable (anexo 20).</li>
+        <li>Pausa antes del QR y las preguntas.</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 17 · Preguntas -->
+  <section class="diapo preguntas" id="preguntas" data-titulo="¿Preguntas?" data-seccion="Conclusiones">
+    <h2>¿Preguntas?</h2>
+    <ul class="enlaces">
+      <li><b>r0zh.github.io/vul-hw-grupal</b><span>La explicación interactiva, con las trazas medidas</span></li>
+      <li><b>github.com/r0zh/vul-hw-grupal</b><span>Código, datos, memoria y esta presentación</span></li>
+    </ul>
+    <figure class="qr panel">
+      <img src="img/qr-web.svg" width="300" height="300" alt="Código QR de r0zh.github.io/vul-hw-grupal">
+      <figcaption>La web, en el móvil</figcaption>
+    </figure>
+    <p class="fuente articulo">Artículo base: J. Mishra y S. K. Sahay, «Modern Hardware Security: A Review of Attacks and Countermeasures», arXiv:2501.04394, 2025.</p>
+    <aside class="notas" data-quien="Roberto y quien sepa la respuesta" data-tiempo="lo que quede">
+      <ul>
+        <li>Invitar a escanear el QR: la web explica lo mismo con las trazas medidas, y se puede tocar.</li>
+        <li>Para preguntas difíciles hay anexos (número + Intro): 18, peso o distancia de Hamming; 19, calidad de la captura; 20, enmascaramiento; 21, un dispositivo real; 22, AES por hardware; 23, qué es exactamente el «parecido» y por qué se mira tras la S-box.</li>
+        <li>Sin anexo: «¿Cómo sabe el atacante que ha acertado?» Cifra uno de los mensajes capturados con la clave que sale y lo compara con lo que dio el chip; si coincide, es la clave.</li>
+        <li>Si no se sabe algo, decirlo: «no lo hemos medido».</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 18 · Anexo: HW frente a HD -->
+  <section class="diapo anexo" id="anexo-hamming" data-titulo="Anexo: peso o distancia de Hamming" data-seccion="Anexos" style="--cols:3">
+    <div class="cabecera">
+      <h2 class="titulo">¿Peso o distancia de Hamming?</h2>
+      <p class="lede">Usamos el peso porque no sabemos qué valor guardaba antes el registro.</p>
+    </div>
+    <div class="cuerpo">
+      <div class="bloque">
+        <h3>Peso</h3>
+        <p>Cuenta los unos del valor: es la distancia a una referencia cero.</p>
+      </div>
+      <div class="bloque">
+        <h3>Distancia</h3>
+        <p>Cuenta los bits que cambian respecto al valor anterior. Es la propuesta general de Brier et al.</p>
+      </div>
+      <div class="bloque">
+        <h3>Lo que dicen las medidas</h3>
+        <p>Con el peso, el correcto llega a <span class="nw">|ρ|</span> entre <strong><span data-cifra="realRhoCorrectMin">0,586</span> y <span data-cifra="realRhoCorrectMax">0,645</span></strong> en los 16 bytes. La distancia no la hemos probado.</p>
+      </div>
+    </div>
+    <p class="fuente">Memoria, secciones 2.5 y 4.5.</p>
+    <aside class="notas" data-quien="quien responda" data-tiempo="solo si preguntan">
+      <ul>
+        <li>El peso de Hamming es el caso de la distancia con referencia cero.</li>
+        <li>Es una hipótesis de trabajo que las medidas respaldan: los 16 bytes salen.</li>
+        <li>Si el chip filtrara sobre todo transiciones, el peso perdería correlación y harían falta más trazas.</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 19 · Anexo: calidad de la captura -->
+  <section class="diapo anexo" id="anexo-captura" data-titulo="Anexo: calidad de la captura" data-seccion="Anexos" style="--cols:3">
+    <div class="cabecera">
+      <h2 class="titulo">¿Están bien las trazas?</h2>
+      <p class="lede">Sí: alineadas al ciclo, con ruido de un escalón del ADC y sin saturar la zona de la fuga.</p>
+    </div>
+    <div class="cuerpo">
+      <div class="bloque">
+        <b class="grande"><span data-cifra="realAlignmentCentred">500</span>/<span data-cifra="realFixedTextTraces">500</span></b>
+        <h3>Alineación</h3>
+        <p>Trazas de un mismo texto claro que caen a desplazamiento cero de la media, sin procesarlas.</p>
+      </div>
+      <div class="bloque">
+        <b class="grande"><span data-cifra="realNoiseMedian">0,0044</span></b>
+        <h3>Ruido</h3>
+        <p>Mediana de la desviación típica por muestra: un escalón del ADC, <span data-memoria="04-resultados.tex">1/256</span> ≈ <span data-memoria="04-resultados.tex">0,0039</span>.</p>
+      </div>
+      <div class="bloque">
+        <b class="grande"><span data-cifra="realSaturatedSamples">91</span></b>
+        <h3>Saturación</h3>
+        <p>Muestras en el mínimo del ADC, de <span data-cifra="realTotalSamples">1&#8239;500&#8239;000</span>. Ninguna en la zona de la fuga.</p>
+      </div>
+    </div>
+    <p class="fuente">Medidas reales del 13 de noviembre de 2026. Memoria, sección 4.2.</p>
+    <aside class="notas" data-quien="quien responda" data-tiempo="solo si preguntan">
+      <ul>
+        <li>El reloj del ADC y el de la víctima salen del mismo generador: una muestra por ciclo y trazas alineadas sin procesar.</li>
+        <li>El ruido es del orden de un escalón de cuantificación del ADC de 8 bits.</li>
+        <li>La saturación es anecdótica: como mucho una muestra por traza, fuera de la primera ronda.</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 20 · Anexo: enmascaramiento -->
+  <section class="diapo anexo" id="anexo-mascaras" data-titulo="Anexo: límites del enmascaramiento" data-seccion="Anexos" style="--cols:3">
+    <div class="cabecera">
+      <h2 class="titulo">Límites del enmascaramiento</h2>
+      <p class="lede">Si está bien implementado, frena el CPA de primer orden. Pero no es invulnerable.</p>
+    </div>
+    <div class="cuerpo">
+      <div class="bloque">
+        <h3>Primer orden</h3>
+        <p>En el modelo ideal, con v <span class="xor">⊕</span> m y m aleatoria, cada valor por separado no depende de la clave.</p>
+      </div>
+      <div class="bloque">
+        <h3>Segundo orden</h3>
+        <p>Combinar dos instantes, el de la máscara y el del valor enmascarado, recupera la dependencia (Messerges, 2000).</p>
+      </div>
+      <div class="bloque">
+        <h3>En software, ojo</h3>
+        <p>Si una parte sobrescribe a otra, la transición las combina. Balasch et al.: orden d solo garantiza ⌊d/2⌋.</p>
+      </div>
+    </div>
+    <p class="fuente">No lo hemos medido. Memoria, sección 3.1.</p>
+    <aside class="notas" data-quien="quien responda" data-tiempo="solo si preguntan">
+      <ul>
+        <li>La protección supone que lo que filtra cada parte es independiente de lo que filtran las demás; en un procesador real no siempre se cumple.</li>
+        <li>Coste: tabla de la S-box enmascarada recalculada en cada ejecución y una fuente aleatoria en el dispositivo.</li>
+        <li>Balasch et al. (2014): con dos partes hay fuga de primer orden; con tres, un test no la encuentra a primer orden ni con 10 000 trazas.</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 21 · Anexo: dispositivo real -->
+  <section class="diapo anexo" id="anexo-real" data-titulo="Anexo: ¿y en un dispositivo real?" data-seccion="Anexos" style="--cols:3">
+    <div class="cabecera">
+      <h2 class="titulo">¿Y en un dispositivo real?</h2>
+      <p class="lede">No lo hemos medido: depende sobre todo del ruido y de la alineación.</p>
+    </div>
+    <div class="cuerpo">
+      <div class="bloque">
+        <b class="grande"><span data-cifra="realTracesNinety">112</span></b>
+        <h3>Lo medido</h3>
+        <p>Los picos medidos dan una SNR de <span data-cifra="realSnrMin">0,523</span> a <span data-cifra="realSnrMax">0,712</span>. Para esa SNR, el modelo simulado predecía de <span data-memoria="04-resultados.tex">77</span> a <span data-memoria="04-resultados.tex">151</span> trazas.</p>
+      </div>
+      <div class="bloque">
+        <b class="grande">×<span data-memoria="03-mitigaciones.tex">7,5</span></b>
+        <h3>Trazas con más ruido</h3>
+        <p>En simulación, de SNR <span data-memoria="03-mitigaciones.tex">0,2</span> a <span data-memoria="03-mitigaciones.tex">0,02</span> se pasa de <span data-memoria="03-mitigaciones.tex">295</span> a <span data-memoria="03-mitigaciones.tex">2220</span> trazas.</p>
+      </div>
+      <div class="bloque">
+        <h3>Lo que aquí venía hecho</h3>
+        <p>El disparo lo da el firmware y el ADC comparte reloj con el chip. Un atacante real tendría que alinear las trazas por su cuenta.</p>
+      </div>
+    </div>
+    <p class="fuente">Una placa, una clave y una sesión: las cifras no se trasladan sin más. Memoria, secciones 3.4, 4.3 y 4.5.</p>
+    <aside class="notas" data-quien="quien responda" data-tiempo="solo si preguntan">
+      <ul>
+        <li>No sabemos cuántas trazas harían falta en un producto: no lo hemos medido.</li>
+        <li>Lo que sí sabemos: en el modelo, si la SNR se divide entre diez, hacen falta del orden de diez veces más trazas (datos simulados).</li>
+        <li>Y que el Nano es un caso favorable: trigger del firmware, reloj compartido y medida integrada.</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 22 · Anexo: AES por hardware -->
+  <section class="diapo anexo" id="anexo-hardware" data-titulo="Anexo: ¿y un AES por hardware?" data-seccion="Anexos" style="--cols:3">
+    <div class="cabecera">
+      <h2 class="titulo">¿Y un AES por hardware?</h2>
+      <p class="lede">Queda fuera del trabajo. Lo que sí sabemos es general.</p>
+    </div>
+    <div class="cuerpo">
+      <div class="bloque">
+        <h3>Fuera del alcance</h3>
+        <p>Atacamos un AES en software. Los AES por hardware quedaron fuera del trabajo, igual que los ataques electromagnéticos.</p>
+      </div>
+      <div class="bloque">
+        <h3>Defensa de circuito</h3>
+        <p>La lógica balanceada, como WDDL, equilibra el consumo de cada bit. Se decide al diseñar el chip.</p>
+      </div>
+      <div class="bloque">
+        <h3>El método es general</h3>
+        <p>Vale para cualquier cifrado en el que un paso no lineal mezcle un dato conocido con un trozo pequeño de la clave.</p>
+      </div>
+    </div>
+    <p class="fuente">Memoria, secciones 1.3, 3.3 y 5.1.</p>
+    <aside class="notas" data-quien="quien responda" data-tiempo="solo si preguntan">
+      <ul>
+        <li>No tenemos medidas de un AES por hardware: decirlo así, sin adivinar.</li>
+        <li>WDDL: doble raíl con precarga; en cada ciclo cambia exactamente una de las dos señales. Su límite es el desequilibrio residual del rutado.</li>
+        <li>En el STM32F0 no se puede aplicar desde el firmware.</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 23 · Anexo: qué es exactamente el «parecido» (la fórmula del CPA) -->
+  <section class="diapo anexo" id="anexo-cuentas" data-titulo="Anexo: qué es el parecido" data-seccion="Anexos" style="--cols:3">
+    <div class="cabecera">
+      <h2 class="titulo">¿Qué es exactamente el «parecido»?</h2>
+      <p class="lede">La correlación de Pearson, en valor absoluto, entre lo que predice cada candidato y lo medido. Gana el mayor en algún instante.</p>
+    </div>
+    <div class="formula" aria-label="ro de k y t igual a la correlación entre el peso de Hamming de SBox de p xor k y la traza en el instante t">
+      <span>ρ(k, t) = corr(</span>
+      <span class="arg pred"><span>HW(SBox(p <span class="xor">⊕</span> k))</span><small>número de unos que predice el candidato k</small></span>
+      <span class="sig">,</span>
+      <span class="arg"><span>T[t]</span><small>lo que midió la placa en el instante t</small></span>
+      <span>)</span>
+    </div>
+    <div class="cuerpo">
+      <div class="bloque">
+        <h3>¿Por qué tras la S-box?</h3>
+        <p>Justo tras el XOR, el candidato con los bits al revés predice lo contrario y empata en <span class="nw">|ρ|</span>. La S-box rompe el empate.</p>
+      </div>
+      <div class="bloque">
+        <h3>El azar</h3>
+        <p>Un falso da del orden de 1/√N: con cuatro veces más trazas, la mitad. El correcto no baja así.</p>
+      </div>
+      <div class="bloque">
+        <h3>Lo medido</h3>
+        <p>Con <span data-cifra="realAttackTraces">1000</span> trazas, el correcto da entre <strong><span data-cifra="realRhoCorrectMin">0,586</span> y <span data-cifra="realRhoCorrectMax">0,645</span></strong>; el mejor falso, entre <span data-cifra="realRhoWrongMin">0,154</span> y <span data-cifra="realRhoWrongMax">0,210</span>.</p>
+      </div>
+    </div>
+    <p class="fuente">Las monedas, simuladas, siguen la misma ley: su franja del azar se estrecha como 1/√N. Memoria, secciones 2.1, 2.4 y 4.3.</p>
+    <aside class="notas" data-quien="quien responda" data-tiempo="solo si preguntan">
+      <ul>
+        <li>El parecido es la correlación de Pearson entre la predicción (los unos tras la S-box) y la muestra, en valor absoluto. El valor absoluto se usa porque el signo depende del montaje: de qué lado de la alimentación va la resistencia.</li>
+        <li>Por qué después de la S-box: con p ⊕ k, el candidato con todos los bits al revés (k ⊕ 0xff) predice justo lo contrario y empataría en valor absoluto. La S-box no es lineal y rompe ese empate.</li>
+        <li>El azar: un falso da del orden de 1/√N, pero el mejor de 255 falsos en 300 instantes queda varias veces por encima. Por eso el plano de la montaña es el falso con más suerte medido y no una fórmula.</li>
+        <li>En las monedas, la franja es una cuenta, ± 1,5/√N (tres desviaciones típicas), y las tiradas son simuladas: para estrecharla a la mitad hacen falta cuatro veces más tiradas.</li>
+        <li>Con <span data-cifra="realAttackTraces">1000</span> trazas, ni el peor correcto (<span data-cifra="realRhoCorrectMin">0,586</span>) se acerca al mejor falso (<span data-cifra="realRhoWrongMax">0,210</span>).</li>
+      </ul>
+    </aside>
+  </section>
+
+  <div class="indicador seccion" aria-hidden="true"></div>
+  <div class="indicador numero" aria-hidden="true"></div>
+  <button type="button" class="sonido" aria-pressed="false">
+    <svg class="on" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6a1.4 1.4 0 0 1-1 .4H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.4 18.4a9 9 0 0 0 0-12.8"/></svg>
+    <svg class="off" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6a1.4 1.4 0 0 1-1 .4H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/></svg>
+    <span class="etq">Sonido</span>
+  </button>
+</div>
+<div class="negro" hidden></div>
+</body>
+</html>
