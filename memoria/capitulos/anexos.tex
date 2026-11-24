@@ -4,7 +4,11 @@
 \label{anx:codigo}
 
 Todo el código está en el repositorio público del trabajo,
-\url{https://github.com/r0zh/vul-hw-grupal}. Este anexo resume cómo se
+\url{https://github.com/r0zh/vul-hw-grupal}, junto con las campañas medidas,
+recortadas, de las que salen las figuras del \cref{cap:resultados}. La web
+explicativa del proyecto, con figuras interactivas del ataque sobre trazas
+simuladas y medidas, está en \url{https://r0zh.github.io/vul-hw-grupal/}.
+Este apéndice resume cómo se
 reproducen la captura y el análisis y recoge los fragmentos más relevantes.
 
 \section{Software y versiones}
@@ -104,6 +108,9 @@ for i, step in enumerate(steps):
     ranks[i] = statistics.ranks_of(rho.reshape(16, 256, -1), key)
 \end{lstlisting}
 
+% Salto antes de \umaappendix: su ancla se pone antes de su propio salto de
+% página y, sin este, el índice llevaría a la página anterior al título.
+\clearpage
 \umaappendix{Bibliografía recomendada}
 \label{anx:bibliografia}
 

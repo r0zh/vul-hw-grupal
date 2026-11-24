@@ -1,7 +1,7 @@
 """Figuras y números de las medidas reales (fases 4 a 6).
 
     uv run python -m analisis.reales                 # figuras en figuras/ y números
-    uv run python -m analisis.reales --rapido        # menos ordenaciones (prueba)
+    uv run python -m analisis.reales --rapido        # 10 ordenaciones, en analisis/salida/rapido/
     uv run python -m analisis.reales --solo-tex      # solo las macros de la memoria
     uv run python -m analisis.reales --solo-web      # solo los datos de web/data/
 
@@ -675,12 +675,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--macros", type=Path, default=TEX_MACROS,
                         help="fichero de macros de LaTeX que cita la memoria")
     parser.add_argument("--ordenaciones", type=int, default=100)
-    parser.add_argument("--rapido", action="store_true", help="10 ordenaciones")
+    parser.add_argument("--rapido", action="store_true",
+                        help="10 ordenaciones; salidas por defecto en analisis/salida/rapido/")
     parser.add_argument("--solo-tex", action="store_true",
                         help="solo escribe el .tex de macros, a partir del JSON existente")
     parser.add_argument("--solo-web", action="store_true",
                         help="solo escribe los datos de la web, a partir de datos/ y del JSON existente")
     args = parser.parse_args(argv)
+    if args.rapido:
+        # Con 10 ordenaciones no se pisan las figuras, los datos de la web, las
+        # macros ni el reales.json del análisis completo: lo que no se indique a
+        # mano va a analisis/salida/rapido/, que git ignora.
+        quick = REPO / "analisis" / "salida" / "rapido"
+        parser.set_defaults(figuras=quick, resultados=quick / "reales.json",
+                            web=quick / "web", macros=quick / "reales.tex")
+        args = parser.parse_args(argv)
 
     # Regenerar solo las macros: lee el JSON ya calculado (el análisis completo
     # tarda unos 25 minutos y no hace falta si no han cambiado las campañas).

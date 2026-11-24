@@ -1,17 +1,21 @@
 # CI del análisis (fase 1): comprobaciones y regeneración de figuras.
 #
-# Las comprobaciones no necesitan trazas reales (todavía no hay): generan sus
-# propias trazas sintéticas con semilla fija. El análisis completo tarda unos
-# cuatro minutos, así que en cada push se ejecuta la versión reducida (`--fast`)
-# y el PDF de cada figura queda como artefacto `figuras`.
+# Las comprobaciones no necesitan trazas reales: generan sus propias trazas
+# sintéticas con semilla fija. El análisis completo tarda unos 10 minutos, así
+# que en cada push se ejecuta la versión reducida (`--fast`) y el PDF de cada
+# figura queda como artefacto `figuras`.
 name: Análisis
 
 on:
   push:
-    paths: ['analisis/**', 'pyproject.toml', 'uv.lock', '.github/workflows/analisis.yml']
+    # captura/ entra porque las comprobaciones prueban captura.campana.
+    paths: ['analisis/**', 'captura/**', 'pyproject.toml', 'uv.lock', '.github/workflows/analisis.yml']
   pull_request:
-    paths: ['analisis/**', 'pyproject.toml', 'uv.lock', '.github/workflows/analisis.yml']
+    paths: ['analisis/**', 'captura/**', 'pyproject.toml', 'uv.lock', '.github/workflows/analisis.yml']
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -19,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 

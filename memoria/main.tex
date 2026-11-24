@@ -7,7 +7,10 @@
 \documentclass[12pt,a4paper,oneside,spanish]{book}  % spanish: babel y cleveref
 
 %───────── Auxiliary packages ──────────────────────────────────────────
-\usepackage[es-noshorthands,es-tabla]{babel}
+% english solo para los patrones de corte de la bibliografía (ver más abajo)
+\usepackage[english,main=spanish,es-noshorthands,es-tabla]{babel}
+% Palabras inglesas del texto que los patrones del español cortan mal («Ne-wAE»)
+\babelhyphenation[spanish,english]{NewAE Chip-Whis-per-er firm-ware hard-ware soft-ware}
 \usepackage{csquotes}
 \usepackage{graphicx}
 \usepackage{tikz}   % fondo azul de portada.tex
@@ -21,6 +24,13 @@
   style=ieee
 ]{biblatex}
 \addbibresource{referencias.bib}
+% Bibliografía en bandera: justificada, el espacio que sobra en una línea se
+% repartía entre los caracteres de las URL y los DOI («https : / / …»,
+% «10 . 1007 / …»). Además, se dejan cortar por cualquier letra o cifra.
+\appto{\bibsetup}{\raggedright}
+\setcounter{biburllcpenalty}{7000}
+\setcounter{biburlucpenalty}{8000}
+\setcounter{biburlnumpenalty}{9000}
 
 % Figuras compartidas con la presentación (generadas por los scripts de análisis)
 \graphicspath{{../figuras/}}
@@ -39,6 +49,19 @@
 %───────── Template ────────────────────────────────────────────────────
 \usepackage{template/sty_files/template-TFGspanish-uma}
 
+% Metadatos del PDF: sustituyen a los genéricos de la plantilla
+\hypersetup{
+  pdftitle={Ataque de análisis de consumo por correlación (CPA) sobre AES-128},
+  pdfauthor={Juan Diego Bermúdez Ureba, Brian Polo Caballero, Alberto Bartolomé Iruela y Roberto Sánchez Martín},
+  pdfsubject={Vulnerabilidades Hardware, ETSI Informática, Universidad de Málaga},
+  pdfkeywords={CPA, AES-128, análisis de consumo, ChipWhisperer-Nano}
+}
+
+% \umaappendix numera las secciones A.1, B.1…, pero hyperref seguiría
+% nombrando sus anclas con el capítulo 5 y las de A.1-A.3 chocarían con las
+% de 5.1-5.3.
+\AtBeginEnvironment{umaappendices}{\renewcommand{\theHsection}{\thesection}}
+
 % Deja estirar un poco las líneas antes que desbordar el margen: hay
 % identificadores y huellas largas (rutas, SHA-256, claves en hex) que no
 % caben en un renglón y, sin esto, se salen por la derecha.
@@ -53,12 +76,21 @@
 \Crefname{uma@appendix}{Apéndice}{Apéndices}
 
 % biblatex-ieee antepone a la serie de las actas (LNCS) la abreviatura
-% «jourser», que en español es «ép.» (época). En IEEE es «ser.».
-\DefineBibliographyStrings{spanish}{jourser = {{serie}{ser\adddot}}}
+% «jourser», que en español es «ép.» (época). En IEEE es «ser.». Las fuentes
+% web siguen la guía IEEE de la UMA: «Accedido: fecha. [En línea]. Disponible
+% en: URL». Esta orden admite un solo valor por cadena.
+\DefineBibliographyStrings{spanish}{
+  jourser = {ser\adddot},
+  url     = {[En línea]\adddot\addspace Disponible en},
+  urlseen = {Accedido\addcolon},
+}
 
 %======================================================================
 \begin{document}
 
+% La portada no lleva número; con Alph su página es «A» y no choca con la
+% página 1 del índice.
+\pagenumbering{Alph}
 \input{portada}
 
 \frontmatter
@@ -89,7 +121,10 @@
 
 %────────────────────── Bibliography ───────────────────────────────────
 \backmatter
-\printbibliography[title={Bibliografía}]
+% Los títulos de las referencias están en inglés: se cortan con sus patrones
+\begin{hyphenrules}{english}
+\printbibliography[title={Bibliografía},heading=bibintoc]
+\end{hyphenrules}
 
 \end{document}
 % ======================================================================

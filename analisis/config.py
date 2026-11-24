@@ -1,7 +1,7 @@
 """Parámetros de la simulación y de los experimentos de la fase 1.
 
 Todos los valores de este módulo son **parámetros de una simulación**: no
-describen el montaje real, que todavía no existe (fase 2 en adelante). Están
+describen el montaje real, cuyas medidas están en `datos/`. Están
 aquí, y no repartidos por los scripts, para que la reproducibilidad se pueda
 comprobar de un vistazo: con la misma semilla y estos números, la salida es
 idéntica.
@@ -34,10 +34,10 @@ LAB_KEY: bytes = bytes.fromhex("2b7e151628aed2a6abf7158809cf4f3c")
 
 # ────────────── Regiones de fuga: dónde ocurre cada operación ────────────
 #
-# En el ATmega328P el AES software recorre el estado byte a byte, así que cada
-# byte de la S-box ocupa su propia ventana temporal. El instante central de
-# cada ventana se guarda en la metadata de las trazas para poder comprobar si
-# el ataque acierta también en el tiempo.
+# En el STM32F042 del Nano el AES software recorre el estado byte a byte, así
+# que cada byte de la S-box ocupa su propia ventana temporal. El instante
+# central de cada ventana se guarda en la metadata de las trazas para poder
+# comprobar si el ataque acierta también en el tiempo.
 
 #: Primera muestra de la ventana de la primera ronda.
 FIRST_ROUND_START: int = 15
