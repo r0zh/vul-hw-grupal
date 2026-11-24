@@ -482,8 +482,8 @@ cuenta en `presentacion/README.md`, «Vídeos path-traced».
 ## 9. Orden de producción
 
 El render es barato. Lo caro es el pod encendido sin trabajar: 0,13 $/h son 3,12 $ al día y 21,8 $
-a la semana. Por eso se trabaja en tres sesiones y el pod se para entre ellas. Según la ficha «pod»
-de RunPod, consultada el 2026-11-23:
+a la semana. Por eso se trabaja en tres sesiones y el pod se para entre ellas. Según la documentación
+de RunPod sobre los pods, consultada el 2026-11-23:
 
 - parado, no cobra la GPU, pero sí su disco;
 - al volver arranca en la misma máquina y, si otro ha cogido la GPU, hay que esperar o rehacerlo
