@@ -4,7 +4,7 @@
 //   data-dato="fichero:ruta"    → web/data/<fichero> (número igual, o texto que lo contiene)
 //   data-memoria="capitulo.tex" → el número aparece en memoria/capitulos/<capitulo>
 // Se compara en formato español (coma decimal) y sin espacios de miles.
-//   node --test presentacion/tests/
+//   node --test 'presentacion/tests/*.test.js'
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

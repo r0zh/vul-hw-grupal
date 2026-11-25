@@ -1,11 +1,14 @@
 // Figura V2 «Anatomía de una traza» (diapositiva «montaje», cine/GUION.md §3): el render path-traced de la CW1101 que sigue la
 // señal de la víctima al USB-C, con las etiquetas en HTML encima.
 //
-// mount(container, options) → { steps: 5, start, stop, step(n), dispose }
-//   Pasos: 0 víctima, 1 shunt, 2 ADC, 3 capturador, 4 reloj y disparo (este, con un bucle de 4 s).
+// mount(container, options) → { steps: 5 + espera, start, stop, step(n), dispose }
+//   Trozos: 0 víctima, 1 shunt, 2 ADC, 3 capturador, 4 reloj y disparo (este, con un bucle de 4 s).
 //   step(n) reproduce el trozo n si se viene del paso anterior; si no (atrás o un salto), enseña su último fotograma.
+//   options.espera     pasos de la diapositiva que pasan antes del vídeo (por defecto, 0): el paso n es el trozo
+//                      n − espera, y en los anteriores el vídeo espera parado al principio, sin etiquetas (en
+//                      «montaje» son los tres pasos de la mesa de laboratorio, con el vídeo aún escondido).
 //   options.static     foto fija del paso options.step (o del último) y data-ready; no carga vídeo (PDF).
-//   options.step       paso inicial.
+//   options.step       paso inicial, contado como los de step(n).
 //   options.etiquetas  { id: html } con los textos; si no, los <template data-etiqueta="id"> del contenedor (así
 //                      index.html los lleva con su fuente) y, si tampoco, los de TEXTOS.
 //   options.base       carpeta presentacion/ (por defecto, la de este módulo).
@@ -19,10 +22,10 @@
 import { PALETA, css } from '../paleta.js';
 
 const TEXTOS = {
-  victima: '<strong>Víctima · STM32F042F6P6</strong>: el chip que cifra con AES-128',
-  shunt: '<strong>Resistencia de 27 Ω (shunt)</strong> en la alimentación de la víctima: su tensión sigue a la corriente<small>recorrido esquemático</small>',
-  adc: '<strong>Medidor (ADC) de 8 bits</strong> · una muestra en cada ciclo del chip: 7,5 millones por segundo',
-  capturador: '<strong>Capturador · ATSAM4S16B</strong>: espera la señal de inicio, guarda las muestras y las manda al portátil por USB',
+  victima: '<strong>El chip que cifra</strong><small>la víctima: un STM32F042F6P6</small>',
+  shunt: '<strong>La resistencia</strong>: su tensión sigue a la corriente del chip<small>27 Ω (shunt) · recorrido esquemático</small>',
+  adc: '<strong>El medidor</strong>: una muestra en cada ciclo del chip<small>ADC de 8 bits · 7,5 millones de muestras por segundo</small>',
+  capturador: '<strong>El capturador</strong>: guarda la traza y la manda al portátil<small>un ATSAM4S16B · por USB</small>',
   regalado: '<strong>Viene regalado:</strong> el chip avisa cuando empieza y el medidor va a su ritmo, así que las trazas salen alineadas'
     + '<ul class="cine-leyenda"><li data-trazo="medida">medida</li><li data-trazo="muestras">muestras</li>'
     + '<li data-trazo="reloj">reloj</li><li data-trazo="disparo">señal de inicio</li></ul>'
@@ -115,7 +118,11 @@ export function mount(container, options = {}) {
 
   let data = null, cards = [], selected = null, mode = fixed || reduced ? 'fotos' : 'video';
   let frame = 0, stopAt = null, onLoop = false, running = false, disposed = false, callback = null, loaded = false;
-  const wanted = () => Math.max(0, Math.min(4, Math.trunc(Number(options.step ?? (fixed ? 4 : 0))) || 0));
+  const wait = Math.max(0, Math.trunc(Number(options.espera)) || 0);
+  let waiting = false;   // el deck va por un paso anterior al vídeo
+  // Paso de la diapositiva → trozo del vídeo; negativo, si aún no le toca.
+  const chunk = (n) => Math.max(0, Math.min(4 + wait, Math.trunc(Number(n)) || 0)) - wait;
+  const wanted = () => Math.max(0, chunk(options.step ?? (fixed ? wait + 4 : wait)));
 
   // Textos: options, luego <template data-etiqueta> del contenedor (index.html, con su fuente), luego TEXTOS.
   function text(id) {
@@ -321,7 +328,7 @@ export function mount(container, options = {}) {
       if (main.readyState >= 2) ready(); else main.addEventListener('loadeddata', ready, { once: true });
     }
     loaded = true;
-    if (selected !== null || fixed || reduced) { const n = selected ?? wanted(); selected = null; select(n, null); }
+    if (!waiting && (selected !== null || fixed || reduced)) { const n = selected ?? wanted(); selected = null; select(n, null); }
     draw();
   }, (error) => {
     if (disposed) return;
@@ -331,24 +338,32 @@ export function mount(container, options = {}) {
     container.dataset.cine = 'respaldo';
     container.dispatchEvent(new CustomEvent('cine-respaldo', { bubbles: true, detail: { reason: error.message } }));
     console.warn(`cine-v2: ${error.message}; se quedan las fotos fijas, sin etiquetas.`);
-    showPhoto(selected ?? wanted());
+    if (!waiting) showPhoto(selected ?? wanted());
   });
 
   const resize = new ResizeObserver(() => draw());
   resize.observe(container);
   if (fixed || reduced) selected = wanted();
 
+  // Deja el vídeo parado y sin paso elegido: el primer trozo saldrá desde la vista general.
+  function rest() {
+    selected = null;
+    cancel();
+    if (mode === 'video') { showMain(); main.pause(); }
+  }
+
   return {
-    steps: 5,
+    steps: 5 + wait,
     start() { running = true; },
     stop() {
       running = false;
-      cancel();
-      // Al volver a la diapositiva, step() empieza de cero: el paso 0, desde la vista general.
-      if (mode === 'video') { showMain(); main.pause(); selected = null; }
+      // Al volver a la diapositiva, step() empieza de cero: el primer trozo, desde la vista general.
+      if (mode === 'video') rest(); else cancel();
     },
     step(n) {
-      n = Math.max(0, Math.min(4, Math.trunc(Number(n)) || 0));
+      n = chunk(n);
+      waiting = n < 0;
+      if (waiting) { if (selected !== null) { rest(); draw(); } return; }   // draw() quita las etiquetas
       if (n === selected) return;
       const from = selected;
       if (!loaded) { selected = n; return; }

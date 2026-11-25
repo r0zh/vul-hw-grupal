@@ -1,6 +1,9 @@
 // La apuesta de la clase: ¿cuántas trazas harán falta para sacar la clave?
 //   { modo: 'votar' }    (diapositiva «apuesta») el ponente pulsa la opción más votada;
 //                        queda marcada y se guarda en sessionStorage('demo:apuesta').
+//                        Con la sala (captura.vivo --sala), mientras la diapositiva
+//                        está en pantalla los móviles pueden apostar: cada opción
+//                        enseña sus votos y la que va ganando se señala.
 //   { modo: 'resolver' } («resultados», paso 1) dice si la clase acertó. La
 //                        respuesta sale de los datos medidos: la opción más
 //                        cercana, en escala logarítmica, a las trazas que dan el
@@ -19,13 +22,51 @@ export function mount(container, options = {}) {
   return options.modo === 'resolver' ? resolve(container, options) : vote(container, options);
 }
 
+// Una orden a la sala del servidor de la demo; null si no hay servidor o no contesta.
+async function room(path = '', body) {
+  try {
+    const r = await fetch(new URL(`/api/sala${path}`, location.href), {
+      method: body ? 'POST' : 'GET', cache: 'no-store', signal: AbortSignal.timeout(2500),
+      ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}),
+    });
+    return r.ok ? await r.json() : null;
+  } catch { return null; }
+}
+
 function vote(container, options) {
   const buttons = [...container.querySelectorAll('.opcion')];
   const status = container.querySelector('.apuesta-estado');
+  let chosen = null, phones = 0, active = false, opened = false, timer = 0;
   const paint = (value) => {
+    chosen = value;
     buttons.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.valor) === value)));
-    status.textContent = value ? `Apuesta de la clase: ${LABELS[value]} trazas. Lo vemos en los resultados.` : '';
+    status.textContent = value ? `Apuesta de la clase: ${LABELS[value]} trazas. Lo vemos en los resultados.`
+      : phones ? `${phones === 1 ? '1 apuesta' : `${phones} apuestas`} desde los móviles` : '';
   };
+  // Los votos de los móviles: el número de cada opción, su barra y cuál va ganando.
+  const counts = buttons.map((b) => {
+    const span = document.createElement('span');
+    span.className = 'votos';
+    b.insertBefore(span, b.querySelector('.marca'));
+    return span;
+  });
+  function paintVotes(state) {
+    if (!state?.activa) return;
+    const votes = buttons.map((b) => state.apuestas[b.dataset.valor] ?? 0);
+    const top = Math.max(...votes);
+    phones = votes.reduce((a, v) => a + v, 0);
+    buttons.forEach((b, i) => {
+      counts[i].textContent = phones ? String(votes[i]) : '';
+      b.style.setProperty('--voto', phones ? votes[i] / phones : 0);
+      b.classList.toggle('gana', top > 0 && votes[i] === top);
+    });
+    paint(chosen);
+  }
+  function poll() {
+    clearTimeout(timer);
+    if (!active) return;
+    room().then((state) => { if (!active) return; paintVotes(state); if (state?.activa) timer = setTimeout(poll, 1000); });
+  }
   for (const b of buttons) {
     b.addEventListener('click', () => {
       const value = Number(b.dataset.valor);
@@ -35,7 +76,27 @@ function vote(container, options) {
   }
   paint(options.static ? null : read());
   container.dataset.ready = '1';
-  return { steps: 1, start() { paint(read()); }, stop() {}, step() {}, dispose() {} };
+  return {
+    steps: 1,
+    start() {
+      paint(read());
+      if (options.static) return;
+      active = true;
+      // Si hay sala, abre las apuestas en los móviles y empieza a contar.
+      room().then((state) => {
+        if (!active || !state?.activa) return;
+        opened = true;
+        room('/apuesta', { abierta: true }).then((open) => { paintVotes(open); poll(); });
+      });
+    },
+    stop() {
+      if (opened) room('/apuesta', { abierta: false });
+      active = opened = false;
+      clearTimeout(timer);
+    },
+    step() {},
+    dispose() { active = false; clearTimeout(timer); },
+  };
 }
 
 function resolve(container, options) {

@@ -13,7 +13,11 @@
 //
 // La clave real solo sirve para pintar de verde los bytes acertados: el CPA del
 // worker elige cada byte sin mirarla. Es la que se carga en la placa: la de la
-// diapositiva «pregunta» (sessionStorage 'demo:clave') o la de laboratorio.
+// diapositiva «pregunta» (la de la sala, en sessionStorage 'demo:clave-hex', o
+// la palabra de la clase, en 'demo:clave') o la de laboratorio.
+//
+// Con la clave de la sala, cada byte que el ataque saca se le cuenta al
+// servidor (POST /api/sala/leidos) para que el móvil de su dueño se ponga verde.
 //
 // En el contenedor, para las pruebas: data-estado (listo, capturando, hecho o
 // error), data-modo, data-n, data-recuperados y data-ready.
@@ -45,13 +49,30 @@ const toBytes = (hex) => Uint8Array.from(hex.match(/../g), (h) => parseInt(h, 16
 const printable = (b) => b >= 0x20 && b < 0x7f;
 const coma = (x, d) => x.toFixed(d).replace('.', ',');
 
-// La clave que se carga en la placa (o en la simulación): la de la diapositiva «pregunta»,
-// ASCII rellenado a 16 con espacios, o la de laboratorio si no hay ninguna.
+// La clave de la sala (los bytes que eligió el público desde el móvil), o null.
+function roomKey() {
+  let hex = '';
+  try { hex = sessionStorage.getItem('demo:clave-hex') ?? ''; } catch { /* sin almacenamiento */ }
+  return /^[0-9a-f]{32}$/.test(hex) ? hex : null;
+}
+
+// La clave que se carga en la placa (o en la simulación): la de la diapositiva «pregunta»
+// (la de la sala o la palabra, ASCII rellenado a 16 con espacios), o la de laboratorio si no hay ninguna.
 function chosenKey() {
+  const hex = roomKey();
+  if (hex) return hex;
   let text = '';
   try { text = sessionStorage.getItem('demo:clave') ?? ''; } catch { /* sin almacenamiento */ }
   text = [...text].filter((c) => printable(c.charCodeAt(0))).join('').slice(0, 16);
   return text ? toHex([...text.padEnd(16, ' ')].map((c) => c.charCodeAt(0))) : LAB_KEY;
+}
+
+// Avisa a la sala de los bytes que el ataque ya ha sacado; sin posiciones, de que empieza otra captura.
+// Va con la clave de la captura: el servidor solo los cuenta si es la de la ronda.
+function tellRoom(posiciones, trazas, clave) {
+  fetch(new URL('/api/sala/leidos', location.href), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ posiciones, trazas, clave }),
+  }).catch(() => { /* la demo no depende de la sala */ });
 }
 
 // La hoja de estilos de la demo, una vez por documento; resuelve cuando ha cargado.
@@ -300,6 +321,8 @@ export function mount(container, options = {}) {
   let sel = 0, gen = 0, received = 0, nAxis = o.n, S = 0, offset = 0, key = null, ascii = false;
   let history = [], shown = null, last = null, abort = null, ending = false, rewarded = false, streak = 0;
   let pending = false, dirty = false, onResultHook = null, sceneData = null;
+  // La sala: ¿la clave de esta captura es la del público? Y qué bytes se le han contado ya.
+  let fromRoom = false, steady = new Uint8Array(16), told = new Set();
   const listeners = new AbortController();
   let started = false, raf = 0, disposed = false, scene = null, toastTimer = 0, t0 = 0;
   const timers = new Set();
@@ -384,6 +407,23 @@ export function mount(container, options = {}) {
     chartDirty = true;
     setLabel(info.etiqueta, info.aviso);
     worker.postMessage({ type: 'reset', gen, S, key });
+    fromRoom = !!servidor && !isStatic && info.modo !== 'grabado' && info.clave_hex === roomKey();
+    steady = new Uint8Array(16);
+    told = new Set();
+    if (fromRoom) tellRoom([], 0);
+  }
+
+  // A la sala se le cuenta un byte cuando lleva tres cálculos seguidos en primer
+  // puesto (al principio, un acierto puede ser suerte y deshacerse) o, al acabar,
+  // todos los que hayan quedado primeros.
+  function reportRoom(r, final = false) {
+    if (!fromRoom) return;
+    const news = [];
+    r.bytes.forEach((b, j) => {
+      steady[j] = b.rank === 1 ? Math.min(steady[j] + 1, 3) : 0;
+      if ((steady[j] >= 3 || (final && b.rank === 1)) && !told.has(j)) { told.add(j); news.push(j); }
+    });
+    if (news.length) tellRoom(news, r.n, roomKey());
   }
 
   function lote(b) {
@@ -442,6 +482,7 @@ export function mount(container, options = {}) {
     if (dirty) requestCompute();
     else if (ending && r.gen === gen && estado === 'capturando' && r.n === received) {
       setEstado('hecho');
+      reportRoom(r, true);
       if (!rewarded && recoveredCount(r) === 16) reward(r.n);
     }
   }
@@ -464,6 +505,7 @@ export function mount(container, options = {}) {
     else if (r.byte !== sel) dirty = true;  // ha cambiado el byte elegido a mitad de cálculo
     streak = rec === 16 ? streak + 1 : 0;
     if (streak >= 2 && !rewarded && !isStatic) reward(r.n);
+    reportRoom(r);
   }
 
   // ── Pintar ──────────────────────────────────────────────────────────
