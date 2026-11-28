@@ -9,6 +9,8 @@
 //   options.data    datos iniciales, como en update(), sin transición.
 //   options.showN   chip «N = … trazas» arriba a la izquierda (por defecto no: el deck ya
 //                   lleva su contador).
+//   options.noiseLabel  píldora «lo que puede hacer el azar» sobre el velo (por defecto sí). La
+//                   demo la quita: su panel de la izquierda ya enfrenta el correcto al azar.
 // update({ rho, S, correct, n, offset }, { duration = 250 } = {})
 //   rho: 256·S valores, fila k (con signo o sin él); S: muestras por fila; correct: 0–255 o
 //   null; n: trazas; offset: muestra absoluta de la primera columna.
@@ -293,6 +295,9 @@ export function mount(container, options = {}) {
   let width = 0, height = 0, marginX = 0, marginY = 0, running = false, disposed = false, pending = 0;
   let clock = 0, lastFrame = 0, dataTween = null, viewTween = null;
   let dirty = true, measure = true, correct = null, hasData = false, offset = 0;
+  // Rótulos: cuándo se colocaron por última vez, si alguno aún se desliza a su hueco y de qué lado
+  // del pico va su píldora (0: aún sin decidir).
+  let laidAt = null, settling = false, peakSide = 0;
   let view = viewIndex(options.step ?? (fixed ? 2 : 0));
   // Cámara: [azimut, elevación, distancia, desplazamiento x, desplazamiento y] (px).
   const pose = [0, 0, 28, 0, 0];
@@ -324,7 +329,8 @@ export function mount(container, options = {}) {
     object.position.set(x, y, z);
     object.center.set(0, 0);
     scene.add(object);
-    const item = { object, span, guide, kind, w: 0, h: 0, alpha: 1, dx: 0, dy: 0 };
+    // shift: desvío elegido respecto al sitio ideal; shown: el que se ve, que se desliza hacia él.
+    const item = { object, span, guide, kind, w: 0, h: 0, alpha: 1, dx: 0, dy: 0, shift: null, shown: null };
     entries.push(item);
     return item;
   }
@@ -521,22 +527,31 @@ export function mount(container, options = {}) {
     heightTitle.alpha = pitched; heightTitle.dx = -15; heightTitle.dy = -31;
     correctLabel.alpha = Number(correct !== null);
     correctLabel.dx = 28 + correctLabel.w / 2; correctLabel.dy = -17;
-    noiseLabel.alpha = noiseAlpha * pitched;
+    const veil = noiseAlpha * pitched;
+    noiseLabel.alpha = options.noiseLabel === false ? 0 : veil;
     noiseLabel.dx = 0; noiseLabel.dy = -52;
     peakLabel.alpha = Number(hasData);
     screen.copy(peakLabel.object.position).project(camera);
-    peakLabel.dx = (screen.x > 0 ? -1 : 1) * (30 + peakLabel.w / 2);
+    // Con histéresis: si el pico está cerca del centro, la píldora no cambia de lado a cada balanceo.
+    if (!peakSide || Math.abs(screen.x) > 0.12) peakSide = screen.x > 0 ? -1 : 1;
+    peakLabel.dx = peakSide * (30 + peakLabel.w / 2);
     peakLabel.dy = -61;
 
     // Colocación voraz: primero las escalas y luego las píldoras, cada una en el hueco libre
-    // más cercano a su sitio. La guía sigue anclada al dato.
+    // más cercano a su sitio. La guía sigue anclada al dato. Para que un rótulo no salte entre
+    // dos huecos casi igual de buenos a cada fotograma, conserva el de antes mientras siga libre
+    // y no esté más de STICK px más lejos que el mejor; y cuando cambia, se desliza (GLIDE ms).
+    const STICK = 32, GLIDE = 100;
+    const step = fixed || laidAt === null ? 1 : 1 - Math.exp(-Math.max(0, clock - laidAt) / GLIDE);
+    laidAt = clock;
+    settling = false;
     const occupied = [];
     if (chip && !chip.hidden) occupied.push([marginX, marginY, marginX + chipW, marginY + chipH]);
     const gap = 7;
     for (const item of entries) {
       const { object, span, guide, w, h, alpha } = item;
       object.visible = alpha > 0.001;
-      if (!object.visible) continue;
+      if (!object.visible) { item.shift = item.shown = null; continue; }
       object.element.style.opacity = String(alpha);
       screen.copy(object.position).project(camera);
       const ax = (screen.x + 1) * width / 2, ay = (1 - screen.y) * height / 2;
@@ -549,20 +564,33 @@ export function mount(container, options = {}) {
       const xs = [desiredX], ys = [desiredY];
       const intersects = (x, y, box) => x+w/2+gap > box[0] && x-w/2-gap < box[2]
         && y+h/2+gap > box[1] && y-h/2-gap < box[3];
-      if (occupied.some(box => intersects(bx, by, box))) {
+      const fits = (x, y) => x >= left && x <= right && y >= top && y <= bottom
+        && !occupied.some(box => intersects(x, y, box));
+      if (!fits(bx, by)) {
         for (const box of occupied) {
           xs.push(box[0] - gap - w/2, box[2] + gap + w/2);
           ys.push(box[1] - gap - h/2, box[3] + gap + h/2);
         }
         for (const x of xs) for (const y of ys) {
           const cost = (x-desiredX)**2 + (y-desiredY)**2;
-          if (cost >= best || x < left || x > right || y < top || y > bottom) continue;
-          if (occupied.some(box => intersects(x, y, box))) continue;
+          if (cost >= best || !fits(x, y)) continue;
           bx = x; by = y; best = cost;
+        }
+        if (item.shift) {
+          const x = desiredX + item.shift[0], y = desiredY + item.shift[1];
+          if (fits(x, y) && Math.hypot(...item.shift) <= Math.sqrt(best) + STICK) { bx = x; by = y; }
         }
       }
       occupied.push([bx-w/2, by-h/2, bx+w/2, by+h/2]);
-      const dx = bx - ax, dy = by - ay;
+      item.shift = [bx - desiredX, by - desiredY];
+      if (!item.shown) item.shown = item.shift.slice();
+      for (let i = 0; i < 2; i++) {
+        item.shown[i] += (item.shift[i] - item.shown[i]) * step;
+        if (Math.abs(item.shift[i] - item.shown[i]) > 0.5) settling = true;
+        else item.shown[i] = item.shift[i];
+      }
+      const dx = clamp(desiredX + item.shown[0], left, right) - ax;
+      const dy = clamp(desiredY + item.shown[1], top, bottom) - ay;
       span.style.transform = 'translate(' + (dx - w/2) + 'px,' + (dy - h/2) + 'px)';
       if (guide) {
         const fraction = Math.min(w / (2 * Math.abs(dx)), h / (2 * Math.abs(dy)), 1);
@@ -574,9 +602,9 @@ export function mount(container, options = {}) {
     ruler.material.opacity = pitched;
     lineMaterial.opacity = 1 - 0.6 * weights[2];
     lineMaterial.transparent = weights[2] > 0.001;
-    noise.visible = noiseLabel.alpha > 0.001;
-    noise.material.opacity = 0.45 * noiseLabel.alpha;
-    rim.material.opacity = 0.7 * noiseLabel.alpha;
+    noise.visible = veil > 0.001;
+    noise.material.opacity = 0.45 * veil;
+    rim.material.opacity = 0.7 * veil;
   }
 
   function draw() {
@@ -590,6 +618,7 @@ export function mount(container, options = {}) {
     layout();
     renderer.render(scene, camera);
     labels.render(scene, camera);
+    if (settling) wake();  // un rótulo aún se desliza a su hueco
     if (container.dataset.ready !== '1') container.dataset.ready = '1';
   }
 
@@ -690,7 +719,8 @@ export function mount(container, options = {}) {
     clock += now - lastFrame;
     lastFrame = now;
     draw();
-    if (viewTween || dataTween || (view === 0 && swinging())) pending = requestAnimationFrame(frame);
+    if (!pending && (viewTween || dataTween || (view === 0 && swinging()) || settling))
+      pending = requestAnimationFrame(frame);
   }
   function wake() {
     if (running && !pending) {

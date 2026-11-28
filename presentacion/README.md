@@ -141,13 +141,21 @@ La clave sale de la diapositiva 3: la de la sala o, sin ella, la palabra de la c
 eñes se quitan solas y se rellena hasta 16 bytes con espacios; la de la sala se enseña en hexadecimal).
 La demo la lee al pulsar «Capturar», y el
 CPA se hace en un Web Worker sin mirarla: la clave real solo sirve para pintar de verde los bytes
-acertados. Al sacar los 16 bytes salta la notificación «Clave recuperada».
+acertados. Al sacar los 16 bytes, la tarjeta «Bytes recuperados» se pone verde y dice con cuántas trazas y en cuánto
+tiempo (la respuesta a la apuesta de la 11). Con la clave fuera con N trazas, la captura sigue hasta
+`min(400, max(2·N, N + 50))` trazas, para que se vea cómo se separan las curvas, y para sola, igual que
+con «Parar» (corta el flujo, lo que libera la placa, hace el último CPA y avisa a la sala). Si algún
+byte no sale, sigue hasta las 400. El eje x de «el correcto frente al azar» crece por escalones (50,
+100, 200, 400) a medida que llegan trazas; en el modo estático (PDF) va de 0 a 400, como antes.
 
-| Modo | Trazas | Clave |
-|---|---|---|
-| **En directo** | Capturadas ahora en el Nano, a unas 18,6 trazas/s, muestras 440 a 740 de cada cifrado | La de la clase |
-| **Grabado** | Las primeras 400 de las 1000 trazas de `datos/20261113-nano-tinyaes-respaldo`, reproducidas a 18,6 trazas/s | La de laboratorio (no se puede elegir) |
-| **Simulado** | Sintéticas (`analisis/simulate.py`) con SNR 0,5, del orden de la medida (0,52 a 0,71) | La de la clase |
+No se usa un corte fijo de trazas: con las trazas grabadas, una de cada diez ordenaciones necesita más
+de 112 para los 16 bytes (todas los tienen con 132), y el 2026-11-28 «Grabado» necesitó 85.
+
+| Modo | Trazas | Clave | Dónde para (2026-11-28) |
+|---|---|---|---|
+| **En directo** | Capturadas ahora en el Nano, a unas 18,6 trazas/s, muestras 440 a 740 de cada cifrado | La de la clase | Clave con 25 a 40 trazas: acaba hacia la 80, en unos 4 s (sin medir aún con la parada automática) |
+| **Grabado** | Las primeras 400 de las 1000 trazas de `datos/20261113-nano-tinyaes-respaldo`, reproducidas a 18,6 trazas/s | La de laboratorio (no se puede elegir) | Clave con 85 trazas: acaba en la 170, a los 9 s |
+| **Simulado** | Sintéticas (`analisis/simulate.py`) con SNR 0,5, del orden de la medida (0,52 a 0,71) | La de la clase | Clave con 70 a 85 trazas: acaba entre la 140 y la 170 |
 
 El modo que se usa se ve siempre en la barra de la demo y hay que decirlo en voz alta. «En directo»
 solo se puede pulsar si el servidor ve la placa; si no, su botón explica por qué al pasar el ratón.
@@ -196,7 +204,7 @@ Antes de clase, en el portátil que irá conectado (detalles en
 6. **La sala, con dos móviles** (uno con datos y otro en la wifi del aula): escanear el QR desde el
    fondo del aula, elegir un byte en cada uno, «Guardar en el chip», apostar en la 11 y capturar. Los
    dos tienen que acabar en verde. Después, «Cambiar» en la 3 para dejar la ronda limpia.
-7. **Captura de prueba** de 400 trazas con una palabra cualquiera. Con las trazas grabadas, el 90 %
+7. **Captura de prueba** con una palabra cualquiera: tiene que parar sola poco después de los 16 bytes. Con las trazas grabadas, el 90 %
    de las ordenaciones da la clave con 112 trazas; en directo debería ser del mismo orden, pero con la
    placa en el aula no se ha probado.
 8. **Saturación:** según la errata de NewAE, la fase entre los relojes del ADC y de la víctima cambia

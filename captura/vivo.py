@@ -252,11 +252,39 @@ def _fix_clock_phase(scope, platform: str, one) -> str | None:
     return "Las trazas salen saturadas: revisa la fase de los relojes (hardware/README.md)"
 
 
+def _allow_capture_off_main_thread() -> None:
+    """Deja capturar desde los hilos del servidor.
+
+    `CWNano.arm()` y `capture()` envuelven la lectura USB en
+    `DelayedKeyboardInterrupt`, que cambia el manejador de SIGINT, y
+    `signal.signal` solo se puede llamar desde el hilo principal: desde un hilo
+    del servidor falla con «signal only works in main thread». Fuera del hilo
+    principal la guarda no hace nada; Ctrl+C solo llega al hilo principal.
+    """
+    from chipwhisperer.common.utils import util
+
+    guard = util.DelayedKeyboardInterrupt
+    if getattr(guard, "_vivo", False):
+        return
+    enter, exit_ = guard.__enter__, guard.__exit__
+
+    def __enter__(self):
+        if threading.current_thread() is threading.main_thread():
+            return enter(self)
+
+    def __exit__(self, *exc):
+        if threading.current_thread() is threading.main_thread():
+            return exit_(self, *exc)
+
+    guard.__enter__, guard.__exit__, guard._vivo = __enter__, __exit__, True
+
+
 @contextlib.contextmanager
 def _open_nano(req, cancel):
     ok, reason = nano_status()
     if not ok:
         raise LiveError(reason)
+    _allow_capture_off_main_thread()
     cw, scope, target = capture.connect()  # sale con un mensaje claro si no puede
     try:
         platform = capture.detect_platform(scope, None)
