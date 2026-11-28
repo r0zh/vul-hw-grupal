@@ -3,10 +3,11 @@
     uv run python -m captura.vivo                    # http://127.0.0.1:8000/presentacion/
     uv run python -m captura.vivo --puerto 8320 --abrir
     uv run python -m captura.vivo --comprobar        # prueba sin placa; sale con 0 o 1
+    uv run python -m captura.vivo --sala --abrir     # con la sala: el público elige la clave desde el móvil
 
 Sirve la raíz del repositorio, solo en 127.0.0.1 porque maneja la placa, de
 modo que /presentacion/ y /web/ funcionan igual que con un servidor estático.
-Añade dos rutas:
+Añade estas rutas:
 
 GET /api/estado
     {"modos": [...], "nano": {"disponible", "motivo"},
@@ -36,6 +37,22 @@ Una captura a la vez: una petición nueva a /api/vivo cancela la que esté en
 marcha (que recibe un `error`), espera a que suelte la placa y empieza. Así,
 recargar la página o pulsar «Capturar» otra vez nunca deja la demo bloqueada.
 Si el cliente se desconecta, la captura se para al enviar el lote siguiente.
+
+La sala (`captura/sala.py`): con `--sala`, el público elige desde el móvil los
+16 bytes de la clave. Un segundo servidor, en 127.0.0.1:8001, atiende a los
+móviles; `cloudflared` lo publica con un túnel y su dirección sale en un QR.
+Ese servidor no tiene acceso a la placa ni a los ficheros. Con `--sala-url` se
+da la dirección a mano (otro túnel, o http://127.0.0.1:8001/ para ensayar en
+este equipo). Las diapositivas manejan la ronda con estas rutas, solo locales:
+
+GET  /api/sala            {"activa", "url", "ronda", "abierta", "asignados", "elegidos",
+                           "dispositivos", "apuesta_abierta", "apuestas", "leidos"}
+GET  /api/sala/qr.svg     el QR de la dirección de los móviles
+POST /api/sala/abrir      otra ronda: se olvidan los móviles y sus bytes
+POST /api/sala/cerrar     cierra y da {"clave_hex", "del_publico", …}; los huecos, al azar
+POST /api/sala/apuesta    {"abierta": true|false}: los móviles pueden apostar
+POST /api/sala/leidos     {"posiciones": [0-15], "trazas": N, "clave": hex}: el ataque los ha
+                          sacado; solo cuenta si la captura fue con la clave de la ronda (si no, 409)
 """
 
 from __future__ import annotations
@@ -46,7 +63,10 @@ import functools
 import importlib.util
 import json
 import os
+import re
+import shutil
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -66,6 +86,7 @@ from analisis.simulate import simulate_from_texts
 
 from . import campana
 from . import cw as capture
+from . import sala
 
 RECORDED = campana.REPO / "datos" / "20261113-nano-tinyaes-respaldo"
 MODES = ("nano", "grabado", "simulado")
@@ -79,6 +100,14 @@ NANO_USB = ("2b3e", "ace0")  # VID y PID del ChipWhisperer-Nano
 CANCELLED = "Cancelada: ha empezado otra captura"
 LABEL_NANO = "Captura en directo del ChipWhisperer-Nano"
 LABEL_SIM = "Trazas simuladas, no medidas: modelo de Hamming con ruido"
+ROOM_PORT = 8001           # servidor del público, el que publica el túnel
+MAX_LOCAL_BODY = 2000      # bytes de cuerpo que se leen de un POST de las diapositivas
+# La dirección de un túnel rápido son varias palabras con guiones; así no se confunde con
+# https://api.trycloudflare.com, que cloudflared nombra cuando no consigue abrir el túnel.
+TUNNEL_URL = re.compile(r"https://[a-z0-9]+(?:-[a-z0-9]+)+\.trycloudflare\.com")
+NO_ROOM = "La sala no está activa: arranca el servidor con --sala"
+
+ROOM = sala.Room()         # sin dirección pública hasta que serve() la ponga
 
 
 class LiveError(Exception):
@@ -223,11 +252,39 @@ def _fix_clock_phase(scope, platform: str, one) -> str | None:
     return "Las trazas salen saturadas: revisa la fase de los relojes (hardware/README.md)"
 
 
+def _allow_capture_off_main_thread() -> None:
+    """Deja capturar desde los hilos del servidor.
+
+    `CWNano.arm()` y `capture()` envuelven la lectura USB en
+    `DelayedKeyboardInterrupt`, que cambia el manejador de SIGINT, y
+    `signal.signal` solo se puede llamar desde el hilo principal: desde un hilo
+    del servidor falla con «signal only works in main thread». Fuera del hilo
+    principal la guarda no hace nada; Ctrl+C solo llega al hilo principal.
+    """
+    from chipwhisperer.common.utils import util
+
+    guard = util.DelayedKeyboardInterrupt
+    if getattr(guard, "_vivo", False):
+        return
+    enter, exit_ = guard.__enter__, guard.__exit__
+
+    def __enter__(self):
+        if threading.current_thread() is threading.main_thread():
+            return enter(self)
+
+    def __exit__(self, *exc):
+        if threading.current_thread() is threading.main_thread():
+            return exit_(self, *exc)
+
+    guard.__enter__, guard.__exit__, guard._vivo = __enter__, __exit__, True
+
+
 @contextlib.contextmanager
 def _open_nano(req, cancel):
     ok, reason = nano_status()
     if not ok:
         raise LiveError(reason)
+    _allow_capture_off_main_thread()
     cw, scope, target = capture.connect()  # sale con un mensaje claro si no puede
     try:
         platform = capture.detect_platform(scope, None)
@@ -328,24 +385,79 @@ class Handler(SimpleHTTPRequestHandler):
         else:
             self.send_error(403, "Solo en local")
 
+    def _reply(self, code: int, body: bytes, content_type: str) -> None:
+        self.send_response(code)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _json(self, code: int, data: dict) -> None:
+        self._reply(code, json.dumps(data, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+
     def do_GET(self):
         if not self._local():
             self.send_error(403, "Solo en local")
             return
         url = urlsplit(self.path)
         if url.path == "/api/estado":
-            body = json.dumps(status(), ensure_ascii=False).encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            self._json(200, status())
         elif url.path == "/api/vivo":
             self._live(url.query)
+        elif url.path == "/api/sala":
+            self._json(200, ROOM.local_state())
+        elif url.path == "/api/sala/qr.svg":
+            svg = sala.qr_svg(ROOM.url) if ROOM.url else None
+            if svg is None:
+                self._json(503, {"error": NO_ROOM if not ROOM.url else "Falta segno: lo instala uv run"})
+            else:
+                self._reply(200, svg.encode(), "image/svg+xml; charset=utf-8")
         else:
             # El navegador corta descargas al recargar: no es un error ni merece una traza en la consola.
             with contextlib.suppress(BrokenPipeError, ConnectionResetError):
                 super().do_GET()
+
+    def do_POST(self):
+        """Las órdenes de las diapositivas a la sala. Como el resto de la API, solo en local."""
+        if not self._local():
+            self.send_error(403, "Solo en local")
+            return
+        path = urlsplit(self.path).path
+        if path not in ("/api/sala/abrir", "/api/sala/cerrar", "/api/sala/apuesta", "/api/sala/leidos"):
+            self._json(404, {"error": "No existe"})
+            return
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+            data = json.loads(self.rfile.read(length)) if 0 < length <= MAX_LOCAL_BODY else {}
+        except ValueError:
+            data = None
+        if not isinstance(data, dict):
+            self._json(400, {"error": "El cuerpo tiene que ser un objeto JSON"})
+        elif not ROOM.url:
+            self._json(409, {"error": NO_ROOM})
+        elif path == "/api/sala/abrir":
+            ROOM.reopen()
+            self._json(200, ROOM.local_state())
+        elif path == "/api/sala/cerrar":
+            key = ROOM.close()
+            state = ROOM.local_state()
+            self._json(200, {**state, "clave_hex": key.hex(), "del_publico": sum(state["elegidos"])})
+        elif path == "/api/sala/apuesta":
+            if type(data.get("abierta")) is not bool:
+                self._json(400, {"error": "Falta «abierta»: true o false"})
+                return
+            ROOM.set_betting(data["abierta"])
+            self._json(200, ROOM.local_state())
+        else:
+            positions, traces, key = data.get("posiciones"), data.get("trazas"), data.get("clave")
+            if (not isinstance(positions, list) or len(positions) > sala.POSITIONS
+                    or any(type(j) is not int or not 0 <= j < sala.POSITIONS for j in positions)
+                    or type(traces) is not int or not 0 <= traces <= MAX_TRACES
+                    or (positions and (not isinstance(key, str) or not re.fullmatch(r"[0-9a-f]{32}", key)))):
+                self._json(400, {"error": "«posiciones» de 0 a 15, «trazas» en número y «clave» en hex"})
+                return
+            done = ROOM.mark_read(positions, traces, bytes.fromhex(key) if positions else None)
+            self._json(200 if done else 409, ROOM.local_state())
 
     def _send(self, event: str, data: dict) -> None:
         payload = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
@@ -399,19 +511,77 @@ class Handler(SimpleHTTPRequestHandler):
         self._send("fin", {"n": sent, "segundos": round(time.monotonic() - t0, 1)})
 
 
-def serve(port: int, open_browser: bool) -> int:
+def _open_tunnel(port: int, timeout: float = 30.0) -> tuple[subprocess.Popen, str]:
+    """Publica el servidor del público con un túnel rápido de cloudflared: (proceso, dirección).
+
+    cloudflared escribe la dirección (https://….trycloudflare.com) en su registro,
+    que va por stderr; se sigue leyendo después para que no se llene la tubería.
+    """
+    program = shutil.which("cloudflared")
+    if program is None:
+        raise LiveError("falta cloudflared (en Arch: sudo pacman -S cloudflared)")
+    process = subprocess.Popen([program, "tunnel", "--url", f"http://127.0.0.1:{port}"],
+                               stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                               stderr=subprocess.PIPE, text=True, errors="replace")
+    found: list[str] = []
+    ready = threading.Event()
+
+    def read_log() -> None:
+        for line in process.stderr:
+            match = TUNNEL_URL.search(line)
+            if match and not found:
+                found.append(match.group(0))
+                ready.set()
+        ready.set()  # cloudflared ha terminado
+
+    threading.Thread(target=read_log, daemon=True).start()
+    ready.wait(timeout)
+    if not found:
+        process.terminate()
+        raise LiveError("cloudflared no ha dado una dirección: ¿hay internet?")
+    return process, found[0]
+
+
+def _start_room(port: int, url: str | None, tunnel: bool) -> subprocess.Popen | None:
+    """Arranca el servidor del público y, si se pide, el túnel. Si algo falla, la
+    presentación sigue sin sala: la diapositiva vuelve a la palabra de la clase."""
+    try:
+        sala.serve_audience(ROOM, port)
+    except OSError as error:
+        print(f"Sala: no se puede usar el puerto {port} ({error}); sigue sin sala.", flush=True)
+        return None
+    process = None
+    if url is None and tunnel:
+        try:
+            process, url = _open_tunnel(port)
+        except (LiveError, OSError) as error:
+            print(f"Sala: {error}; sigue sin sala (o da la dirección con --sala-url).", flush=True)
+            return None
+    ROOM.url = url.rstrip("/") + "/"
+    print(f"Sala (móviles): {ROOM.url}", flush=True)
+    if sala.qr_svg(ROOM.url) is None:
+        print("Sala: falta segno para el QR (lo instala uv run); se verá solo la dirección.", flush=True)
+    return process
+
+
+def serve(port: int, open_browser: bool, room_port: int = ROOM_PORT, room_url: str | None = None,
+          tunnel: bool = False) -> int:
     try:
         server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     except OSError as error:
         sys.exit(f"No se puede usar el puerto {port} ({error}): prueba otro con --puerto")
     url = f"http://127.0.0.1:{port}/presentacion/"
     print(f"Presentación: {url}\nDemo suelta:  {url}demo.html\n"
-          f"Placa: {nano_status()[1]}\nCtrl+C para parar.", flush=True)
+          f"Placa: {nano_status()[1]}", flush=True)
+    tunnel_process = _start_room(room_port, room_url, tunnel) if room_url or tunnel else None
+    print("Ctrl+C para parar.", flush=True)
     if open_browser:
         webbrowser.open(url)
     with server:
         with contextlib.suppress(KeyboardInterrupt):
             server.serve_forever()
+    if tunnel_process is not None:
+        tunnel_process.terminate()
     # Al salir, se para la captura en marcha y se espera a que suelte la placa.
     _take_turn()
     if _running.acquire(timeout=5):
@@ -447,6 +617,170 @@ def _attack(events) -> bytes:
 class _Quiet(Handler):
     def log_message(self, format, *args):
         pass
+
+
+def _call(url: str, data: dict | bytes | None = None, headers: dict | None = None) -> tuple[int, object]:
+    """Una petición (POST si lleva datos): el código y el cuerpo, como JSON si lo es."""
+    body = data if data is None or isinstance(data, bytes) else json.dumps(data).encode()
+    request = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json", **(headers or {})})
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            code, raw = response.status, response.read()
+    except urllib.error.HTTPError as error:
+        code, raw = error.code, error.read()
+    try:
+        return code, json.loads(raw)
+    except ValueError:
+        return code, raw.decode(errors="replace")
+
+
+def _check_tunnel(expect) -> None:
+    """El arranque del túnel, con un cloudflared de mentira que escribe lo que el de verdad."""
+    import stat
+    import tempfile
+
+    fake = """#!/bin/sh
+echo '2026-11-24T10:00:00Z INF Requesting new quick Tunnel on trycloudflare.com...' >&2
+%s
+sleep 30
+"""
+    good = ("echo '2026-11-24T10:00:01Z INF |  https://calm-river-demo-sala.trycloudflare.com"
+            "                                |' >&2")
+    bad = ("echo 'failed to request quick Tunnel: Post \"https://api.trycloudflare.com/tunnel\": "
+           "dial tcp: lookup api.trycloudflare.com: no such host' >&2\nexit 1")
+    path = os.environ.get("PATH", "")
+    with tempfile.TemporaryDirectory() as folder:
+        program = Path(folder) / "cloudflared"
+        os.environ["PATH"] = folder
+        try:
+            expect(_raises(lambda: _open_tunnel(8001, 2)), "túnel: sin cloudflared, la presentación sigue sin sala")
+            os.environ["PATH"] = folder + os.pathsep + path
+            program.write_text(fake % good)
+            program.chmod(program.stat().st_mode | stat.S_IXUSR)
+            process, url = _open_tunnel(8001, 5)
+            process.terminate()
+            expect(url == "https://calm-river-demo-sala.trycloudflare.com" and process.wait(5) is not None,
+                   "túnel: la dirección sale del registro de cloudflared")
+            program.write_text(fake % bad)
+            expect(_raises(lambda: _open_tunnel(8001, 5)), "túnel: sin internet no se toma por dirección la de la API")
+        finally:
+            os.environ["PATH"] = path
+
+
+def _raises(call) -> bool:
+    try:
+        call()
+    except LiveError:
+        return True
+    return False
+
+
+def _check_room(base: str, expect) -> None:
+    """La sala de principio a fin, con móviles de mentira: eligen, se cierra, se ataca y se enteran."""
+    global ROOM
+    previous, ROOM = ROOM, sala.Room("https://sala.example/")
+    audience = sala.serve_audience(ROOM, 0)
+    public = f"http://127.0.0.1:{audience.server_address[1]}"
+    phones = [f"{i:032x}" for i in range(1, 21)]
+    chosen = {i: (37 * i + 11) % 256 for i in range(12)}
+
+    def phone(i: int) -> dict:
+        return _call(f"{public}/estado?id={phones[i]}")[1]
+
+    try:
+        code, state = _call(base + "/api/sala")
+        expect(code == 200 and state["activa"] and state["abierta"] and not any(state["asignados"])
+               and state["dispositivos"] == 0, "sala: empieza abierta y vacía")
+        code, svg = _call(base + "/api/sala/qr.svg")
+        expect(code == 200 and str(svg).startswith("<svg"), "sala: el QR de la dirección, en SVG")
+
+        code, page = _call(public + "/")
+        expect(code == 200 and 'data-vista="elige"' in page
+               and not re.search(r"""(?:src|href)=["']?(?:https?:)?//""", page),
+               "sala: la página del móvil no carga nada de fuera")
+
+        positions = [phone(i)["posicion"] for i in range(20)]
+        expect(positions == [*range(16), None, None, None, None],
+               "sala: los 16 primeros móviles tienen posición y los demás miran")
+        expect(set(phone(0)) == {"ronda", "abierta", "posicion", "valor", "azar", "elegidos",
+                                 "apuesta_abierta", "apuesta", "leido"},
+               "sala: un móvil solo ve su posición y su byte")
+
+        saved = [_call(public + "/byte", {"id": phones[i], "valor": v}) for i, v in chosen.items()]
+        chosen[3] = 0xFF
+        saved.append(_call(public + "/byte", {"id": phones[3], "valor": 0xFF}))
+        expect(all(code == 200 for code, _ in saved) and phone(3)["valor"] == "ff" and phone(5)["valor"] == f"{chosen[5]:02x}",
+               "sala: 12 móviles eligen su byte y uno lo cambia")
+        bad = [_call(public + "/byte", {"id": phones[12], "valor": v})[0] for v in (256, -1, "2a", True, 1.5, None)]
+        expect(bad == [409] * 6 and phone(12)["valor"] is None, "sala: un valor que no es de 0 a 255 no se guarda")
+        expect(_call(public + "/byte", {"id": phones[16], "valor": 1})[0] == 409, "sala: quien no tiene posición no elige")
+        expect(_call(public + "/byte", {"id": "x" * 32, "valor": 1})[0] == 400
+               and _call(public + "/estado?id=1")[0] == 400
+               and _call(public + "/byte", json.dumps({"id": phones[0], "valor": 1, "x": "a" * 300}).encode())[0] == 400,
+               "sala: identificador mal escrito o cuerpo largo → 400")
+        closed_doors = [_call(public + path)[0] for path in
+                        ("/api/sala", "/api/vivo?n=5", "/presentacion/index.html", "/pyproject.toml", "//etc/passwd")]
+        closed_doors.append(_call(public + "/api/sala/cerrar", {})[0])
+        expect(closed_doors == [404] * 6, "sala: el servidor del público no da ficheros, ni la placa, ni la clave")
+
+        state = _call(base + "/api/sala")[1]
+        expect(sum(state["elegidos"]) == 12 and state["dispositivos"] == 20 and "clave_hex" not in state
+               and all(type(x) is bool for x in state["elegidos"]),
+               "sala: las diapositivas ven cuántos han elegido, no qué")
+
+        before = _call(public + "/apuesta", {"id": phones[0], "valor": 100})[0]
+        _call(base + "/api/sala/apuesta", {"abierta": True})
+        bets = [_call(public + "/apuesta", {"id": phones[i], "valor": v})[0] for i, v in ((0, 100), (17, 100), (18, 1000), (19, 50))]
+        state = _call(base + "/api/sala/apuesta", {"abierta": False})[1]
+        expect(before == 409 and bets == [200, 200, 200, 409]
+               and state["apuestas"] == {"10": 0, "100": 2, "1000": 1, "10000": 0, "1000000": 0},
+               "sala: las apuestas solo cuentan mientras están abiertas, también las de quien mira")
+
+        code, _ = _call(base + "/api/sala/cerrar", {}, {"Origin": "http://ejemplo.org"})
+        expect(code == 403 and _call(base + "/api/sala")[1]["abierta"], "sala: otra web no puede cerrar la ronda → 403")
+
+        code, end = _call(base + "/api/sala/cerrar", {})
+        key = bytes.fromhex(end["clave_hex"])
+        expect(code == 200 and len(key) == 16 and end["del_publico"] == 12 and not end["abierta"]
+               and all(key[i] == v for i, v in chosen.items())
+               and _call(base + "/api/sala/cerrar", {})[1]["clave_hex"] == key.hex(),
+               "sala: al cerrar, la clave lleva los 12 bytes elegidos y 4 al azar")
+        late = _call(f"{public}/estado?id={'f' * 32}")[1]
+        expect(_call(public + "/byte", {"id": phones[0], "valor": 0})[0] == 409
+               and phone(0)["valor"] == f"{chosen[0]:02x}" and not phone(0)["azar"]
+               and phone(13)["valor"] == f"{key[13]:02x}" and phone(13)["azar"]
+               and phone(16)["valor"] is None and late["posicion"] is None,
+               "sala: cerrada, nadie cambia su byte y a quien no eligió se le dice el del azar")
+
+        events = _events(base + f"/api/vivo?modo=simulado&n=400&ritmo=2000&clave={key.hex()}")
+        expect(_attack(events) == key, "sala: el CPA de 400 trazas simuladas da la clave de la sala")
+        other = bytes(b ^ 0xFF for b in key).hex()
+        stale = _call(base + "/api/sala/leidos", {"posiciones": [0], "trazas": 10, "clave": other})[0]
+        expect(stale == 409 and phone(0)["leido"] is None, "sala: una captura con otra clave no pone verde a nadie")
+        _call(base + "/api/sala/leidos", {"posiciones": [0, 5], "trazas": 40, "clave": key.hex()})
+        _call(base + "/api/sala/leidos", {"posiciones": list(range(16)), "trazas": 90, "clave": key.hex()})
+        read = (phone(0)["leido"], phone(1)["leido"], phone(16)["leido"])
+        wrong = [_call(base + "/api/sala/leidos", body)[0] for body in
+                 ({"posiciones": [16], "trazas": 5, "clave": key.hex()}, {"posiciones": [1], "trazas": 5})]
+        _call(base + "/api/sala/leidos", {"posiciones": [], "trazas": 0})
+        expect(read == ({"trazas": 40}, {"trazas": 90}, None) and wrong == [400, 400] and phone(0)["leido"] is None,
+               "sala: cada móvil se entera de con cuántas trazas se leyó su byte")
+
+        state = _call(base + "/api/sala/abrir", {})[1]
+        expect(state["abierta"] and state["dispositivos"] == 0 and state["ronda"] == end["ronda"] + 1
+               and phone(19)["posicion"] == 0, "sala: otra ronda empieza de cero")
+        for i in range(sala.MAX_DEVICES + 5):
+            _call(f"{public}/estado?id={i:032x}".replace("id=0", "id=a"))
+        expect(_call(base + "/api/sala")[1]["dispositivos"] == sala.MAX_DEVICES,
+               f"sala: como mucho {sala.MAX_DEVICES} móviles por ronda")
+
+        ROOM = sala.Room()
+        expect(_call(base + "/api/sala")[1]["activa"] is False and _call(base + "/api/sala/cerrar", {})[0] == 409
+               and _call(base + "/api/sala/qr.svg")[0] == 503, "sin --sala: no hay sala ni QR")
+        _check_tunnel(expect)
+    finally:
+        audience.shutdown()
+        ROOM = previous
 
 
 def check() -> int:
@@ -549,6 +883,8 @@ def check() -> int:
         except urllib.error.HTTPError as error:
             expect(False, f"estático: {path} ({error.code})")
 
+    _check_room(base, expect)
+
     server.shutdown()
     print("\nTodo bien." if not failures else f"\n{len(failures)} comprobaciones fallan.")
     return 1 if failures else 0
@@ -560,8 +896,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--abrir", action="store_true", help="abre la presentación en el navegador")
     parser.add_argument("--comprobar", action="store_true",
                         help="prueba el servidor sin placa en un puerto libre y sale con 0 o 1")
+    parser.add_argument("--sala", action="store_true",
+                        help="el público elige la clave desde el móvil: publica la sala con cloudflared")
+    parser.add_argument("--sala-url", metavar="URL",
+                        help="dirección pública de la sala ya montada (o http://127.0.0.1:8001/ para ensayar)")
+    parser.add_argument("--puerto-sala", type=int, default=ROOM_PORT, help=f"puerto local de la sala ({ROOM_PORT})")
     args = parser.parse_args(argv)
-    return check() if args.comprobar else serve(args.puerto, args.abrir)
+    if args.comprobar:
+        return check()
+    return serve(args.puerto, args.abrir, args.puerto_sala, args.sala_url, args.sala)
 
 
 if __name__ == "__main__":

@@ -31,8 +31,15 @@ if (ESTATICO) document.documentElement.classList.add('estatico');
 const escenario = document.querySelector('.escenario');
 const diapos = [...document.querySelectorAll('.diapo')];
 const total = diapos.length;
-const indSeccion = escenario.querySelector('.indicador.seccion');
+const indPartes = escenario.querySelector('.indicador.tira');
 const indNumero = escenario.querySelector('.indicador.numero');
+// Las partes de la exposición salen de los data-seccion, en su orden. Abajo, en el centro,
+// se ven todas con la actual resaltada: en todo momento se sabe en qué parte estamos.
+// Los anexos no cuentan: van después de «¿Preguntas?» y conservan su número para saltar a ellos.
+const ANEXOS = 'Anexos';
+const partes = [...new Set(diapos.map((d) => d.dataset.seccion).filter((s) => s && s !== ANEXOS))];
+const principales = diapos.filter((d) => d.dataset.seccion !== ANEXOS).length;
+indPartes.innerHTML = partes.map((p, k) => `<li><b>${k + 1}</b>${p}</li>`).join('') + `<li class="anexos">${ANEXOS}</li>`;
 let indice = -1, paso = 0, navegaciones = 0;
 
 const pasosDe = (i) => Math.max(0, parseInt(diapos[i]?.dataset.pasos ?? '0', 10) || 0);
@@ -69,8 +76,12 @@ function ir(i, p) {
   for (const el of d.querySelectorAll('[data-paso]')) el.classList.toggle('visible', +el.dataset.paso <= p);
   for (const el of d.querySelectorAll('[data-solo]')) el.classList.toggle('visible', +el.dataset.solo === p);
   if (cambia) {
-    indSeccion.textContent = d.dataset.seccion ?? '';
-    indNumero.textContent = i === 0 ? '' : String(i + 1);
+    // La tira de partes sale desde el índice (data-partes), con la parte actual resaltada.
+    const seccion = d.dataset.seccion ?? '', anexo = seccion === ANEXOS;
+    indPartes.hidden = !(anexo || partes.includes(seccion) || d.hasAttribute('data-partes'));
+    indPartes.classList.toggle('en-anexos', anexo);
+    [...indPartes.children].forEach((li, k) => li.classList.toggle('actual', anexo ? k === partes.length : partes[k] === seccion));
+    indNumero.textContent = i === 0 ? '' : anexo ? String(i + 1) : `${i + 1} / ${principales}`;
     try { history.replaceState(null, '', `#${d.id}`); } catch { /* file:// o sandbox */ }
     // La actual y la siguiente: así la siguiente ya está montada al llegar.
     [d, diapos[i + 1]].filter(Boolean).forEach((x) => escenasDe(x).forEach(montar));

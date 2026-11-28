@@ -1,6 +1,8 @@
 # Narrativa de la presentación
 
-Guion del equipo para la rama `presentacion` (2026-11-23). Aquí va el hilo, el orden con tiempos, el
+Guion del equipo para la rama `presentacion` (2026-11-23), revisado el 2026-11-24 con la rúbrica de
+la exposición ([`docs/enunciado.md`](../docs/enunciado.md)): la clave la pone el público con el móvil,
+hay un mapa conceptual y se ve siempre en qué parte estamos. Aquí va el hilo, el orden con tiempos, el
 vocabulario común, los momentos de participación y la prueba de comprensión. Lo que se dice en cada
 diapositiva está en sus notas del ponente (`aside.notas` de [`index.html`](index.html), tecla **N**), y
 el manejo del juego y de la demo, en el [`README.md`](README.md).
@@ -12,7 +14,7 @@ Reglas que no cambian:
   pieza del juego en él.
 - **Lo mínimo de matemáticas.** Las diapositivas principales no llevan fórmulas (lo comprueba
   `tests/diapositivas.test.js`): se dice «parecido» y «número de unos». La fórmula del CPA está en el
-  anexo 23.
+  anexo 24.
 - **Lo medido va con su fuente:** cada cifra de `memoria/capitulos/generado/reales.tex` o de
   `web/data/` lleva su `data-cifra`, `data-dato` o `data-memoria`. Las tiradas del juego son simuladas
   y se dice.
@@ -34,10 +36,10 @@ moneda trucada destaca tras muchas tiradas.
 | La trampa: sale cara el 60 % | La fuga: el consumo se parece a lo que predice la clave correcta | 5, 8 y 9 |
 | Lo que puede hacer el azar (la franja azul), que se estrecha con más tiradas | El azar de los 255 falsos (el plano de la montaña, la línea gris de la demo), que baja con más trazas | 9, 12 y 13 |
 | La trucada se sale de la franja | El correcto se sale del azar: su cresta en la montaña | 9, 12 y 13 |
-| La trampa solo actúa en una de cada 16 tiradas, sin saber en cuáles | Barajar el orden en que pasan los 16 bytes por la S-box | 15 |
-| No saber cuándo mirar | Esperas al azar (retardos aleatorios) | 15 |
+| La trampa solo actúa en una de cada 16 tiradas, sin saber en cuáles | Barajar el orden en que pasan los 16 bytes por la S-box | 16 |
+| No saber cuándo mirar | Esperas al azar (retardos aleatorios) | 16 |
 | Darle la vuelta a la moneda sin avisar | Enmascarar (no medido) | 15 |
-| (El juego no tiene «cuándo») | El instante en que mirar: la ronda 1, y la segunda cresta, cuando las mezclas siguientes vuelven a cargar el byte | 7, 9, 13 y 15 |
+| (El juego no tiene «cuándo») | El instante en que mirar: la ronda 1, y la segunda cresta, cuando las mezclas siguientes vuelven a cargar el byte | 7, 9, 13 y 16 |
 
 ### Por qué el puente va antes de la demo
 
@@ -51,33 +53,36 @@ después, la demo, que es el momento de más atención, pasaría sin que nadie s
 | Nº | id | Título | Qué se pulsa | Participación | Quién | Tiempo | Empieza |
 |---|---|---|---|---|---|---|---|
 | 1 | `portada` | Leer una clave AES en el consumo | Opcional: arrastrar la placa 3D, que gira sola, para darle la vuelta, también por debajo (la rueda la acerca), y decir «la placa es nuestro modelo 3D: la podemos girar y ver por debajo» | — | Juan Diego | 30 s | 0:00 |
-| 2 | `juego` | Una de estas monedas está trucada | «Tirar», «Seguir tirando» y «Parar», tocar la moneda que dice la sala y «Comprobar»; ↻ para otra partida | La sala dice la letra | Juan Diego | 2 min 30 s | 0:30 |
-| 3 | `pregunta` | ¿Un chip puede chivarse de su clave? | Escribir la palabra y «Guardar en el chip» | Pregunta abierta y palabra de la clase | Juan Diego | 1 min | 3:00 |
-| 4 | `indice` | De la fuga a la clave | — | — | Juan Diego | 20 s | 4:00 |
-| 5 | `fuga` | El consumo depende de los datos | → 4 veces | «¿Qué gasta más, ceros o unos?» | Brian | 1 min 15 s | 4:20 |
-| 6 | `punto-de-ataque` | El punto débil: la primera ronda | → 1 vez | — | Brian | 50 s | 5:35 |
-| 7 | `spa` | Ver las rondas sin saber nada | → 3 veces | — | Brian | 50 s | 6:25 |
-| 8 | `dpa-cpa` | Así se nota el candidato correcto | → 1 vez | «¿Cambian las medidas?» | Brian | 1 min | 7:15 |
-| 9 | `puente` | En el juego → en el ataque | — | — | Brian | 1 min | 8:15 |
-| 10 | `montaje` | Lo que medimos | → 4 veces (vídeo V2) | — | Alberto | 1 min 30 s | 9:15 |
-| 11 | `apuesta` | ¿Cuántas trazas harán falta? | La opción más votada | ¿Más o menos que vuestras tiradas? | Alberto | 40 s | 10:45 |
-| 12 | `demo` | En directo | «Capturar» | La palabra; «avisad del primer verde» | Alberto | 3 min | 11:25 |
-| 13 | `por-dentro` | Qué acaba de pasar | → 3 veces (vídeo V3) | «¿Subirá la cresta?» | Alberto | 1 min 30 s | 14:25 |
-| 14 | `resultados` | ¿Cuántas trazas hicieron falta? | → 1 vez | Se resuelve la apuesta y vuelven las tiradas del juego | Roberto | 1 min 15 s | 15:55 |
-| 15 | `contramedidas` | Defensas: esconder la trampa | → 2 veces | «¿Cómo esconderíais la moneda?» | Roberto | 1 min 45 s | 17:10 |
-| 16 | `conclusiones` | No rompe AES: rompe una implementación | — | Vuelta a la pregunta del principio | Roberto | 1 min | 18:55 |
-| 17 | `preguntas` | ¿Preguntas? | Número + Intro para un anexo | Preguntas y QR | Roberto | lo que quede | 19:55 |
-| 18 a 23 | `anexo-*` | Hamming, captura, enmascaramiento, dispositivo real, AES por hardware y qué es el «parecido» | — | — | quien responda | solo si preguntan | — |
+| 2 | `juego` | Una de estas monedas está trucada | «Tirar», «Seguir tirando» y «Parar», tocar la moneda que dice la sala y «Comprobar»; ↻ para otra partida | La sala dice la letra | Juan Diego | 2 min | 0:30 |
+| 3 | `pregunta` | ¿Un chip puede chivarse de su clave? | «Guardar en el chip» cuando se llenen las casillas (sin red: «Sin móviles: una palabra») | Pregunta abierta y la clave del público: cada móvil elige un byte | Juan Diego | 1 min 40 s | 2:30 |
+| 4 | `indice` | De la fuga a la clave | — | — | Juan Diego | 20 s | 4:10 |
+| 5 | `fuga` | El consumo depende de los datos | → 4 veces | «¿Qué gasta más, ceros o unos?» | Brian | 1 min 15 s | 4:30 |
+| 6 | `punto-de-ataque` | El punto débil: la primera ronda | → 1 vez | — | Brian | 50 s | 5:45 |
+| 7 | `spa` | Ver las rondas sin saber nada | → 3 veces | — | Brian | 50 s | 6:35 |
+| 8 | `dpa-cpa` | Así se nota el candidato correcto | → 1 vez | «¿Cambian las medidas?» | Brian | 1 min | 7:25 |
+| 9 | `puente` | En el juego → en el ataque | — | — | Brian | 50 s | 8:25 |
+| 10 | `montaje` | Lo que medimos | → 7 veces: la mesa de laboratorio en 3D (el chip solo, la mesa entera y la placa delante) y después el vídeo V2, con la mesa en un recuadro | «¿Con qué aparato la veríais?»; la placa de verdad, en la mano | Alberto | 1 min 40 s | 9:15 |
+| 11 | `apuesta` | ¿Cuántas trazas harán falta? | La opción más votada | Los móviles apuestan (o manos): ¿más o menos que vuestras tiradas? | Alberto | 40 s | 10:55 |
+| 12 | `demo` | En directo | «Capturar» | «Avisad del primer verde»; al acabar, los móviles en verde | Alberto | 2 min 30 s | 11:35 |
+| 13 | `por-dentro` | Qué acaba de pasar | → 3 veces (vídeo V3) | «¿Subirá la cresta?» | Alberto | 1 min 15 s | 14:05 |
+| 14 | `resultados` | ¿Cuántas trazas hicieron falta? | → 1 vez | Se resuelve la apuesta y vuelven las tiradas del juego | Roberto | 1 min 15 s | 15:20 |
+| 15 | `mapa` | El ataque es una cadena | → 1 vez | «Si fuerais el fabricante, ¿qué flecha cortaríais?» | Roberto | 50 s | 16:35 |
+| 16 | `contramedidas` | Defensas: esconder la trampa | → 1 vez | — | Roberto | 1 min 10 s | 17:25 |
+| 17 | `conclusiones` | No rompe AES: rompe una implementación | — | Vuelta a la pregunta del principio | Roberto | 1 min | 18:35 |
+| 18 | `preguntas` | ¿Preguntas? | Número + Intro para un anexo | Preguntas y QR | Roberto | lo que quede | 19:35 |
+| 19 a 24 | `anexo-*` | Hamming, captura, enmascaramiento, dispositivo real, AES por hardware y qué es el «parecido» | — | — | quien responda | solo si preguntan | — |
 
-Son 16 min 55 s más 3 de demo (19 min 55 s). Juan Diego habla 4 min 20 s, Brian 4 min 55 s, Alberto
-6 min 40 s con la demo y Roberto 4 min más las preguntas.
+Son 17 min 5 s más 2 min 30 s de demo (19 min 35 s), para un hueco de unos 25 min por grupo contando
+las preguntas (tres grupos en hora y media). Juan Diego habla 4 min 30 s, Brian 4 min 45 s, Alberto
+6 min 5 s con la demo y Roberto 4 min 15 s más las preguntas.
 
 **Si hay que recortar** (algo más de un minuto), por este orden:
 
 1. El juego en una sola partida: parar en cuanto la trucada se salga de la franja.
 2. SPA solo con los pasos 0 y 3.
-3. Montaje: los pasos 1 y 2 con una sola frase.
-4. Defensas sin la analogía del enmascaramiento.
+3. Montaje: del vídeo, la resistencia y el medidor (pasos 4 y 5) con una sola frase. La mesa del principio no
+   se recorta: es lo que la sala reconoce.
+4. El mapa leído de un tirón, sin la pregunta a la sala.
 
 Lo último que se toca es el juego, la apuesta y la montaña.
 
@@ -91,7 +96,7 @@ Los cuatro dicen lo mismo con las mismas palabras, que son las de la pantalla.
 | traza | traza: la corriente del chip durante un cifrado; en el juego, una tirada (se define en la 7) |
 | candidato k | candidato: cada uno de los 256 valores posibles de un byte de la clave |
 | peso de Hamming | número de unos (el nombre técnico, una vez en voz alta en la 5) |
-| correlación, \|ρ\| | parecido: 0 es nada y 1, idéntico (correlación solo en los anexos 18 y 23) |
+| correlación, \|ρ\| | parecido: 0 es nada y 1, idéntico (correlación solo en los anexos 19 y 24) |
 | ruido, mejor falso, 4/√N | lo que puede hacer el azar; su techo es «el falso con más suerte» |
 | rango | puesto (1.º gana) |
 | ordenaciones al azar | repeticiones: el ataque con trazas escogidas al azar de las 1000 grabadas; se hicieron 100, como 100 partidas |
@@ -99,6 +104,7 @@ Los cuatro dicen lo mismo con las mismas palabras, que son las de la pantalla.
 | disparo (trigger) | señal de inicio |
 | shunt | resistencia (shunt) |
 | ADC | medidor (ADC) |
+| ADC y capturador juntos | lo que en una mesa de laboratorio haría un osciloscopio (se dice en la 10) |
 | retardos aleatorios | esperas al azar |
 | SPA, DPA y CPA | se nombran una vez, en la 7 y en la 8 |
 
@@ -113,7 +119,7 @@ No se dice:
 - «La cresta crece con más trazas». Lo que baja es el azar.
 - «Siempre sale». Se dice «en las 100 repeticiones».
 - Que el plano de la montaña es una fórmula: es el falso con más suerte, medido. La franja del juego
-  sí es una cuenta (± 1,5/√N, tres desviaciones típicas), y está en el anexo 23.
+  sí es una cuenta (± 1,5/√N, tres desviaciones típicas), y está en el anexo 24.
 - «Barajar no sirve» o «las esperas lo hacen imposible». Medimos ×3,6 y 7 de 16 sumando ventanas.
 - «Barajar es cambiar las monedas de sitio»: las monedas son candidatos, hipótesis del atacante, y el chip
   no las mueve. Lo que se baraja es el orden de los bytes: la trampa de cada uno solo asoma en una de cada
@@ -123,27 +129,36 @@ No se dice:
 - Que las medidas prueban «más unos, más corriente». Prueban que la corriente cambia con el número de
   unos; hacia qué lado se mueve la lectura depende del montaje.
 - «Tiempo constante» sin explicarlo. No sale en la charla.
-- La palabra de la clase en voz alta, o callarse el modo de la demo.
+- «Hemos adivinado vuestra clave» sin decir cómo llegó al chip: el portátil se la pasa a la placa, como
+  haría quien la configura. Lo que hace el ataque es leerla del consumo sin mirarla, y eso sí se dice.
+- La palabra de la clase en voz alta (si no hay móviles), o callarse el modo de la demo.
 
 ## 4. Ganchos de atención
 
-Los imprescindibles son el juego, la palabra de la clase y la apuesta. Los demás duran menos de 15 s
+Los imprescindibles son el juego, la clave del público y la apuesta. Los demás duran menos de 15 s
 y se saltan si va justo de tiempo.
 
 | Gancho | Dónde | Qué se hace | Cómo se cierra |
 |---|---|---|---|
 | El juego de las monedas | 2 | Se tira hasta que alguien dice la letra con seguridad; se toca esa moneda y «Comprobar» | «¡Acertado con N tiradas!», «Acertado, pero con suerte» (la barra aún estaba dentro de la franja) o «No era esa» y otra partida. La N vuelve en la 14 |
-| Pregunta abierta | 3 | «¿Un chip puede chivarse de su clave?» y 5 s de silencio; dos respuestas sin corregir | En la 16: «Sí, con unas cien trazas» |
-| La palabra de la clase | 3 → 12 | La clase dicta una palabra y se guarda sin leerla | En la 12, «Clave recuperada»: «¿es la vuestra?». Si se usa Grabado, se dice, y 20 s de Simulado con la palabra |
+| Pregunta abierta | 3 | «¿Un chip puede chivarse de su clave?» y 5 s de silencio; dos respuestas sin corregir | En la 17: «Sí, con unas cien trazas» |
+| La clave del público | 3 → 12 | Un QR: cada móvil recibe uno de los 16 bytes de la clave y elige su valor. En pantalla solo se ve cuántos han elegido. Al guardar, el azar pone los que falten | En la 12, cada byte que sale pone verde el móvil de su dueño: «¿quién lo tiene en verde?». Sin red, la palabra de la clase, dictada y guardada sin leerla |
 | ¿Ceros o unos? | 5, antes del paso 3 | Pregunta rápida | En el paso 3: más unos, más corriente |
 | ¿Cambian las medidas? | 8, paso 0 | Pregunta rápida | En el paso 1: no, solo se recolocan |
-| La apuesta de trazas | 11 | «¿Más o menos que vuestras tiradas?»: manos y se pulsa la más votada | En la 14, paso 1: «unas 100» y, debajo, las tiradas de la clase |
+| ¿Con qué aparato? | 10, paso 0 | Con el chip solo en pantalla: «¿Con qué aparato veríais su corriente?» (la pregunta está escrita) | En el paso 1: la mesa de laboratorio entera, con el osciloscopio y una traza nuestra en su pantalla. En el paso 2, «todo eso, en esta placa», y se enseña la placa de verdad |
+| La apuesta de trazas | 11 | «¿Más o menos que vuestras tiradas?»: los móviles votan (o manos) y se pulsa la más votada | En la 14, paso 1: «unas 100» y, debajo, las tiradas de la clase |
 | El primer verde | 12 | «Avisad cuando veáis el primer byte en verde» | En la propia demo |
 | ¿Sube la cresta? | 13, antes del paso 3 | Predicción a mano alzada | En el paso 3: no sube, baja el azar |
-| Esconder la moneda | 15, paso 0 | Dos o tres ideas del público | Las dos familias, en pantalla |
-| El QR | 17 | Escanear la web | — |
+| Esconder la moneda | 15, paso 0 | «¿Qué flecha cortaríais?»: dos o tres ideas del público | Las cuatro familias, cada una bajo la flecha que corta |
+| El QR de la web | 18 | Escanear la web | — |
+
+**Humor.** La rúbrica lo valora y va en las notas, marcado como opcional: el QR «que se puede escanear
+sin miedo» (3) y quien eligió 00 «para ponérnoslo difícil» (12). Una frase, sin forzarla.
 
 ## 5. Si algo falla
+
+- **Sin red, sin túnel o sin móviles**, no hay QR: en la 3 se pulsa «Sin móviles: una palabra» (o sale
+  ya el formulario) y la clase dicta una palabra. La apuesta se hace a mano alzada. Nada más cambia.
 
 - **Sin WebGL**, el juego no se puede jugar: se queda su póster. Se cuenta con la página del PDF
   (1000 tiradas, la G trucada y fuera de la franja) y se sigue igual.
@@ -167,8 +182,8 @@ Para quien haga de público en un ensayo:
 | 4 | ¿Por qué no basta con una traza, ni con diez? | 2, 9 y 13 |
 | 5 | En la montaña, ¿qué es la altura y qué es el plano? ¿Qué cambia al meter más trazas? | 13 |
 | 6 | ¿Cuántas trazas hicieron falta en nuestra placa y cuánto se tarda en capturarlas? | 14 |
-| 7 | Con monedas, ¿por qué frenan el ataque barajar y las esperas al azar? ¿Por qué barajar solo multiplicó las trazas por 3,6? | 13 y 15 |
-| 8 | ¿Este ataque rompe AES? ¿Qué hace falta para hacerlo? | 16 |
+| 7 | Con monedas, ¿por qué frenan el ataque barajar y las esperas al azar? ¿Por qué barajar solo multiplicó las trazas por 3,6? | 13, 15 y 16 |
+| 8 | ¿Este ataque rompe AES? ¿Qué hace falta para hacerlo? | 17 |
 
 ## 7. Respuestas esperadas (solo para quien corrige)
 

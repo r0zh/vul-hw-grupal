@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f5f5f7">
+<meta name="robots" content="noindex">
+<title>Tu byte de la clave</title>
+<!-- La página del móvil del público (captura/sala.py la sirve en «/» por el túnel).
+     No carga nada de fuera: el servidor del público solo tiene esta página y tres rutas
+     (estado, byte y apuesta). Cada móvil guarda un identificador al azar y pregunta su
+     estado cada 2 s; nunca recibe la clave ni los bytes de los demás.
+     Para ensayar sin túnel: uv run python -m captura.vivo --sala-url http://127.0.0.1:8001/ -->
+<style>
+  :root { --fondo: #f5f5f7; --sup: #fff; --tinta: #1d1d1f; --tenue: #515154; --linea: #d2d2d7; --acento: #0071e3; --ok: #1e7d36; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { height: 100%; }
+  body { margin: 0; min-height: 100%; background: var(--fondo); color: var(--tinta);
+    font: 500 18px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; transition: background .4s; }
+  main { max-width: 460px; margin: 0 auto; padding: max(20px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; gap: 20px; min-height: 100vh; min-height: 100dvh; }
+  .marca { margin: 0; font-size: 14px; color: var(--tenue); }
+  section[hidden], p[hidden] { display: none; }
+  .vista { display: flex; flex-direction: column; gap: 14px; }
+  h1 { margin: 0; font-size: 34px; line-height: 1.08; letter-spacing: -.03em; font-weight: 700; text-wrap: balance; }
+  h2 { margin: 0; font-size: 24px; line-height: 1.15; letter-spacing: -.02em; font-weight: 700; text-wrap: balance; }
+  p { margin: 0; color: var(--tenue); }
+  .valor { font: 700 96px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .04em; text-transform: uppercase; margin: 6px 0; }
+  .visor { display: flex; gap: 12px; justify-content: center; margin: 4px 0; }
+  .visor span { width: 96px; height: 116px; border-radius: 20px; background: var(--sup); box-shadow: inset 0 0 0 2px var(--linea);
+    display: grid; place-items: center; font: 700 68px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace; text-transform: uppercase; }
+  .visor span.sig { box-shadow: inset 0 0 0 3px var(--acento); }
+  .teclas { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  button { font: inherit; color: inherit; border: 0; border-radius: 16px; min-height: 60px; background: var(--sup);
+    box-shadow: inset 0 0 0 1px var(--linea); touch-action: manipulation; cursor: pointer; }
+  button:active { transform: scale(.96); }
+  .teclas button { font: 600 26px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  .fila { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; }
+  .principal { background: var(--acento); color: #fff; box-shadow: none; font-weight: 650; font-size: 20px; }
+  .principal:disabled { background: #c7c7cc; }
+  .secundario { font-size: 17px; }
+  .caja { background: var(--sup); border-radius: 22px; padding: 22px; box-shadow: 0 0 0 1px rgba(0,0,0,.04), 0 12px 32px -18px rgba(0,0,0,.25);
+    display: flex; flex-direction: column; gap: 12px; }
+  .opciones { display: grid; gap: 10px; }
+  .opciones button { text-align: left; padding: 0 20px; font-weight: 600; font-size: 20px; }
+  .opciones button[aria-pressed="true"] { background: var(--acento); color: #fff; box-shadow: none; }
+  #aviso { font-size: 15px; text-align: center; }
+  .pie { margin-top: auto; font-size: 14px; }
+  body.verde { background: var(--ok); color: #fff; }
+  body.verde p, body.verde .marca { color: rgba(255,255,255,.92); }
+  body.verde .caja { color: var(--tinta); }
+  body.verde .caja p { color: var(--tenue); }
+</style>
+</head>
+<body>
+<main>
+  <p class="marca">Leer una clave AES en el consumo</p>
+
+  <section class="caja" id="apuesta" hidden>
+    <h2>¿Cuántas trazas harán falta para sacar la clave entera?</h2>
+    <div class="opciones">
+      <button type="button" data-apuesta="10" aria-pressed="false">unas 10</button>
+      <button type="button" data-apuesta="100" aria-pressed="false">unas 100</button>
+      <button type="button" data-apuesta="1000" aria-pressed="false">unas 1000</button>
+      <button type="button" data-apuesta="10000" aria-pressed="false">unas 10 000</button>
+      <button type="button" data-apuesta="1000000" aria-pressed="false">un millón</button>
+    </div>
+    <p id="apuesta-estado">Toca tu apuesta. Puedes cambiarla hasta que se cierre.</p>
+  </section>
+
+  <section class="vista" data-vista="conectando">
+    <h1>Conectando…</h1>
+  </section>
+
+  <section class="vista" data-vista="elige" hidden>
+    <h1>Eres el byte <span data-pos></span></h1>
+    <p>Uno de los 16 de la clave. Elige su valor: dos cifras, de 00 a FF.</p>
+    <div class="visor" aria-live="polite" aria-label="Valor elegido"><span id="d0"></span><span id="d1"></span></div>
+    <div class="teclas" id="teclas"></div>
+    <div class="fila">
+      <button type="button" class="secundario" id="borrar">Borrar</button>
+      <button type="button" class="principal" id="guardar" disabled>Guardar</button>
+    </div>
+  </section>
+
+  <section class="vista" data-vista="guardado" hidden>
+    <h1>Guardado</h1>
+    <div class="valor" data-valor></div>
+    <p>Es el byte <span data-pos></span> de la clave. No se lo enseñes a nadie.</p>
+    <button type="button" class="secundario" id="cambiar">Cambiar mi byte</button>
+  </section>
+
+  <section class="vista" data-vista="testigo" hidden>
+    <h1>Los 16 bytes ya tienen dueño</h1>
+    <p>Esta vez te toca mirar. Deja esta página abierta: luego podrás apostar.</p>
+  </section>
+
+  <section class="vista" data-vista="cerrada" hidden>
+    <h1>Tu byte ya está en el chip</h1>
+    <div class="valor" data-valor></div>
+    <p data-azar hidden>No llegaste a elegir: el byte <span data-pos></span> lo ha puesto el azar.</p>
+    <p>Guarda el móvil. Cuando la placa lo lea en su consumo, esta pantalla se pondrá verde.</p>
+  </section>
+
+  <section class="vista" data-vista="fuera" hidden>
+    <h1>La clave ya está en el chip</h1>
+    <p>Mira la pantalla: va a salir byte a byte.</p>
+  </section>
+
+  <section class="vista" data-vista="leido" hidden>
+    <h1>Leído en el consumo</h1>
+    <div class="valor" data-valor></div>
+    <p>El byte <span data-pos></span>, con <span id="trazas"></span> trazas. ¿Es el tuyo?</p>
+  </section>
+
+  <p id="aviso" hidden>Sin conexión: reintentando…</p>
+  <p class="pie">Hardware de laboratorio y una clave que no protege nada real.</p>
+</main>
+<script>
+(function () {
+  'use strict';
+  var CLAVE_ID = 'sala:id';
+  var id = null;
+  try { id = localStorage.getItem(CLAVE_ID); } catch (e) { /* sin almacenamiento */ }
+  if (!/^[0-9a-f]{32}$/.test(id || '')) {
+    var azar = new Uint8Array(16);
+    crypto.getRandomValues(azar);
+    id = Array.prototype.map.call(azar, function (b) { return (b + 256).toString(16).slice(1); }).join('');
+    try { localStorage.setItem(CLAVE_ID, id); } catch (e) { /* vale mientras dure la página */ }
+  }
+
+  var estado = null, tecleado = '', editando = false, ronda = null, vistaActual = 'conectando', enviando = false;
+  var $ = function (s) { return document.querySelector(s); };
+  var todos = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
+  var NOMBRES = { 10: 'unas 10', 100: 'unas 100', 1000: 'unas 1000', 10000: 'unas 10 000', 1000000: 'un millón' };
+
+  function pedir(ruta, cuerpo) {
+    var corte = new AbortController();
+    var reloj = setTimeout(function () { corte.abort(); }, 5000);
+    var opciones = { cache: 'no-store', signal: corte.signal };
+    if (cuerpo) {
+      opciones.method = 'POST';
+      opciones.headers = { 'Content-Type': 'application/json' };
+      opciones.body = JSON.stringify(cuerpo);
+    }
+    return fetch(ruta, opciones).then(function (r) {
+      clearTimeout(reloj);
+      // 409: la ronda se cerró mientras se enviaba; el cuerpo trae el estado nuevo.
+      if (!r.ok && r.status !== 409) throw new Error(String(r.status));
+      return r.json();
+    }, function (err) { clearTimeout(reloj); throw err; });
+  }
+
+  function vistaDe(s) {
+    if (s.leido && s.valor) return 'leido';
+    if (!s.abierta) return s.posicion == null ? 'fuera' : 'cerrada';
+    if (s.posicion == null) return 'testigo';
+    return s.valor && !editando ? 'guardado' : 'elige';
+  }
+
+  function pintarVisor() {
+    $('#d0').textContent = tecleado[0] || '';
+    $('#d1').textContent = tecleado[1] || '';
+    $('#d0').className = tecleado.length === 0 ? 'sig' : '';
+    $('#d1').className = tecleado.length === 1 ? 'sig' : '';
+    $('#guardar').disabled = tecleado.length !== 2 || enviando;
+  }
+
+  function pintar(s) {
+    estado = s;
+    if (ronda !== s.ronda) { ronda = s.ronda; tecleado = ''; editando = false; }
+    var vista = vistaDe(s);
+    // Con la ronda cerrada y las apuestas abiertas, en la pantalla solo queda la apuesta.
+    var soloApuesta = s.apuesta_abierta && !s.abierta && vista !== 'leido';
+    todos('[data-vista]').forEach(function (el) { el.hidden = soloApuesta || el.dataset.vista !== vista; });
+    todos('[data-pos]').forEach(function (el) { el.textContent = s.posicion == null ? '' : String(s.posicion); });
+    todos('[data-valor]').forEach(function (el) { el.textContent = s.valor || ''; });
+    todos('[data-azar]').forEach(function (el) { el.hidden = !s.azar; });
+    if (s.leido) $('#trazas').textContent = String(s.leido.trazas);
+    document.body.classList.toggle('verde', vista === 'leido');
+    if (vista === 'leido' && vistaActual !== 'leido' && navigator.vibrate) navigator.vibrate([80, 60, 160]);
+    vistaActual = vista;
+    pintarVisor();
+
+    $('#apuesta').hidden = !s.apuesta_abierta;
+    todos('[data-apuesta]').forEach(function (b) { b.setAttribute('aria-pressed', String(Number(b.dataset.apuesta) === s.apuesta)); });
+    $('#apuesta-estado').textContent = s.apuesta
+      ? 'Tu apuesta: ' + NOMBRES[s.apuesta] + '. Puedes cambiarla hasta que se cierre.'
+      : 'Toca tu apuesta. Puedes cambiarla hasta que se cierre.';
+  }
+
+  function preguntar() {
+    return pedir('estado?id=' + id).then(function (s) { $('#aviso').hidden = true; pintar(s); },
+      function () { $('#aviso').hidden = false; });
+  }
+
+  // Teclado hexadecimal: con dos cifras puestas, la siguiente empieza un valor nuevo.
+  '0123456789ABCDEF'.split('').forEach(function (c) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = c;
+    b.addEventListener('click', function () {
+      tecleado = tecleado.length >= 2 ? c : tecleado + c;
+      pintarVisor();
+    });
+    $('#teclas').appendChild(b);
+  });
+  $('#borrar').addEventListener('click', function () { tecleado = tecleado.slice(0, -1); pintarVisor(); });
+  $('#guardar').addEventListener('click', function () {
+    if (tecleado.length !== 2 || enviando) return;
+    enviando = true;
+    pintarVisor();
+    pedir('byte', { id: id, valor: parseInt(tecleado, 16) }).then(function (s) {
+      enviando = false; editando = false; $('#aviso').hidden = true; pintar(s);
+    }, function () { enviando = false; $('#aviso').hidden = false; pintarVisor(); });
+  });
+  $('#cambiar').addEventListener('click', function () {
+    editando = true;
+    tecleado = '';
+    if (estado) pintar(estado);
+  });
+  todos('[data-apuesta]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      pedir('apuesta', { id: id, valor: Number(b.dataset.apuesta) }).then(function (s) { $('#aviso').hidden = true; pintar(s); },
+        function () { $('#aviso').hidden = false; });
+    });
+  });
+
+  // Pregunta cada 2 s mientras la página se ve, y al volver a ella.
+  var reloj = 0;
+  function ciclo() {
+    clearTimeout(reloj);
+    if (document.hidden) return;
+    preguntar().then(function () { reloj = setTimeout(ciclo, 2000); });
+  }
+  document.addEventListener('visibilitychange', ciclo);
+  ciclo();
+})();
+</script>
+</body>
+</html>

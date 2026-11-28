@@ -34,14 +34,55 @@ Se recomienda que siga un esquema similar al de la memoria, pero **evitando pone
 
 ### Rúbrica de la presentación oral (`CriteriosPresentacionOral.pdf`, 10 puntos)
 
+Transcripción literal de los criterios de calidad del PDF del profesor.
+
+**Estructura (2 puntos)**
+
+- La presentación contiene un índice que muestra la estructura que tendrá.
+- Contiene una presentación que plantea de forma sencilla el tema y su importancia.
+- En el desarrollo se hace énfasis en los puntos importantes.
+- Contiene unas conclusiones que ayudan a asimilar lo expuesto.
+- En todo momento he sabido en que parte de la exposición estamos.
+- Las partes de la presentación están bien equilibradas y se han ajustado al tiempo establecido
+
+**Contenido (2 puntos)**
+
+- El orador ha hablado con seguridad sobre el tema, demostrando que lo conoce bien.
+- Ha hecho referencias apropiadas a las fuentes de información.
+- Se han hecho referencias a ejemplos prácticos que me han ayudado a comprender bien lo expuesto.
+- El grupo ha respondido adecuadamente a todas las preguntas formuladas por la audiencia.
+
+**Transparencias (1 punto)**
+
+- Las transparencias están numeradas y contienen elementos que permiten saber en qué punto de la presentación nos encontramos.
+- Cada transparencia contiene poca letra, frases cortas, y bien visibles.
+- El colorido de la transparencia resulta agradable a la vista, y el texto contrasta bien con el fondo.
+- Contiene gráficos que resultan de ayuda para comprender lo que se expone.
+- Las animaciones ayudan a enfatizar lo importante.
+- Se ha utilizado un mapa conceptual para aclarar conceptos y relaciones entre ellos.
+
+**Lenguaje verbal y corporal (2,5 puntos)**
+
+- El orador ha vocalizado con claridad y ha usado palabras adecuadas a la audiencia (lo he entendido todo perfectamente).
+- El volumen y velocidad al hablar eran adecuados, y ha usado alteraciones en el tono para enfatizar los aspectos importantes.
+- Los gestos corporales han sido moderados (ni excesivamente expresivo ni completamente estático). Esos gestos se han usado apropiadamente para enfatizar lo importante de la presentación.
+- Ha mirado en general a toda la audiencia, intentando implicarla de esta manera en la presentación.
+- Se nota que han ensayado la presentación previamente.
+
+**Interés (2,5 puntos)**
+
+- La presentación ha sabido capturar mi interés desde el primer momento.
+- Incluso ha usado algunos toques de humor que han aumentado mi motivación.
+- No me he aburrido en ningún momento, y creo que el tema me interesa más ahora que antes de la presentación.
+- He aprendido cosas que no sabía.
+- Han sabido hacer participar a la audiencia
+
 | Criterio | Puntos |
 |---|---:|
 | Estructura | 2 |
 | Contenido | 2 |
 | Transparencias | 1 |
 | Lenguaje verbal y corporal | 2,5 |
-| Interés y participación | 2,5 |
-
-La rúbrica premia ejemplos prácticos, gráficos útiles y que el público aprenda algo. La demo suma si se explica el mecanismo; no basta con enseñar la clave recuperada.
+| Interés | 2,5 |
 
 El PDF original de la rúbrica se guarda en `docs/referencias/`, que no se sube al repositorio.

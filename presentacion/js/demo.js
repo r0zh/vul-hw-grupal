@@ -13,7 +13,11 @@
 //
 // La clave real solo sirve para pintar de verde los bytes acertados: el CPA del
 // worker elige cada byte sin mirarla. Es la que se carga en la placa: la de la
-// diapositiva «pregunta» (sessionStorage 'demo:clave') o la de laboratorio.
+// diapositiva «pregunta» (la de la sala, en sessionStorage 'demo:clave-hex', o
+// la palabra de la clase, en 'demo:clave') o la de laboratorio.
+//
+// Con la clave de la sala, cada byte que el ataque saca se le cuenta al
+// servidor (POST /api/sala/leidos) para que el móvil de su dueño se ponga verde.
 //
 // En el contenedor, para las pruebas: data-estado (listo, capturando, hecho o
 // error), data-modo, data-n, data-recuperados y data-ready.
@@ -36,6 +40,9 @@ const CHIP = { nano: 'En vivo', grabado: 'Grabado', simulado: 'Simulado' };
 const SIN_SERVIDOR = 'Necesita el servidor: uv run python -m captura.vivo';
 const PAD = { l: 64, r: 104, t: 18, b: 44 };  // márgenes de la gráfica, en px
 const Y_TICKS = [0, 0.25, 0.5, 0.75, 1];
+const AXIS0 = 50;            // primer escalón del eje x; después 100, 200, 400… hasta las trazas pedidas
+const AXIS_MS = 600;         // lo que tarda el eje x en pasar de un escalón al siguiente
+const X_STEPS = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500];  // separación de las marcas del eje x
 const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const ACENTO = css(PALETA.acento);
 
@@ -45,13 +52,37 @@ const toBytes = (hex) => Uint8Array.from(hex.match(/../g), (h) => parseInt(h, 16
 const printable = (b) => b >= 0x20 && b < 0x7f;
 const coma = (x, d) => x.toFixed(d).replace('.', ',');
 
-// La clave que se carga en la placa (o en la simulación): la de la diapositiva «pregunta»,
-// ASCII rellenado a 16 con espacios, o la de laboratorio si no hay ninguna.
+// Final del eje x con n trazas recibidas: el escalón (50, 100, 200…) en el que n no pasa del 85 %.
+function axisFor(n, total) {
+  let s = AXIS0;
+  while (s < total && n > 0.85 * s) s *= 2;
+  return Math.min(s, total);
+}
+
+// La clave de la sala (los bytes que eligió el público desde el móvil), o null.
+function roomKey() {
+  let hex = '';
+  try { hex = sessionStorage.getItem('demo:clave-hex') ?? ''; } catch { /* sin almacenamiento */ }
+  return /^[0-9a-f]{32}$/.test(hex) ? hex : null;
+}
+
+// La clave que se carga en la placa (o en la simulación): la de la diapositiva «pregunta»
+// (la de la sala o la palabra, ASCII rellenado a 16 con espacios), o la de laboratorio si no hay ninguna.
 function chosenKey() {
+  const hex = roomKey();
+  if (hex) return hex;
   let text = '';
   try { text = sessionStorage.getItem('demo:clave') ?? ''; } catch { /* sin almacenamiento */ }
   text = [...text].filter((c) => printable(c.charCodeAt(0))).join('').slice(0, 16);
   return text ? toHex([...text.padEnd(16, ' ')].map((c) => c.charCodeAt(0))) : LAB_KEY;
+}
+
+// Avisa a la sala de los bytes que el ataque ya ha sacado; sin posiciones, de que empieza otra captura.
+// Va con la clave de la captura: el servidor solo los cuenta si es la de la ronda.
+function tellRoom(posiciones, trazas, clave) {
+  fetch(new URL('/api/sala/leidos', location.href), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ posiciones, trazas, clave }),
+  }).catch(() => { /* la demo no depende de la sala */ });
 }
 
 // La hoja de estilos de la demo, una vez por documento; resuelve cuando ha cargado.
@@ -252,7 +283,7 @@ const TEMPLATE = `
       <div class="demo-kpis">
         <div class="demo-kpi"><span>Trazas</span><b><span class="roll" data-kpi="n"></span></b></div>
         <div class="demo-kpi"><span>Trazas por segundo</span><b><span class="roll" data-kpi="ritmo"></span></b></div>
-        <div class="demo-kpi demo-kpi-clave"><span>Bytes recuperados</span><b><span class="roll" data-kpi="rec"></span><em>/16</em></b></div>
+        <div class="demo-kpi demo-kpi-clave"><span>Bytes recuperados</span><b><span class="roll" data-kpi="rec"></span><em>/16</em></b><small class="demo-kpi-con" role="status" aria-live="polite"></small></div>
       </div>
       <section class="demo-panel demo-grafica">
         <header><h3>Byte <span data-sel>0</span>: el correcto frente al azar</h3><span class="demo-chip"><i></i><span></span></span></header>
@@ -261,7 +292,6 @@ const TEMPLATE = `
           <div class="demo-ejes" aria-hidden="true">
             <span class="t-y">parecido</span>
             ${Y_TICKS.map((v) => `<span class="y" style="top:calc(var(--pt) + (100% - var(--pt) - var(--pb)) * ${1 - v})">${v ? coma(v, v % 0.5 ? 2 : 1).replace(',0', '') : '0'}</span>`).join('')}
-            ${[0, 0.25, 0.5, 0.75, 1].map((f) => `<span class="x" data-f="${f}" style="left:calc(var(--pl) + (100% - var(--pl) - var(--pr)) * ${f})"></span>`).join('')}
           </div>
           <span class="demo-punta"></span>
         </div>
@@ -272,9 +302,6 @@ const TEMPLATE = `
       <header><h3>Los 256 candidatos del byte <span data-sel>0</span></h3><span class="demo-sub"></span></header>
       <div class="demo-escena vacia"></div>
     </section>
-  </div>
-  <div class="demo-toast" role="status" aria-live="polite">
-    <i class="ico">${CHECK}</i><div class="tx"><p></p><strong></strong><small></small></div>
   </div>
   <canvas class="demo-fx" aria-hidden="true"></canvas>`;
 
@@ -292,16 +319,21 @@ export function mount(container, options = {}) {
   const cells = [...container.querySelectorAll('.demo-byte')];
   const kpi = { n: $('[data-kpi="n"]'), ritmo: $('[data-kpi="ritmo"]'), rec: $('[data-kpi="rec"]') };
   const lienzo = $('.demo-lienzo'), chart = $('.demo-lienzo canvas'), tip = $('.demo-punta');
-  const toastEl = $('.demo-toast'), fxCanvas = $('.demo-fx');
+  const fxCanvas = $('.demo-fx');
   for (const [k, v] of Object.entries(PAD)) lienzo.style.setProperty(`--p${k}`, `${v}px`);
 
   // Estado de la demo y de la captura en curso.
   let modo = 'grabado', estado = 'listo', servidor = null, nanoMotivo = SIN_SERVIDOR;
-  let sel = 0, gen = 0, received = 0, nAxis = o.n, S = 0, offset = 0, key = null, ascii = false;
-  let history = [], shown = null, last = null, abort = null, ending = false, rewarded = false, streak = 0;
+  let sel = 0, gen = 0, received = 0, S = 0, offset = 0, key = null, ascii = false;
+  // Eje x: axisTo es el escalón actual y axisAt, el que se dibuja, que va de axisFrom a axisTo desde axisT0.
+  let axisTo = axisFor(0, o.n), axisAt = axisTo, axisFrom = axisTo, axisT0 = 0;
+  // stopAt: la traza en la que la captura para sola (0 mientras no se haya recuperado la clave).
+  let history = [], shown = null, last = null, abort = null, ending = false, rewarded = false, streak = 0, stopAt = 0;
   let pending = false, dirty = false, onResultHook = null, sceneData = null;
+  // La sala: ¿la clave de esta captura es la del público? Y qué bytes se le han contado ya.
+  let fromRoom = false, steady = new Uint8Array(16), told = new Set();
   const listeners = new AbortController();
-  let started = false, raf = 0, disposed = false, scene = null, toastTimer = 0, t0 = 0;
+  let started = false, raf = 0, disposed = false, scene = null, t0 = 0;
   const timers = new Set();
   const later = (fn, ms) => { const id = setTimeout(() => { timers.delete(id); fn(); }, ms); timers.add(id); };
 
@@ -345,10 +377,11 @@ export function mount(container, options = {}) {
   function clear() {
     abort?.(); abort = null;
     gen++; received = 0; history = []; shown = null; last = null; key = null; chartDirty = true;
-    ending = false; rewarded = false; streak = 0; pending = false; dirty = false;
+    ending = false; rewarded = false; streak = 0; stopAt = 0; pending = false; dirty = false;
     sceneData = null;
+    resetAxis(o.n);
     sceneBox.classList.add('vacia');
-    hideToast();
+    $('.demo-kpi-con').textContent = '';
     paintCells(null);
     roll(kpi.n, '0'); roll(kpi.ritmo, '0,0'); roll(kpi.rec, '0');
     $('.demo-kpi-clave').classList.remove('ok');
@@ -379,19 +412,37 @@ export function mount(container, options = {}) {
     container.classList.toggle('demo-hex', !ascii);
     [offset] = info.ventana;
     S = info.ventana[1] - info.ventana[0];
-    nAxis = info.n;
-    paintAxis();
-    chartDirty = true;
+    resetAxis(info.n);
     setLabel(info.etiqueta, info.aviso);
     worker.postMessage({ type: 'reset', gen, S, key });
+    fromRoom = !!servidor && !isStatic && info.modo !== 'grabado' && info.clave_hex === roomKey();
+    steady = new Uint8Array(16);
+    told = new Set();
+    if (fromRoom) tellRoom([], 0);
+  }
+
+  // A la sala se le cuenta un byte cuando lleva tres cálculos seguidos en primer
+  // puesto (al principio, un acierto puede ser suerte y deshacerse) o, al acabar,
+  // todos los que hayan quedado primeros.
+  function reportRoom(r, final = false) {
+    if (!fromRoom) return;
+    const news = [];
+    r.bytes.forEach((b, j) => {
+      steady[j] = b.rank === 1 ? Math.min(steady[j] + 1, 3) : 0;
+      if ((steady[j] >= 3 || (final && b.rank === 1)) && !told.has(j)) { told.add(j); news.push(j); }
+    });
+    if (news.length) tellRoom(news, r.n, roomKey());
   }
 
   function lote(b) {
-    if (estado !== 'capturando') return;
+    if (estado !== 'capturando' || ending) return;
     if (b.i0 !== received) { fail(`Lote fuera de orden: ${b.i0} en vez de ${received}`); return; }
-    let { plaintexts, traces, count } = b;
-    if (!plaintexts) {  // del servidor: JSON → arrays tipados
-      count = b.textos.length;
+    // Con la parada automática fijada, el último lote se recorta para acabar justo en stopAt.
+    const count = Math.min(b.textos?.length ?? b.count, stopAt ? stopAt - received : Infinity);
+    let { plaintexts, traces } = b;
+    if (plaintexts) {
+      if (count < b.count) { plaintexts = plaintexts.slice(0, 16 * count); traces = traces.slice(0, (traces.length / b.count) * count); }
+    } else {  // del servidor: JSON → arrays tipados
       plaintexts = new Uint8Array(16 * count);
       traces = new Float32Array(S * count);
       for (let i = 0; i < count; i++) {
@@ -403,7 +454,9 @@ export function mount(container, options = {}) {
     worker.postMessage({ type: 'add', gen, count, plaintexts, traces }, [plaintexts.buffer, traces.buffer]);
     received += count;
     roll(kpi.ritmo, coma(b.ritmo, 1));
-    requestCompute();
+    growAxis();
+    if (stopAt && received >= stopAt) stopCapture();
+    else requestCompute();
   }
 
   function fin() {
@@ -416,6 +469,14 @@ export function mount(container, options = {}) {
     ending = true;
     if (received < 2) setEstado(received ? 'hecho' : 'listo');
     else requestCompute();
+  }
+
+  // Con la clave ya fuera (con n trazas), la captura sigue hasta el doble, 50 trazas más como poco,
+  // para que se vea cómo se separan las curvas, y después para sola, como con «Parar».
+  function autoStop(n) {
+    if (estado !== 'capturando' || ending) return;
+    stopAt = Math.min(last?.n ?? o.n, Math.max(2 * n, n + 50));
+    if (received >= stopAt) stopCapture();
   }
 
   function stopCapture() {
@@ -442,6 +503,7 @@ export function mount(container, options = {}) {
     if (dirty) requestCompute();
     else if (ending && r.gen === gen && estado === 'capturando' && r.n === received) {
       setEstado('hecho');
+      reportRoom(r, true);
       if (!rewarded && recoveredCount(r) === 16) reward(r.n);
     }
   }
@@ -463,7 +525,8 @@ export function mount(container, options = {}) {
     if (r.byte === sel && r.rho) feedScene({ rho: r.rho, S: r.S, correct: key ? key[sel] : null, n: r.n, offset });
     else if (r.byte !== sel) dirty = true;  // ha cambiado el byte elegido a mitad de cálculo
     streak = rec === 16 ? streak + 1 : 0;
-    if (streak >= 2 && !rewarded && !isStatic) reward(r.n);
+    if (streak >= 2 && !rewarded && !isStatic) { reward(r.n); autoStop(r.n); }
+    reportRoom(r);
   }
 
   // ── Pintar ──────────────────────────────────────────────────────────
@@ -486,11 +549,49 @@ export function mount(container, options = {}) {
     if (received >= 2) requestCompute();
   }
 
+  // ── Eje x por escalones ─────────────────────────────────────────────
+  // Las marcas son las del escalón actual (axisTo) y se colocan sobre el eje que se dibuja (axisAt):
+  // al crecer el eje se deslizan a la izquierda y las nuevas entran por la derecha.
+  const ejes = $('.demo-lienzo .demo-ejes'), ticks = new Map();  // valor → <span>
+  const instant = RM || isStatic;
+  function resetAxis(total) {
+    axisTo = axisAt = axisFor(0, total);
+    paintAxis();
+  }
+  function growAxis() {
+    const a = axisFor(received, last?.n ?? o.n);
+    if (a === axisTo) return;
+    axisFrom = axisAt; axisTo = a; axisT0 = performance.now();
+    if (instant) axisAt = a;
+    paintAxis();
+  }
   function paintAxis() {
-    lienzo.querySelectorAll('.x').forEach((el) => {
-      const f = +el.dataset.f, v = Math.round(nAxis * f);
-      el.textContent = f === 1 ? `${v} trazas` : v;
-    });
+    const step = X_STEPS.find((s) => axisTo / s <= 5) ?? 5000, want = new Set();
+    for (let v = 0; v <= axisTo; v += step) want.add(v);
+    const top = Math.max(...want);
+    for (const [v, el] of ticks) {
+      if (want.has(v)) continue;
+      ticks.delete(v);
+      if (instant) el.remove(); else { el.style.opacity = '0'; later(() => el.remove(), 300); }
+    }
+    for (const v of want) {
+      let el = ticks.get(v);
+      if (!el) {  // nace transparente para que entre con la transición de opacidad
+        ticks.set(v, el = Object.assign(document.createElement('span'), { className: 'x' }));
+        el.style.opacity = '0';
+        ejes.append(el);
+        if (!instant) void el.offsetWidth;
+      }
+      el.textContent = v === top ? `${v} trazas` : v;
+    }
+    placeTicks();
+    chartDirty = true;
+  }
+  function placeTicks() {
+    for (const [v, el] of ticks) {
+      el.style.left = `calc(var(--pl) + (100% - var(--pl) - var(--pr)) * ${v / axisAt})`;
+      el.style.opacity = v <= axisAt * 1.001 ? '1' : '0';
+    }
   }
 
   // Serie del byte elegido, con la punta que persigue al último valor.
@@ -521,7 +622,13 @@ export function mount(container, options = {}) {
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, W, H);
     const pw = W - PAD.l - PAD.r, ph = H - PAD.t - PAD.b;
-    const X = (n) => PAD.l + (n / nAxis) * pw, Y = (v) => PAD.t + (1 - Math.min(1, v)) * ph;
+    const moving = axisAt !== axisTo;
+    if (moving) {
+      const f = Math.min(1, (now - axisT0) / AXIS_MS), e = f < 0.5 ? 4 * f ** 3 : 1 - (2 - 2 * f) ** 3 / 2;
+      axisAt = f === 1 ? axisTo : axisFrom + (axisTo - axisFrom) * e;
+      placeTicks();
+    }
+    const X = (n) => PAD.l + (n / axisAt) * pw, Y = (v) => PAD.t + (1 - Math.min(1, v)) * ph;
     g.lineWidth = 1; g.strokeStyle = 'rgba(0,0,0,.08)'; g.setLineDash([3, 5]);
     g.beginPath();
     for (const v of Y_TICKS) { g.moveTo(PAD.l, Y(v)); g.lineTo(PAD.l + pw, Y(v)); }
@@ -529,7 +636,7 @@ export function mount(container, options = {}) {
     // Lo que puede hacer el azar es la línea gris, el falso con más suerte medido; sin curva de fórmula.
     const pts = series();
     tip.classList.toggle('on', pts.length > 0);
-    if (!pts.length) return false;
+    if (!pts.length) return moving;
     const path = (P) => {
       g.moveTo(P[0][0], P[0][1]);
       for (let i = 1; i < P.length - 1; i++) g.quadraticCurveTo(P[i][0], P[i][1], (P[i][0] + P[i + 1][0]) / 2, (P[i][1] + P[i + 1][1]) / 2);
@@ -554,7 +661,7 @@ export function mount(container, options = {}) {
     g.strokeStyle = ACENTO; g.lineWidth = 3.2; g.stroke();
     tip.textContent = coma(pts.at(-1).c, 2);
     tip.style.transform = `translate(${tx + 16}px, ${ty}px) translateY(-50%)`;
-    return settling;
+    return settling || moving;
   }
 
   // Mientras se captura, la gráfica late en cada fotograma; si no, solo se
@@ -577,7 +684,8 @@ export function mount(container, options = {}) {
       if (disposed) return;
       const host = document.createElement('div');
       sceneBox.append(host);
-      const s = m.mount(host, { static: isStatic, step: 0 });
+      // Sin la píldora del azar: el panel de la izquierda ya enfrenta el correcto al azar.
+      const s = m.mount(host, { static: isStatic, step: 0, noiseLabel: false });
       scene = { kind: '3d', host, inst: s };  // la instancia tal cual, sin copiar sus métodos
       if (started) { s.start?.(); s.step?.(0); }
     } catch {
@@ -606,35 +714,10 @@ export function mount(container, options = {}) {
   function reward(n) {
     rewarded = true;
     const secs = (performance.now() - t0) / 1000;
-    const big = ascii ? `«${String.fromCharCode(...key).trimEnd()}»` : toHex(key).replace(/(.{8})(?!$)/g, '$1 ');
-    toast('Clave recuperada', big, `con ${n} trazas en ${coma(secs, 1)} s`);
+    // La cifra de la apuesta (diapositiva 11) se queda en la tarjeta: el contador de trazas sigue subiendo.
+    $('.demo-kpi-con').textContent = `con ${n} trazas en ${coma(secs, 1)} s`;
     if (soundOn()) sound().then((m) => m?.play?.('success', { volume: 0.6 }));
     burst($('.demo-bytes'));
-  }
-
-  function toast(title, big, sub) {
-    clearTimeout(toastTimer);
-    toastEl.classList.remove('show');
-    toastEl.style.width = '';
-    void toastEl.offsetWidth;
-    toastEl.querySelector('p').innerHTML = [...title].map((c, i) => `<span style="animation-delay:${380 + i * 24}ms">${c === ' ' ? '&nbsp;' : c}</span>`).join('');
-    const strong = toastEl.querySelector('strong');
-    strong.textContent = big;
-    strong.classList.toggle('hex', !ascii);
-    toastEl.querySelector('small').textContent = sub;
-    toastEl.classList.add('show');
-    requestAnimationFrame(() => {
-      // La línea más ancha + icono (84) + hueco (22) + márgenes (14 + 14) + aire a la derecha (26).
-      const widest = Math.max(...[...toastEl.querySelectorAll('.tx > *')].map((el) => el.scrollWidth));
-      toastEl.style.width = `${Math.min(widest + 160, container.clientWidth - 96)}px`;
-    });
-    toastTimer = setTimeout(hideToast, 7000);
-  }
-  function hideToast() {
-    clearTimeout(toastTimer);
-    if (!toastEl.classList.contains('show')) return;
-    toastEl.style.width = '';
-    later(() => toastEl.classList.remove('show'), 300);
   }
 
   // Partículas que saltan de la clave, caen y se posan sobre ella, como ceniza,
@@ -716,7 +799,6 @@ export function mount(container, options = {}) {
   clear();
   setEstado('listo');
   paintSound();
-  paintAxis();
 
   // ¿Hay servidor? /api/estado, con poco margen: sin él, la demo sigue con lo grabado.
   async function probe() {
@@ -801,7 +883,6 @@ export function mount(container, options = {}) {
       onResultHook?.({});  // el modo estático no se queda esperando al worker
       chartRO.disconnect();
       cancelAnimationFrame(fxRaf);
-      clearTimeout(toastTimer);
       timers.forEach(clearTimeout);
       scene?.inst.dispose?.();
       container.innerHTML = '';
